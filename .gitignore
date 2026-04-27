@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+env/
+venv/
+
+# Build artifacts and metadata
+*.egg-info/
+dist/
+build/
+
+# PyCharm / JetBrains IDE
+.idea/
+*.iml
+
+# Testing and Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+nosetests.xml
+coverage.xml
+
+# Local system files
+.DS_Store
