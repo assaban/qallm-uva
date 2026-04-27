@@ -19,7 +19,7 @@ def test_ingestion_manager_git_clone():
     assert any("parsers.py" in f for f in filenames)
 
 
-def __test_ingestion_manager_zip_extraction(tmp_path):
+def test_ingestion_manager_zip_extraction(tmp_path):
     """
     Validates ZIP support for archived datasets.
     """
