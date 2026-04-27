@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qallm-uva"
+version = "0.1.0"
+description = "Execution-Based Quality Assessment of AI-Generated Code in Jupyter Notebooks"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pylint",
+    "radon",
+    "bandit",
+    "ruff",
+    "nbformat",
+    "ipywidgets",
+    "hypothesis",  # Required for RQ1 baseline comparison
+    "pytest",
+    "pytest-cov",
+    "coverage",
+    "scipy",        # Required for statistical evaluation (Wilcoxon)
+    "openai",
+    "anthropic",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
