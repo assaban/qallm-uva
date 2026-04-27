@@ -1,0 +1,10 @@
+LICENSE
+README.md
+pyproject.toml
+src/qallm/ingestion/parsers.py
+src/qallm_uva.egg-info/PKG-INFO
+src/qallm_uva.egg-info/SOURCES.txt
+src/qallm_uva.egg-info/dependency_links.txt
+src/qallm_uva.egg-info/requires.txt
+src/qallm_uva.egg-info/top_level.txt
+tests/test_ingestion.py
