@@ -1,69 +1,49 @@
 import subprocess
 import json
-from typing import List, Dict, Any
 from qallm.ingestion.parsers import CodeUnit
 
 class StaticAnalyzer:
-    """Stage 2: Static Quality Analysis Agent[cite: 75, 90]."""
+    """Stage 2: Structural Analysis Agent with mandatory audit metadata."""
 
-    def analyze(self, units: List[CodeUnit]) -> List[Dict[str, Any]]:
-        """Orchestrates static analysis across a batch of code units[cite: 77]."""
+    def analyze(self, units: list):
+        """Orchestrates static analysis across a batch of code units."""
         return [self._analyze_single_unit(u) for u in units]
 
-    def _analyze_single_unit(self, unit: CodeUnit) -> Dict[str, Any]:
-        """Runs the P4 static analysis tools (Radon, Bandit)[cite: 66, 68]."""
+    def _analyze_single_unit(self, unit: CodeUnit):
+        """Runs Radon and Bandit and captures file metadata for the final JSON."""
         report = {
+            "file_name": unit.original_path.name,
+            "full_path": str(unit.original_path),
             "cell_index": unit.cell_index,
-            "metrics": {},
+            "metrics": {"mi": 0.0, "cc": 0.0},
             "issues": []
         }
 
-        # 1. Maintainability Index (MI) - Robust Parser [cite: 68, 93]
-        res_mi = subprocess.run(
-            ["radon", "mi", "-j", "-"],
-            input=unit.source, capture_output=True, text=True
-        )
+        # 1. Maintainability Index (Radon)
+        res_mi = subprocess.run(["radon", "mi", "-j", "-"], input=unit.source, capture_output=True, text=True)
         if res_mi.returncode == 0 and res_mi.stdout.strip():
             try:
                 data = json.loads(res_mi.stdout)
-                # Radon MI output can be {"<stdin>": 100.0} or {"<stdin>": {"mi": 100.0}}
-                for val in data.values():
-                    if isinstance(val, (int, float)):
-                        report["metrics"]["mi"] = val
-                        break
-                    if isinstance(val, dict) and "mi" in val:
-                        report["metrics"]["mi"] = val["mi"]
-                        break
-            except json.JSONDecodeError:
-                pass
+                val = list(data.values())[0]
+                report["metrics"]["mi"] = val.get("mi") if isinstance(val, dict) else val
+            except: pass
 
-        # 2. Cyclomatic Complexity (CC) - Robust Parser [cite: 68, 93]
-        res_cc = subprocess.run(
-            ["radon", "cc", "-j", "-"],
-            input=unit.source, capture_output=True, text=True
-        )
+        # 2. Cyclomatic Complexity (Radon)
+        res_cc = subprocess.run(["radon", "cc", "-j", "-"], input=unit.source, capture_output=True, text=True)
         if res_cc.returncode == 0 and res_cc.stdout.strip():
             try:
                 data = json.loads(res_cc.stdout)
-                # CC usually returns a list of blocks per file key
-                for blocks in data.values():
-                    if isinstance(blocks, list) and len(blocks) > 0:
-                        avg_cc = sum(b.get("complexity", 0) for b in blocks) / len(blocks)
-                        report["metrics"]["cc"] = avg_cc
-                        break
-            except (json.JSONDecodeError, ZeroDivisionError):
-                pass
+                blocks = list(data.values())[0]
+                if blocks:
+                    report["metrics"]["cc"] = sum(b.get("complexity", 0) for b in blocks) / len(blocks)
+            except: pass
 
-        # 3. Security Vulnerabilities (Bandit) [cite: 68, 92]
-        res_sec = subprocess.run(
-            ["bandit", "-r", "-f", "json", "-q", "-"],
-            input=unit.source, capture_output=True, text=True
-        )
+        # 3. Security (Bandit)
+        res_sec = subprocess.run(["bandit", "-r", "-f", "json", "-q", "-"], input=unit.source, capture_output=True, text=True)
         if res_sec.stdout.strip():
             try:
                 data = json.loads(res_sec.stdout)
                 report["issues"].extend(data.get("results", []))
-            except json.JSONDecodeError:
-                pass
+            except: pass
 
         return report
