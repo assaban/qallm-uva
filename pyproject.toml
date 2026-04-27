@@ -23,6 +23,7 @@ dependencies = [
     "scipy",        # Required for statistical evaluation (Wilcoxon)
     "openai",
     "anthropic",
+    "gitPython",
 ]
 
 [tool.setuptools.packages.find]
