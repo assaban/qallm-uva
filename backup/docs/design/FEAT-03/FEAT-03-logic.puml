@@ -1,0 +1,29 @@
+@startuml
+!define STAGE2 #FFF2CC
+
+skinparam sequence {
+    ParticipantBackgroundColor STAGE2
+    ParticipantBorderColor #D4A017
+    LifeLineBackgroundColor #F5F5F5
+}
+
+title FEAT-02/03: Normalization Logic (Yellow)
+
+participant "StaticAnalyzer" as SA
+participant "LifecycleNormalizer" as LN << (S,STAGE2) >>
+
+SA -> LN : normalize(raw_metrics, stage)
+activate LN STAGE2
+
+LN -> LN : Get Thresholds for Stage
+note right: e.g., 'Publication' requires MI > 80
+
+alt stage == "Initialization"
+    LN -> LN : Apply relaxed thresholds
+else stage == "Publication"
+    LN -> LN : Apply strict thresholds
+end
+
+LN --> SA : NormalizedStatus (Pass/Warn/Fail)
+deactivate LN
+@enduml

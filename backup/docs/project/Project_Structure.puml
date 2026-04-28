@@ -1,0 +1,41 @@
+@startuml
+!define STAGE1 #DDEEFF
+!define STAGE2 #FFF2CC
+!define STAGE3 #F8CECC
+
+title qallm-uva: Thesis Project Structure (src layout)
+
+node "qallm-uva (Root)" {
+    folder "docs" #F5F5F5 {
+        folder "design" {
+            folder "FEAT-01" {
+                [FEAT-01.md]
+                [FEAT-01-logic.puml]
+            }
+        }
+    }
+
+    folder "src" #FFFFFF {
+        folder "qallm" STAGE1 {
+            folder "ingestion" STAGE1 {
+                [parsers.py]
+                [context.py]
+            }
+            folder "stage1_qqe" STAGE2 {
+                [metrics.py]
+            }
+            folder "stage2_lre" STAGE3 {
+                [generator.py]
+                [executor.py]
+            }
+        }
+    }
+
+    folder "tests" #F5F5F5 {
+        [test_ingestion.py]
+    }
+
+    [pyproject.toml]
+    [setup_backlog.sh]
+}
+@enduml
