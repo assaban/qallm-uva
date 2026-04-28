@@ -1,0 +1,29 @@
+@startuml
+!define STAGE1 #DDEEFF
+!define STAGE2 #FFF2CC
+!define STAGE3 #F8CECC
+
+skinparam sequence {
+    ParticipantBackgroundColor STAGE3
+    ParticipantBorderColor #B85450
+    LifeLineBackgroundColor #F5F5F5
+}
+
+title FEAT-04: Prompt Construction Logic (Red)
+
+participant "Orchestrator" as ORC
+participant "EvidenceBundle" as EB << (D,STAGE3) >>
+participant "PromptConstructor" as PC << (S,STAGE3) >>
+
+ORC -> EB : new(source, metrics, issues)
+activate EB STAGE3
+EB --> ORC : bundle_obj
+deactivate EB
+
+ORC -> PC : build_test_prompt(bundle_obj)
+activate PC STAGE3
+PC -> PC : Inject Oracle Instructions
+note right: Instructs LLM on Crash, Property,\nand Metamorphic oracles [cite: 221]
+PC --> ORC : formatted_prompt_string
+deactivate PC
+@enduml
