@@ -16,9 +16,19 @@ logger = logging.getLogger(__name__)
 
 # USD per 1,000,000 tokens (input / output). Local models cost 0.
 MODEL_RATES: dict[str, dict[str, float]] = {
-    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-    "gpt-5-mini": {"input": 2.50, "output": 10.00},
-    "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.00},
+    "gpt-4o-mini":      {"input": 0.15,  "output": 0.60},
+    "gpt-4o":           {"input": 2.50,  "output": 10.00},
+    "gpt-5-mini":       {"input": 2.50,  "output": 10.00},
+    "gpt-5-nano":       {"input": 0.20,  "output": 1.25},
+    "gpt-5.4-mini":     {"input": 0.75,  "output": 4.50},
+    "gpt-5.4-nano":     {"input": 0.20,  "output": 1.25},
+    "gpt-5.4":          {"input": 2.50,  "output": 15.00},
+    "gpt-5.5":          {"input": 5.00,  "output": 30.00},
+    "claude-haiku-3":   {"input": 0.25,  "output": 1.25},
+    "claude-haiku-3.5": {"input": 0.80,  "output": 4.00},
+    "claude-haiku-4.5": {"input": 1.00,  "output": 5.00},
+    "claude-sonnet-4":  {"input": 3.00,  "output": 15.00},
+    "claude-opus-4":    {"input": 15.00, "output": 75.00},
 }
 
 def calculate_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
