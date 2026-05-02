@@ -120,6 +120,7 @@ def run_tests(
         ]
 
         logger.info("Executing tests in %s (timeout=%ds)", work_dir, timeout)
+        logger.info("Executing command: %s", " ".join(cmd))
         start = time.monotonic()
 
         proc = subprocess.run(

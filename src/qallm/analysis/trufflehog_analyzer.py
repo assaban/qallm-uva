@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Dict, Any
 from .base_analyzer import StaticCodeAnalyzer
-from .models import RawToolResult
+from .analysis_model import RawToolResult
 from qallm.ingestion.parsers import CodeUnit
 
 

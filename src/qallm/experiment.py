@@ -19,7 +19,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from qallm.analysis.metrics import StaticAnalyzer
+from qallm.analysis.analysis_orchestration import AnalysisManager
 from qallm.analysis.normalizer import LifecycleNormalizer, LifecycleStage
 from qallm.config import settings
 from qallm.ingestion.parsers import IngestionManager

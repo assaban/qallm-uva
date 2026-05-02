@@ -2,12 +2,13 @@ from __future__ import annotations
 import shutil
 import subprocess
 import json
-from typing import Dict, Any
+import re
+
 from .base_analyzer import StaticCodeAnalyzer
-from .models import RawToolResult
+from .analysis_model import RawToolResult
 from qallm.ingestion.parsers import CodeUnit
+from .normalization.base_normalizer import ToolNormalizer
 from .normalization.bandit_normalizer import BanditNormalizer
-from .normalization.base import ToolNormalizer
 
 
 class BanditAnalyzer(StaticCodeAnalyzer):
@@ -15,7 +16,7 @@ class BanditAnalyzer(StaticCodeAnalyzer):
 
     def __init__(self):
         super().__init__()
-        self.name = "Bandit"
+        self.name = "bandit"
         self.normalizer = BanditNormalizer()
 
     def tool_name(self) -> str:
@@ -24,11 +25,32 @@ class BanditAnalyzer(StaticCodeAnalyzer):
     def get_normalizer(self) -> ToolNormalizer:
         return self.normalizer
 
+    def _safe_parse(self, stdout: str) -> dict:
+        """Robustly extracts JSON from stdout, stripping ANSI sequences."""
+        if not stdout:
+            return {}
+
+        # Strip ANSI escape sequences (terminal colors)
+        clean_text = re.sub(r'\x1b\[[0-9;]*[mGKF]', '', stdout).strip()
+
+        try:
+            return json.loads(clean_text)
+        except json.JSONDecodeError:
+            # Fallback: Find the first '{' and last '}'
+            start = clean_text.find('{')
+            end = clean_text.rfind('}')
+            if start != -1 and end != -1 and end > start:
+                try:
+                    return json.loads(clean_text[start:end + 1])
+                except json.JSONDecodeError:
+                    pass
+            return {}
+
     def analyze(self, unit: CodeUnit) -> RawToolResult:
         if shutil.which("bandit") is None:
             return RawToolResult("bandit", 127, "", "bandit not installed")
 
-        # Run bandit on stdin
+        # Run bandit on stdin to analyze the CodeUnit source directly
         process = subprocess.run(
             ["bandit", "-r", "-f", "json", "-q", "-"],
             input=unit.source,
@@ -36,29 +58,14 @@ class BanditAnalyzer(StaticCodeAnalyzer):
             text=True
         )
 
+        # Use robust parsing
+        bandit_json = self._safe_parse(process.stdout)
+
         return RawToolResult(
             tool=self.tool_name(),
             exit_code=process.returncode,
-            stdout=process.stdout,
+            stdout=json.dumps(bandit_json),
             stderr=process.stderr,
-            artifact=unit.original_path.name
+            # Point to the original file path for snippet extraction
+            artifact=str(unit.original_path.absolute()) if unit.original_path else "cell.py"
         )
-
-    def map_result_to_report(self, report: Dict[str, Any], raw_result: RawToolResult):
-        """Maps Bandit security findings to the unified issues list."""
-        try:
-            data = json.loads(raw_result.stdout)
-            findings = data.get("results", [])
-
-            for issue in findings:
-                # Standardize keys and tag with tool name
-                report["issues"].append({
-                    "test_id": issue.get("test_id"),
-                    "issue_text": issue.get("issue_text"),
-                    "line_number": issue.get("line_number"),
-                    "severity": issue.get("issue_severity"),
-                    "confidence": issue.get("issue_confidence"),
-                    "tool": self.tool_name(),
-                })
-        except json.JSONDecodeError:
-            pass

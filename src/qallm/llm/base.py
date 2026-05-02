@@ -107,6 +107,11 @@ class LLMModel(ABC):
     @abstractmethod
     def name(self) -> str:
         """Display name (e.g. 'gpt-4o-mini')."""
+    """Interface every LLM model must implement."""
+
+    @abstractmethod
+    def token_tracker(self) -> TokenTracker:
+        """Returns the token tracker for the model."""
 
     @abstractmethod
     def is_configured(self) -> bool:

@@ -5,9 +5,9 @@ import json
 import re
 
 from .base_analyzer import StaticCodeAnalyzer
-from .models import RawToolResult
+from .analysis_model import RawToolResult
 from qallm.ingestion.parsers import CodeUnit
-from .normalization.base import ToolNormalizer
+from .normalization.base_normalizer import ToolNormalizer
 from .normalization.radon_normalizer import RadonNormalizer
 
 

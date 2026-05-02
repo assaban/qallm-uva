@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
-from qallm.analysis.models import Finding, RawToolResult
+from qallm.analysis.analysis_model import Finding, RawToolResult
 
 
 @dataclass

@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 from qallm.ingestion.parsers import CodeUnit
-from qallm.analysis.metrics import StaticAnalyzer
+from qallm.analysis.analysis_orchestration import AnalysisManager
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def process_data(user_input):
 
 def test_static_analyzer_complexity(vulnerable_code_unit):
     """Verifies that Radon metrics (MI and CC) are captured."""
-    analyzer = StaticAnalyzer()
+    analyzer = AnalysisManager()
     report = analyzer._analyze_single_unit(vulnerable_code_unit)
 
     # Check Maintainability Index
@@ -35,7 +35,7 @@ def test_static_analyzer_complexity(vulnerable_code_unit):
 
 def test_static_analyzer_security(vulnerable_code_unit):
     """Verifies that Bandit security issues are captured[cite: 608, 632]."""
-    analyzer = StaticAnalyzer()
+    analyzer = AnalysisManager()
     report = analyzer._analyze_single_unit(vulnerable_code_unit)
 
     assert len(report["issues"]) > 0
