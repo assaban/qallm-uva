@@ -143,7 +143,12 @@ class QALLMOrchestrator:
             sessions_data = self._run_llm_verification(units, static_findings)
 
         # Stage 4: Reporting
-        return self._build_summary(source_path, units, sessions_data)
+        summary = self._build_summary(source_path, units, sessions_data)
+
+        # NEW: Generate the benchmark script in the report directory
+        self.reporter.generate_comparison_script() #[cite: 42]
+
+        return summary
 
     def _save_repair_artifacts(self, filename: str, original: str, repaired: str, diff: str):
         """Stores original, repaired, and diff files in the report directory."""

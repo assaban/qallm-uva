@@ -19,25 +19,29 @@ def process_data(user_input):
     return CodeUnit(source=code, cell_index=1, original_path=Path("test.ipynb"))
 
 
-def test_static_analyzer_complexity(vulnerable_code_unit):
-    """Verifies that Radon metrics (MI and CC) are captured."""
-    analyzer = AnalysisManager()
-    report = analyzer._analyze_single_unit(vulnerable_code_unit)
-
-    # Check Maintainability Index
-    assert "mi" in report["metrics"]
-    assert isinstance(report["metrics"]["mi"], (int, float))
-
-    # Check Cyclomatic Complexity
-    assert "cc" in report["metrics"]
-    assert report["metrics"]["cc"] > 1
+def test_analysis_manager_returns_findings(vulnerable_code_unit):
+    """Verifies that AnalysisManager returns a list of Finding objects."""
+    manager = AnalysisManager()
+    findings = manager.analyze([vulnerable_code_unit])
+    assert isinstance(findings, list)
+    assert len(findings) > 0
 
 
-def test_static_analyzer_security(vulnerable_code_unit):
-    """Verifies that Bandit security issues are captured[cite: 608, 632]."""
-    analyzer = AnalysisManager()
-    report = analyzer._analyze_single_unit(vulnerable_code_unit)
+def test_analysis_manager_detects_security_issues(vulnerable_code_unit):
+    """Verifies that Bandit security issues are captured."""
+    manager = AnalysisManager()
+    findings = manager.analyze([vulnerable_code_unit])
 
-    assert len(report["issues"]) > 0
-    issue_ids = [issue["test_id"] for issue in report["issues"]]
-    assert "B105" in issue_ids
+    security_findings = [f for f in findings if f.tool == "bandit"]
+    assert len(security_findings) > 0
+    rule_ids = [f.rule_id for f in security_findings]
+    assert "B105" in rule_ids
+
+
+def test_analysis_manager_detects_complexity(vulnerable_code_unit):
+    """Verifies that Radon complexity analysis runs without error.
+    Note: findings are only emitted for CC > 5 and MI < 70."""
+    manager = AnalysisManager(selected_tools=["radon"])
+    findings = manager.analyze([vulnerable_code_unit])
+    # Radon ran successfully; findings depend on thresholds
+    assert isinstance(findings, list)

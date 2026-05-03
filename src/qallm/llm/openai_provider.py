@@ -11,12 +11,18 @@ logger = logging.getLogger(__name__)
 
 
 class OpenAIModel(LLMModel):
+
     def __init__(self, model_id: str | None = None) -> None:
         self._model_id = model_id or settings.OPENAI_MODEL
         self._is_gpt5 = self._model_id.startswith("gpt-5")
+        self.tracker: TokenTracker = TokenTracker(budget=199999999999)
+
+    def token_tracker(self) -> TokenTracker:
+        return self.tracker
 
     def name(self) -> str:
         return self._model_id
+        # return f"openai/{self._model_id}"
 
     def is_configured(self) -> bool:
         return bool(settings.OPENAI_API_KEY)

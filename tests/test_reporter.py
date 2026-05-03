@@ -2,7 +2,13 @@ import pytest
 from qallm.utils.reporter import QualityReporter
 
 
-def test_reporter_creates_directory_and_file():
+def test_reporter_creates_directory():
     r = QualityReporter()
-    path = r.save_static_report([{"test": True}])
+    assert r.report_dir.exists()
+
+
+def test_reporter_saves_static_report():
+    r = QualityReporter()
+    r.save_static_report([{"test": True}])
+    path = r.report_dir / "static_analysis.json"
     assert path.exists()
