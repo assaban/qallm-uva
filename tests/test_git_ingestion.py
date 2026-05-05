@@ -1,4 +1,4 @@
-from qallm.ingestion.parsers import IngestionManager
+from qallm.ingestion.ingestion_manager import IngestionManager
 
 
 def test_ingestion_manager_git_clone():
@@ -16,7 +16,7 @@ def test_ingestion_manager_git_clone():
     assert len(units) > 0
     # Ensure at least one unit is the parser we wrote
     filenames = [str(u.original_path) for u in units]
-    assert any("parsers.py" in f for f in filenames)
+    assert any("ingestion_manager.py" in f for f in filenames)
 
 
 def test_ingestion_manager_zip_extraction(tmp_path):
@@ -35,4 +35,4 @@ def test_ingestion_manager_zip_extraction(tmp_path):
     units = manager.collect(str(zip_path))
 
     assert len(units) == 1
-    assert "test_func" in units[0].source
+    assert "test_func" in units[0].source_code

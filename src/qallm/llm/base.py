@@ -31,13 +31,20 @@ MODEL_RATES: dict[str, dict[str, float]] = {
     "claude-opus-4":    {"input": 15.00, "output": 75.00},
 }
 
-def calculate_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
+
+def calculate_cost_usd(model: str, input_tokens: int | None, output_tokens: int | None) -> float:
+    """Safely calculates USD cost, defaulting None tokens to 0."""
     rates = {"input": 0.0, "output": 0.0}
     for key, val in MODEL_RATES.items():
         if model.startswith(key):
             rates = val
             break
-    return (input_tokens * rates["input"] + output_tokens * rates["output"]) / 1_000_000
+
+    # Convert None to 0 to prevent TypeError
+    in_val = input_tokens if input_tokens is not None else 0
+    out_val = output_tokens if output_tokens is not None else 0
+
+    return (in_val * rates["input"] + out_val * rates["output"]) / 1_000_000
 
 
 @dataclass
@@ -71,17 +78,27 @@ class TokenTracker:
         return max(0, self.budget - self.total_tokens)
 
     def record(self, resp: LLMResponse) -> None:
+        """Records the results of an LLM call and updates cumulative metrics[cite: 37]."""
         self.calls += 1
-        self.total_input += resp.input_tokens
-        self.total_output += resp.output_tokens
-        call_cost = calculate_cost_usd(resp.model, resp.input_tokens, resp.output_tokens)
+
+        # Extract safe values once[cite: 37]
+        in_tokens = resp.input_tokens if resp.input_tokens is not None else 0
+        out_tokens = resp.output_tokens if resp.output_tokens is not None else 0
+
+        self.total_input += in_tokens
+        self.total_output += out_tokens
+
+        # Calculate cost using the safe values[cite: 37]
+        call_cost = calculate_cost_usd(resp.model, in_tokens, out_tokens)
         self.total_cost_usd += call_cost
+
         if resp.error:
             self.errors += 1
+
         self.history.append({
             "call": self.calls,
-            "input_tokens": resp.input_tokens,
-            "output_tokens": resp.output_tokens,
+            "input_tokens": in_tokens,
+            "output_tokens": out_tokens,
             "cost_usd": round(call_cost, 8),
             "model": resp.model,
             "provider": resp.provider,

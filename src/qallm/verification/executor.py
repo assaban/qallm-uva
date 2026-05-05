@@ -93,7 +93,7 @@ def run_tests(
     """
     work_dir = Path(tempfile.mkdtemp(prefix="qallm_test_"))
     module_name = source_filename.removesuffix(".py")
-
+    logger.info(f"Run test for {source_origin}::{module_name}!")
     try:
         source_path = work_dir / source_filename
         source_path.write_text(source_code, encoding="utf-8")
@@ -119,8 +119,8 @@ def run_tests(
             "--cov-report=", "--no-header", "--tb=short", "-q",
         ]
 
-        logger.info("Executing tests in %s (timeout=%ds)", work_dir, timeout)
-        logger.info("Executing command: %s", " ".join(cmd))
+        logger.debug("Executing tests in %s (timeout=%ds)", work_dir, timeout)
+        logger.debug("Executing command: %s", " ".join(cmd))
         start = time.monotonic()
 
         proc = subprocess.run(
@@ -132,6 +132,7 @@ def run_tests(
         coverage_pct, coverage_branches = _parse_coverage_json(coverage_json_path)
         total = counts["passed"] + counts["failed"] + counts["errors"] + counts["skipped"]
 
+        logger.info(f"Test execution: {source_origin}:{str(test_path)} completed!")
         return ExecutionResult(
             passed=counts["passed"], failed=counts["failed"],
             errors=counts["errors"], skipped=counts["skipped"],

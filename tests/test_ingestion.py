@@ -1,5 +1,5 @@
 import pytest
-from qallm.ingestion.parsers import NotebookAdapter
+from qallm.ingestion.ingestion_model import NotebookAdapter
 
 
 @pytest.fixture
@@ -45,12 +45,12 @@ def test_notebook_adapter_magic_stripping(sample_notebook):
     units = adapter.parse(sample_notebook)
 
     # Check first unit (removed %matplotlib)
-    assert "%matplotlib" not in units[0].source
-    assert "import pandas as pd" in units[0].source
+    assert "%matplotlib" not in units[0].source_code
+    assert "import pandas as pd" in units[0].source_code
 
     # Check second unit (removed !pip)
-    assert "!pip" not in units[1].source
-    assert "import numpy as np" in units[1].source
+    assert "!pip" not in units[1].source_code
+    assert "import numpy as np" in units[1].source_code
 
 
 def test_empty_notebook(tmp_path):

@@ -1,4 +1,4 @@
-from qallm.ingestion.parsers import IngestionManager
+from qallm.ingestion.ingestion_manager import IngestionManager
 
 
 def test_ingestion_manager_single_py(tmp_path):
@@ -8,7 +8,7 @@ def test_ingestion_manager_single_py(tmp_path):
     manager = IngestionManager()
     units = manager.collect(str(py_file))
     assert len(units) == 1
-    assert "print('test')" in units[0].source
+    assert "print('test')" in units[0].source_code
 
 
 def test_ingestion_manager_directory(tmp_path):

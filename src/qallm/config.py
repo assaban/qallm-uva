@@ -17,7 +17,7 @@ class Settings:
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "gemma3:4b")
 
-    TOKEN_BUDGET: int = int(os.getenv("TOKEN_BUDGET", "150000"))
+    TOKEN_BUDGET: int = int(os.getenv("TOKEN_BUDGET", "500000"))
 
 
 settings = Settings()

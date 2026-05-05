@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Any
 from .base_analyzer import StaticCodeAnalyzer
 from .analysis_model import RawToolResult
-from qallm.ingestion.parsers import CodeUnit
+from ..common.model import CodeUnit
 
 
 class TruffleHogAnalyzer(StaticCodeAnalyzer):
@@ -31,7 +31,7 @@ class TruffleHogAnalyzer(StaticCodeAnalyzer):
             # Use original filename if available, otherwise default to source.py
             filename = unit.original_path.name if unit.original_path else "source.py"
             target_file = workspace / filename
-            target_file.write_text(unit.source, encoding="utf-8")
+            target_file.write_text(unit.source_code, encoding="utf-8")
 
             # Execute trufflehog on the temporary directory
             # --json: Outputs findings as JSON lines (one object per finding)

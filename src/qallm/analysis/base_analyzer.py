@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from qallm.analysis.analysis_model import RawToolResult
 from qallm.analysis.normalization.base_normalizer import ToolNormalizer
-from qallm.ingestion.parsers import CodeUnit
+from qallm.common.model import CodeUnit
 
 
 class StaticCodeAnalyzer(ABC):

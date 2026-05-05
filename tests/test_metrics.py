@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
-from qallm.ingestion.parsers import CodeUnit
-from qallm.analysis.analysis_orchestration import AnalysisManager
+from qallm.common.model import CodeUnit
+from qallm.analysis.analysis_manager import AnalysisManager
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def process_data(user_input):
                 print(i, j, k)
     return True
 """
-    return CodeUnit(source=code, cell_index=1, original_path=Path("test.ipynb"))
+    return CodeUnit(source_code=code, cell_index=1, original_path=Path("test.ipynb"))
 
 
 def test_analysis_manager_returns_findings(vulnerable_code_unit):

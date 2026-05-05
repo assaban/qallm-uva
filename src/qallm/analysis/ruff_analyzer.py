@@ -2,7 +2,7 @@ import shutil
 import subprocess
 from .base_analyzer import StaticCodeAnalyzer
 from .analysis_model import RawToolResult
-from qallm.ingestion.parsers import CodeUnit
+from ..common.model import CodeUnit
 from .normalization.base_normalizer import ToolNormalizer
 
 class RuffAnalyzer(StaticCodeAnalyzer):
@@ -27,7 +27,7 @@ class RuffAnalyzer(StaticCodeAnalyzer):
         # Run ruff check on stdin[cite: 19]
         process = subprocess.run(
             ["ruff", "check", "--format", "json", "-"],
-            input=unit.source,
+            input=unit.source_code,
             capture_output=True,
             text=True
         )

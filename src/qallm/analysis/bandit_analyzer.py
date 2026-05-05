@@ -6,7 +6,7 @@ import re
 
 from .base_analyzer import StaticCodeAnalyzer
 from .analysis_model import RawToolResult
-from qallm.ingestion.parsers import CodeUnit
+from ..common.model import CodeUnit
 from .normalization.base_normalizer import ToolNormalizer
 from .normalization.bandit_normalizer import BanditNormalizer
 
@@ -53,7 +53,7 @@ class BanditAnalyzer(StaticCodeAnalyzer):
         # Run bandit on stdin to analyze the CodeUnit source directly
         process = subprocess.run(
             ["bandit", "-r", "-f", "json", "-q", "-"],
-            input=unit.source,
+            input=unit.source_code,
             capture_output=True,
             text=True
         )

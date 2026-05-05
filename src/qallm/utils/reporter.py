@@ -1,35 +1,110 @@
 import json
-import os
 from pathlib import Path
 from dataclasses import asdict, is_dataclass
 from typing import Any
 from datetime import datetime
 
+from qallm.analysis.analysis_model import AnalysedCodeUnit
+from qallm.repair.repair_model import RepairedCodeUnit
+from qallm.verification.models import TestedCodeUnit, TestGenerationSession
+
+
+def _json_serialize(obj: Any) -> Any:
+    """Helper to convert dataclasses to dicts for JSON serialization."""
+    if is_dataclass(obj):
+        return asdict(obj)
+    if isinstance(obj, (set, Path)):
+        return str(obj)
+    raise TypeError(f"Type {type(obj)} not serializable")
+
 
 class QualityReporter:
     """Handles persistence of analysis results and verification logs."""
 
-    def __init__(self, base_dir: str = "outputs/reports"):
+    def __init__(self, base_dir: str = "outputs/reports", run_id: str = None):
 
         # Creates a unique folder for the current run
         self.run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.report_dir = Path(base_dir) / self.run_id
         self.report_dir.mkdir(parents=True, exist_ok=True)
 
-    def _json_serialize(self, obj: Any) -> Any:
-        """Helper to convert dataclasses to dicts for JSON serialization."""
-        if is_dataclass(obj):
-            return asdict(obj)
-        if isinstance(obj, (set, Path)):
-            return str(obj)
-        raise TypeError(f"Type {type(obj)} not serializable")
-
-    def save_static_report(self, reports: list):
+    def save_static_report(self, analysed_code_unit: AnalysedCodeUnit, round_suffix:str) -> None:
         """Saves unified finding objects to disk."""
-        path = self.report_dir / "static_analysis.json"
+        round_suffix = self.report_dir / f"{round_suffix}"
+        round_suffix.mkdir(parents=True, exist_ok=True)
+
+        filename = analysed_code_unit.code_unit.original_path.name
+        if filename.endswith(".py"):
+            filename = filename.replace(".py", "_static_analysis.json")
+        path = round_suffix / f"{filename}"
+
         with open(path, "w", encoding="utf-8") as f:
             # We use the default parameter to catch any non-serializable objects
-            json.dump(reports, f, indent=4, default=self._json_serialize)
+            json.dump(analysed_code_unit.findings, f, indent=4, default=_json_serialize)
+
+    def save_static_repair_artifacts(self, repaired_code_unit: RepairedCodeUnit, round_suffix:str) -> None:
+        """Save original, repaired, and diff files for audit trail."""
+        repairs_dir = self.report_dir / f"{round_suffix}/repairs"
+        repairs_dir.mkdir(parents=True, exist_ok=True)
+
+        filename = repaired_code_unit.original_code_unit.original_path.stem
+        fromfile = f"{filename}_original.py"
+        tofile = f"{filename}_repaired.py"
+
+        (repairs_dir / Path(fromfile).name).write_text(repaired_code_unit.original_code_unit.source_code, encoding="utf-8")
+        (repairs_dir / Path(tofile).name).write_text(repaired_code_unit.repaired_result.repaired_source, encoding="utf-8")
+
+        if repaired_code_unit.repaired_result.unified_diff:
+            (repairs_dir / f"{filename}.diff").write_text(repaired_code_unit.repaired_result.unified_diff, encoding="utf-8")
+
+        # Save repair metadata
+        meta = {
+            "raw_file": repaired_code_unit.original_code_unit.original_path.name,
+            "from_file": fromfile,
+            "repaired_file": tofile,
+            "compiles": repaired_code_unit.repaired_result.compiles,
+            "validation_error": repaired_code_unit.repaired_result.validation_error,
+            "explanation": repaired_code_unit.repaired_result.explanation,
+        }
+        (repairs_dir / f"{filename}_meta.json").write_text(
+            json.dumps(meta, indent=2), encoding="utf-8"
+        )
+
+    def save_verification_artifacts(self, tested_unit: TestedCodeUnit, round_suffix: str):
+        """Handles all persistence for the verification stage."""
+        round_dir = self.report_dir / round_suffix
+        tests_dir = round_dir / "generated_tests"
+        tests_dir.mkdir(parents=True, exist_ok=True)
+        filename = tested_unit.repaired_unit.original_code_unit.original_path.stem
+        for session in tested_unit.sessions:
+            # 1. Save the latest Python test file[cite: 28]
+            if session.rounds:
+                last_round = session.rounds[-1]
+                if last_round.generated_test.is_valid:
+                    method_filename = f"test_{filename}_{session.function_name}.py"
+                    (tests_dir / method_filename).write_text(last_round.generated_test.test_code)
+
+            # 2. Save the full Session JSON for the function[cite: 28]
+            self._save_session(session, tests_dir / f"test_{session.function_name}_result.json")
+
+    @staticmethod
+    def _save_session(session: TestGenerationSession, output_path: Path) -> None:
+        """Persist a verification session as JSON for reproducibility.
+
+        Includes computed properties (final_coverage, final_bugs, learning_curve)
+        which are @property methods not captured by dataclasses.asdict().
+        """
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        data = asdict(session)
+        # Inject computed properties that asdict() skips
+        data["final_coverage"] = session.final_coverage
+        data["final_bugs"] = session.final_bugs
+        data["learning_curve"] = session.learning_curve
+        data["reward_per_round"] = session.reward_per_round
+        output_path.write_text(
+            json.dumps(data, indent=2, default=str),
+            encoding="utf-8",
+        )
 
     def generate_comparison_script(self):
         """Generates a script to run generated tests against both original and repaired code."""

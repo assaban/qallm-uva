@@ -1,6 +1,9 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
+
+from qallm.common.model import CodeUnit
+
 
 @dataclass
 class Finding:
@@ -24,3 +27,10 @@ class RawToolResult:
     stdout: str
     stderr: str
     artifact: str | None = None
+
+
+@dataclass
+class AnalysedCodeUnit:
+    code_unit: CodeUnit
+    findings: List[Finding] = field(default_factory=list)
+    raw_tool_results: List[RawToolResult] = field(default_factory=list)

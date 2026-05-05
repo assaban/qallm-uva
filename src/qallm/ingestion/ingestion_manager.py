@@ -1,5 +1,3 @@
-import json
-import re
 import os
 import tempfile
 import zipfile
@@ -7,30 +5,8 @@ from pathlib import Path
 from typing import List
 import git  # Requires pip install gitpython
 
-
-class CodeUnit:
-    """Represents a single executable unit of code[cite: 76]."""
-
-    def __init__(self, source: str, cell_index: int, original_path: Path):
-        self.source = source
-        self.cell_index = cell_index
-        self.original_path = original_path
-
-
-class NotebookAdapter:
-    """Handles .ipynb files by stripping magics and preserving cell order[cite: 76]."""
-    MAGIC_PATTERN = re.compile(r"^(%|!|%%).*$", re.MULTILINE)
-
-    def parse(self, path: Path) -> List[CodeUnit]:
-        with open(path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        units = []
-        for idx, cell in enumerate(data.get('cells', [])):
-            if cell.get('cell_type') == 'code':
-                raw = "".join(cell.get('source', []))
-                cleaned = self.MAGIC_PATTERN.sub("", raw)
-                units.append(CodeUnit(cleaned, idx, path))
-        return units
+from qallm.common.model import CodeUnit
+from qallm.ingestion.ingestion_model import NotebookAdapter
 
 
 class IngestionManager:
