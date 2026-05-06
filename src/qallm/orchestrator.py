@@ -28,9 +28,9 @@ logger = logging.getLogger(__name__)
 Strategy = Literal["rl", "oneshot", "hypothesis"]
 
 LLM_PROVIDERS = {
+    "ollama": OllamaModel,
     "openai": OpenAIModel,
     "anthropic": AnthropicModel,
-    "ollama": OllamaModel,
 }
 
 # 1. Add the import at the top of orchestrator.py
