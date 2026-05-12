@@ -75,16 +75,27 @@ class QALLMOrchestrator:
         logger.info(f"Initialization completed! Strategy {self.strategy}")
 
     def run(self, source_path: str) -> dict:
-        """Execute the full QALLM pipeline on a source path."""
+        """Execute the full QALLM pipeline on a source path.
+
+        Algorithm (Option A):
+          Baseline (Round 0): Analyse original code → store as baseline
+          Round N (1..max):   Repair → Analyse → Verify → Report
+        """
         logger.info(f"Starting QALLM operation for {source_path}...")
 
         # Stage 0: Ingestion
         logger.info("Stage 0: Ingesting %s", source_path)
         units = self.ingestion_manager.collect(source_path)
         logger.info("Stage 0 completed! Collected %d code units.", len(units))
-        message = "\n".join(f"{unit.original_path}" for unit in units)
-        logger.info(f"Details:\n[\n{message}\n]")
 
+        # Baseline (Round 0): Analyse only, no repair, no tests
+        logger.info("Baseline (Round 0): Static analysis on original code")
+        for unit in units:
+            analysed = self.analysis_manager.analyse_code_unit(unit)
+            self.reporter.save_static_report(analysed, "round_00_baseline")
+        logger.info("Baseline complete. Stored as round_00_baseline.")
+
+        # QALLM rounds: Repair → Analyse → Verify → Report
         round_cus_to_process = units
         while self.current_round <= self.rounds:
             round_cus_tested = self.run_round(round_cus_to_process)
@@ -93,29 +104,29 @@ class QALLMOrchestrator:
             self.current_round += 1
 
         session_data = self.verification_manager.get_session_data()
-
         summary = self._build_summary(source_path, units, session_data)
         return summary
 
     def run_round(self, units: list[CodeUnit]) -> list[TestedCodeUnit]:
         logger.info(f"Round ({self.current_round} of {self.rounds}) started...")
         round_suffix = self._construct_round_suffix()
+        persist_dir = self.reporter.report_dir / round_suffix
         results = []
 
         for unit in units:
-            # Step 1.1: Analyse -> Report
+            # Step 1: Analyse current code state
             analysed = self.analysis_manager.analyse_code_unit(unit)
-            # Step 1.2: Save/persist the static analysis result
-            self.reporter.save_static_report(
-                analysed, round_suffix)
+            self.reporter.save_static_report(analysed, round_suffix)
 
-            # Step 2.1: Repair -> Report
+            # Step 2: Repair findings from analysis
             repaired = self.repair_manager.repair_code_unit(analysed)
-            # Step 2.1. Also move repair saving to reporter
             self.reporter.save_static_repair_artifacts(repaired, round_suffix)
 
-            # Action: Verify -> Report
-            tested_unit = self.verification_manager.verify(repaired)
+            # Step 3: Verify (generates tests, executes, scores)
+            # persist_dir enables incremental saving after each function
+            tested_unit = self.verification_manager.verify(
+                repaired, persist_dir=persist_dir
+            )
             self.reporter.save_verification_artifacts(tested_unit, round_suffix)
 
             results.append(tested_unit)

@@ -39,9 +39,8 @@ class RepairManager:
         """Uses Repair agents to repair the supplied code and results in RepairedCodeUnit instance.
         The repaired code might or might not compile!"""
 
-        logger.info(f"Repairing: ["
-                    f"\nFile name: {analysed_code_unit.code_unit.original_path}"
-                    f"\nNumber of findings: {len(analysed_code_unit.findings)}\n")
+        logger.info(f"Repairing: ({len(analysed_code_unit.findings)}) findings ["
+                    f"File name: {analysed_code_unit.code_unit.original_path}")
 
         code_unit = analysed_code_unit.code_unit
         code_unit_path = str(code_unit.original_path.absolute())

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Wrench, FileCode2, CheckCircle2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Wrench, FileCode2, CheckCircle2, Lock } from "lucide-react";
 import { StatCard } from "../components/Shared";
 import type { SessionState } from "../hooks/useSession";
 import type { Patch } from "../types";
@@ -20,22 +20,22 @@ function DiffBlock({ diff }: { diff: string }) {
   );
 }
 
-export default function RepairScreen({ state, patch }: { state: SessionState; patch: (p: Partial<SessionState>) => void }) {
-  const [provider, setProvider] = useState("");
+export default function RepairScreen({ state, patch, autoMode }: { state: SessionState; patch: (p: Partial<SessionState>) => void; autoMode?: boolean }) {
   const [diffFile, setDiffFile] = useState("");
   const [diffContent, setDiffContent] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [sessionConfig, setSessionConfig] = useState<any>(null);
 
-  if (!loaded && state.sessionId) {
-    api.getProviders().then(p => patch({ providers: p.configured })).catch(() => {});
-    setLoaded(true);
-  }
+  useEffect(() => {
+    if (state.sessionId) {
+      fetch(`/api/session/${state.sessionId}/config`).then(r => r.json()).then(d => setSessionConfig(d.config)).catch(() => {});
+    }
+  }, [state.sessionId]);
 
   async function repair() {
     if (!state.sessionId) return;
     patch({ loading: true, error: null });
     try {
-      const r = await api.runRepair(state.sessionId, provider || undefined);
+      const r = await api.runRepair(state.sessionId);
       const v = await api.getVersions(state.sessionId).catch(() => []);
       patch({ repairResult: r, repairRound: r.repair_round, versions: v, loading: false });
     } catch (e: unknown) { patch({ loading: false, error: (e as Error).message }); }
@@ -55,24 +55,34 @@ export default function RepairScreen({ state, patch }: { state: SessionState; pa
       <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div>
           <h2 className="text-xl font-semibold">
-            LLM repairs the issues
+            LLM Repair
             {state.repairRound > 0 && <span className="ml-2 inline-block rounded-full bg-slate-900 px-2.5 py-0.5 text-xs text-white">Round {state.repairRound}</span>}
           </h2>
-          <p className="mt-1 text-sm text-slate-500">Code is snapshotted before each repair round.</p>
+          <p className="mt-1 text-sm text-slate-500">The selected LLM generates patches for all static analysis findings.</p>
         </div>
         <div className="flex items-center gap-3">
-          {state.providers.length > 0 && (
-            <select value={provider} onChange={e => setProvider(e.target.value)} className="rounded-lg border px-3 py-2 text-sm">
-              <option value="">Auto</option>
-              {state.providers.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
+          {/* Show locked model from session config */}
+          {sessionConfig && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+              <Lock className="h-3 w-3 text-slate-400" />
+              <span className="font-medium text-slate-700">{sessionConfig.model_label || sessionConfig.model_name}</span>
+            </div>
           )}
-          <button onClick={repair} disabled={state.loading} className="flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50">
-            <Wrench className="h-4 w-4" />{state.loading ? "Repairing..." : "Repair Findings"}
-          </button>
+          {!autoMode && (
+            <button onClick={repair} disabled={state.loading} className="flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50">
+              <Wrench className="h-4 w-4" />{state.loading ? "Repairing..." : "Repair Findings"}
+            </button>
+          )}
+          {autoMode && state.loading && (
+            <div className="flex items-center gap-2 text-sm text-indigo-600">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-500" /> Running repair...
+            </div>
+          )}
         </div>
       </div>
+
       {state.error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{state.error}</div>}
+
       {state.repairResult && <>
         <div className="grid gap-4 sm:grid-cols-3">
           <StatCard label="Files patched" value={patchedFiles.length} icon={FileCode2} />

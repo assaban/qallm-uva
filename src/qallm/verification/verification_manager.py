@@ -1,12 +1,20 @@
+"""Verification Manager: RL-guided test generation with incremental persistence.
+
+Within a QALLM round (Option A), test generation runs ONCE per function.
+The multi-round learning happens at the orchestrator level across QALLM rounds
+(repair → analyse → verify → report), not within test generation.
+
+After each function completes, artifacts are saved immediately to disk.
+"""
+
 import dataclasses
 import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Callable, Optional
 
 from qallm.verification.models import ExecutionResult
-
 from qallm.repair.repair_model import RepairedCodeUnit
 from .extractor import extract_functions_from_source
 from .generator import TestGenerator
@@ -25,31 +33,39 @@ class VerificationManager:
         self._session_registry: Dict[str, TestGenerationSession] = {}
 
     def get_session_data(self) -> list[dict]:
-        """Formats sessions for the summary report and CLI output[cite: 43]."""
+        """Formats sessions for the summary report and CLI output."""
         session_data = []
         for session in self._session_registry.values():
-            # Get raw fields[cite: 43]
             data = dataclasses.asdict(session)
-
-            # Inject calculated properties and map keys for CLI/Web compatibility
             data["function"] = session.function_name
             data["final_coverage"] = session.final_coverage
             data["final_bugs"] = session.final_bugs
             data["learning_curve"] = session.learning_curve
-
             session_data.append(data)
         return session_data
 
-    def verify(self, repaired_unit: RepairedCodeUnit) -> TestedCodeUnit:
+    def verify(
+        self,
+        repaired_unit: RepairedCodeUnit,
+        persist_dir: Optional[Path] = None,
+        on_function_complete: Optional[Callable] = None,
+    ) -> TestedCodeUnit:
+        """Run test generation once per function (Option A: single pass per QALLM round).
+
+        After each function completes:
+          1. Saves test code + session JSON immediately to persist_dir
+          2. Calls on_function_complete callback (for real-time UI updates)
+
+        The multi-round learning happens at the orchestrator level:
+        code improves via repair between QALLM rounds, not via test gen iteration.
+        """
         unit = repaired_unit.repaired_code_unit
         source, path = unit.source_code, unit.original_path
 
         functions = extract_functions_from_source(source, str(path))
         unit_sessions = []
 
-        for func in functions:
-            # Use full path to avoid filename collisions
-            # FIX: Use absolute path to prevent session collisions across different files
+        for func_idx, func in enumerate(functions):
             session_key = f"{path.absolute()}::{func.name}"
             session = self._session_registry.get(session_key)
             if not session:
@@ -62,20 +78,23 @@ class VerificationManager:
                 )
                 self._session_registry[session_key] = session
 
-            # 3. Incremental Generation[cite: 30]
             module_name = f"source_{path.stem}_c{unit.cell_index}"
+
+            logger.info(
+                "Verifying %s [%d/%d]",
+                func.name, func_idx + 1, len(functions),
+            )
+
+            # Generate tests (single pass per QALLM round)
             generated = self.generator.generate(func, module_name=module_name, existing_session=session)
 
-            # 4. Isolated Execution: Never return None[cite: 28, 31]
             if generated.is_valid:
                 execution = run_tests(source, generated.test_code, f"{module_name}.py", path)
             else:
-                # Create a result object that captures the generation error
                 execution = ExecutionResult(
                     execution_error=f"Skipped: {generated.generation_error or 'invalid test code'}"
                 )
 
-            # 5. RL Feedback: compute_reward now always gets an object[cite: 28]
             reward = compute_reward(execution, session.final_coverage)
 
             session.rounds.append(RoundResult(
@@ -85,12 +104,49 @@ class VerificationManager:
                                         execution.coverage_percent or 0.0) if execution else 0.0,
                 cumulative_bugs=session.final_bugs + (execution.bugs_found if execution else 0)
             ))
+
+            logger.info(
+                "  %s: reward=%.2f, coverage=%.1f%%, bugs=%d, valid=%s",
+                func.name, reward.total,
+                execution.coverage_percent or 0.0,
+                execution.bugs_found if execution else 0,
+                generated.is_valid,
+            )
+
+            # Incremental persistence: save immediately after each function
+            if persist_dir:
+                self._save_function_artifacts(session, func, persist_dir, path.stem)
+
+            # Callback for real-time updates (e.g. WebSocket, progress bar)
+            if on_function_complete:
+                on_function_complete(func.name, session, func_idx + 1, len(functions))
+
             unit_sessions.append(session)
 
         return TestedCodeUnit(repaired_unit=repaired_unit, sessions=unit_sessions)
 
+    def _save_function_artifacts(
+        self, session: TestGenerationSession, func, persist_dir: Path, file_stem: str
+    ) -> None:
+        """Save test code + session JSON immediately after a function completes."""
+        tests_dir = persist_dir / "generated_tests"
+        tests_dir.mkdir(parents=True, exist_ok=True)
 
-def save_session(session: TestGenerationSession, output_path: Path) -> None:
+        # Save the generated test file
+        if session.rounds:
+            last_round = session.rounds[-1]
+            if last_round.generated_test.is_valid:
+                test_filename = f"test_{file_stem}_{session.function_name}_r{len(session.rounds)}.py"
+                (tests_dir / test_filename).write_text(
+                    last_round.generated_test.test_code, encoding="utf-8"
+                )
+
+        # Save the session JSON (overwritten each round, always up to date)
+        session_path = tests_dir / f"session_{session.function_name}.json"
+        _save_session(session, session_path)
+
+
+def _save_session(session: TestGenerationSession, output_path: Path) -> None:
     """Persist a verification session as JSON for reproducibility.
 
     Includes computed properties (final_coverage, final_bugs, learning_curve)
@@ -98,7 +154,6 @@ def save_session(session: TestGenerationSession, output_path: Path) -> None:
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
     data = asdict(session)
-    # Inject computed properties that asdict() skips
     data["final_coverage"] = session.final_coverage
     data["final_bugs"] = session.final_bugs
     data["learning_curve"] = session.learning_curve
@@ -107,4 +162,7 @@ def save_session(session: TestGenerationSession, output_path: Path) -> None:
         json.dumps(data, indent=2, default=str),
         encoding="utf-8",
     )
-    logger.info("Session saved to %s", output_path)
+
+
+# Keep the old import path working
+save_session = _save_session

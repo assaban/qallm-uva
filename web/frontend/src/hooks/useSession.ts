@@ -12,6 +12,7 @@ export interface SessionState {
   repairResult: RepairResult | null;
   repairRound: number;
   providers: string[];
+  verificationStrategies: string[];
   testGenResult: VerificationResult | null;
   versions: VersionInfo[];
   loading: boolean;
@@ -19,16 +20,21 @@ export interface SessionState {
 }
 
 const INIT: SessionState = {
-    sessionId: null,
-    step: 1,
-    files: [],
-    selectedFiles: [],
-    providers: [], // Ensure this is initialized
-    verificationStrategies: [], // Ensure this is initialized
-    summary: null, findings: [], analysisRounds: [],
-    repairResult: null, repairRound: 0,
-    testGenResult: null, versions: [],
-    loading: false, error: null,
+  sessionId: null,
+  step: 1,
+  files: [],
+  selectedFiles: [],
+  providers: [],
+  verificationStrategies: [],
+  summary: null,
+  findings: [],
+  analysisRounds: [],
+  repairResult: null,
+  repairRound: 0,
+  testGenResult: null,
+  versions: [],
+  loading: false,
+  error: null,
 };
 
 export function useSession() {

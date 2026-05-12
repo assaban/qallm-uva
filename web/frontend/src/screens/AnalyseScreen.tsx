@@ -109,11 +109,25 @@ export default function AnalyseScreen({ state, patch }: { state: SessionState; p
           <p className="mt-3 text-[10px] text-slate-400">At least one tool must be selected[cite: 35].</p>
         </div>
 
-        {/* File Selection Section[cite: 35] */}
+        {/* File Selection Section */}
         <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-4 flex items-center gap-2 font-semibold">
-            <FolderTree className="h-4 w-4" /> Target Files
-          </h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="flex items-center gap-2 font-semibold">
+              <FolderTree className="h-4 w-4" /> Target Files
+            </h3>
+            <button
+              onClick={() => {
+                if (selectedFiles.size === state.files.length) {
+                  setSelectedFiles(new Set());
+                } else {
+                  setSelectedFiles(new Set(state.files));
+                }
+              }}
+              className="text-xs text-indigo-600 hover:underline"
+            >
+              {selectedFiles.size === state.files.length ? "Deselect all" : "Select all"}
+            </button>
+          </div>
           <div className="max-h-[160px] overflow-auto space-y-1 rounded-xl border border-slate-100 p-2">
             {state.files.map(file => (
               <label key={file} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs hover:bg-slate-50">
