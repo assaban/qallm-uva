@@ -26,6 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from qallm.config import settings
+from qallm.jobs import JobConflictError, JobStatus, get_store
 from qallm.orchestrator import QALLMOrchestrator, LLM_PROVIDERS
 
 logger = logging.getLogger(__name__)
@@ -422,15 +423,15 @@ async def get_functions(session_id: str):
     return {"functions": function_list}
 
 
-@app.post("/api/verification/run")
-async def run_verification(req: dict):
-    sid = req.get("session_id", "")
+def _run_verification_work(sid: str) -> dict:
+    """Synchronous body of the verification step.
+
+    Extracted so it can be backgrounded via the JobStore. Runs the full
+    RL verification loop for every code unit in the session and returns
+    the result payload the frontend expects.
+    """
     state = _get_state(sid)
     orch: QALLMOrchestrator = state["orchestrator"]
-
-    # Auto mode sends empty values; use session config as defaults
-    # Manual mode sends explicit values which are ignored since
-    # the orchestrator was already initialized with the right config
 
     from qallm.repair.repair_model import RepairedCodeUnit, RepairResult
     from qallm.analysis.analysis_model import AnalysedCodeUnit
@@ -481,6 +482,53 @@ async def run_verification(req: dict):
         "rounds_per_function": orch.rounds,
         "token_usage": orch.tracker.to_dict(),
     }
+
+
+@app.post("/api/verification/run")
+async def run_verification(req: dict):
+    """Submit the verification step as a background job.
+
+    Returns immediately with a job_id; the frontend polls
+    ``GET /api/jobs/{job_id}`` for status and the final result.
+
+    Only one active job per session at a time. Submitting while another
+    job is running for the same session returns 409.
+    """
+    sid = req.get("session_id", "")
+    # Validate the session exists before submitting; _get_state raises 404
+    # if not, which we want surfaced eagerly rather than from the worker.
+    _get_state(sid)
+
+    store = get_store()
+    try:
+        job = await store.submit_sync(
+            session_id=sid,
+            kind="verification",
+            work=lambda: _run_verification_work(sid),
+        )
+    except JobConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    return {"job_id": job.job_id, "session_id": sid, "status": job.status.value}
+
+
+@app.get("/api/jobs/{job_id}")
+async def get_job(job_id: str):
+    """Return the current status (and result, if done) of a background job."""
+    store = get_store()
+    job = await store.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    return job.to_dict()
+
+
+@app.get("/api/session/{session_id}/jobs")
+async def list_session_jobs(session_id: str):
+    """List all jobs ever submitted for a session, most recent first."""
+    store = get_store()
+    jobs = await store.list_for_session(session_id)
+    jobs_sorted = sorted(jobs, key=lambda j: j.created_at, reverse=True)
+    return {"jobs": [j.to_dict() for j in jobs_sorted]}
 
 
 # ═══════════════════════════════════════════════

@@ -103,13 +103,94 @@ export async function getFunctions(sid: string): Promise<FunctionEntry[]> {
   return (await req<{ functions: FunctionEntry[] }>(`/api/verification/functions/${sid}`)).functions;
 }
 
-export async function runTestGen(sid: string, model: string, oracle: string, rounds: number): Promise<VerificationResult> {
-  return post<VerificationResult>("/api/verification/run", {
+// ─── Background jobs ───
+// Long-running pipeline steps (verification today, others later) are
+// dispatched as background jobs. The submit endpoint returns immediately
+// with {job_id, session_id, status}; the frontend polls /api/jobs/{id}
+// until the status reaches "done" or "error".
+
+export type JobStatus = "pending" | "running" | "done" | "error";
+
+export interface JobHandle {
+  job_id: string;
+  session_id: string;
+  status: JobStatus;
+}
+
+export interface JobView<T = unknown> {
+  job_id: string;
+  session_id: string;
+  kind: string;
+  status: JobStatus;
+  created_at: number;
+  started_at: number | null;
+  finished_at: number | null;
+  result: T | null;
+  error: string | null;
+}
+
+export interface PollOptions {
+  intervalMs?: number;  // default 500
+  timeoutMs?: number;   // default 10 minutes
+  signal?: AbortSignal;
+}
+
+export async function getJob<T = unknown>(jobId: string): Promise<JobView<T>> {
+  return req<JobView<T>>(`/api/jobs/${jobId}`);
+}
+
+export async function pollJobUntilDone<T = unknown>(
+  jobId: string,
+  opts: PollOptions = {},
+): Promise<JobView<T>> {
+  const interval = opts.intervalMs ?? 500;
+  const timeout = opts.timeoutMs ?? 10 * 60 * 1000;
+  const deadline = Date.now() + timeout;
+
+  while (true) {
+    if (opts.signal?.aborted) {
+      throw new Error("Job polling aborted");
+    }
+    const view = await getJob<T>(jobId);
+    if (view.status === "done") return view;
+    if (view.status === "error") {
+      throw new Error(view.error || "Job failed without an error message");
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`Job ${jobId} did not finish within ${timeout}ms`);
+    }
+    await new Promise(r => setTimeout(r, interval));
+  }
+}
+
+export async function submitTestGen(
+  sid: string,
+  model: string,
+  oracle: string,
+  rounds: number,
+): Promise<JobHandle> {
+  return post<JobHandle>("/api/verification/run", {
     session_id: sid,
     model,
     oracle,
     rounds,
   });
+}
+
+// Backwards-compatible wrapper: submits a job and waits for the result.
+// Callers that want explicit progress can use submitTestGen + pollJobUntilDone.
+export async function runTestGen(
+  sid: string,
+  model: string,
+  oracle: string,
+  rounds: number,
+): Promise<VerificationResult> {
+  const handle = await submitTestGen(sid, model, oracle, rounds);
+  const view = await pollJobUntilDone<VerificationResult>(handle.job_id);
+  if (view.result === null) {
+    throw new Error("Verification job completed with no result");
+  }
+  return view.result;
 }
 
 // ─── Step 4: Results / Export ───
