@@ -63,7 +63,7 @@ class OllamaModel(LLMModel):
                 provider="ollama",
             )
         except Exception as e:
-            logger.error("Ollama API error [%s]: %s", self._model_id, e)
+            logger.error(f"Ollama ({settings.OLLAMA_BASE_URL}) API error [%s]: %s", self._model_id, e)
             resp = LLMResponse(content="", provider="ollama", model=self._model_id, error=str(e))
 
         if tracker:
