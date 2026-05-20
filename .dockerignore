@@ -1,0 +1,48 @@
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# Python build artefacts and caches
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+build
+dist
+.venv
+venv
+env
+
+# Node artefacts: re-installed inside the build stage
+node_modules
+web/frontend/node_modules
+web/dist
+web/frontend/.vite
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# Output / data not part of the image
+outputs
+uploads
+.env
+.env.*
+!.env.example
+
+# Tests are not needed at runtime
+tests
+
+# Editor scratch
+*.log
+.DS_Store
+
+# Pre-existing duplicates of the dashboard JSX (we use the built dist
+# from web/frontend instead).
+src/qallm/web/qallm_dashboard.jsx

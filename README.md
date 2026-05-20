@@ -140,19 +140,85 @@ This is the integration point Zhao and Nafis flagged in the supervision meeting:
 
 ## Getting started
 
-QALLM ships as a Python package with a CLI entry point (`qallm`) and an in-development FastAPI + React web UI for interactive use.
+QALLM ships as a Python package with a CLI entry point (`qallm`) and a FastAPI + React web UI for interactive use. You can run it three ways: as a containerised application (recommended for evaluation and deployment), from the CLI on a local Python install, or as two separate dev servers when developing the UI.
 
-### Install
+### Hardware requirements
+
+These are the requirements for running QALLM itself. Local LLM inference via Ollama needs significantly more (see below).
+
+| Resource    | Minimum                                | Recommended                            |
+|-------------|----------------------------------------|----------------------------------------|
+| CPU         | 2 cores, x86_64 or arm64               | 4+ cores                               |
+| RAM         | 4 GB                                   | 8 GB (more if you run large notebooks) |
+| Disk        | 2 GB free                              | 10 GB (room for reports and outputs)   |
+| OS          | Linux, macOS, or Windows with WSL2     | Linux                                  |
+| Python      | 3.10 or newer (only if running locally without Docker) | 3.12 |
+| Docker      | 20.10+ with Docker Compose v2 (only for containerised run) | latest stable |
+
+If you enable the optional Ollama profile to run local LLMs, add:
+
+| Resource | gemma3:4b | llama3:8b | larger models |
+|----------|-----------|-----------|---------------|
+| RAM      | 8 GB      | 16 GB     | 32 GB+        |
+| Disk     | 5 GB      | 10 GB     | 20-80 GB      |
+| GPU      | Optional  | Recommended | Required for usable latency |
+
+### LLM API keys
+
+QALLM can use OpenAI, Anthropic, or Ollama (local). You need at least one configured. For OpenAI and Anthropic, obtain an API key from the provider's console:
+
+* OpenAI: <https://platform.openai.com/api-keys>
+* Anthropic: <https://console.anthropic.com/>
+
+Ollama runs entirely locally; no key required, but you do need to pull the models you want to use.
+
+### Run with Docker (recommended)
+
+The repository ships a multi-stage Dockerfile and a Compose file that build the frontend, install the Python package, and serve both from a single port.
+
+```bash
+git clone https://github.com/assaban/qallm-uva.git
+cd qallm-uva
+
+# Configure API keys (at minimum one of OPENAI_API_KEY, ANTHROPIC_API_KEY).
+cp .env.example .env
+$EDITOR .env
+
+# Build and start (first build takes 3-5 minutes; subsequent rebuilds are faster).
+docker compose up --build
+```
+
+Open <http://localhost:8000> in a browser. The CLI is also available inside the container:
+
+```bash
+docker compose exec api qallm --source /home/qallm/app/uploads/your_notebook.ipynb --strategy rl
+```
+
+Outputs land in `./outputs` on the host (mounted into the container).
+
+To stop:
+
+```bash
+docker compose down
+```
+
+To enable the optional local Ollama service:
+
+```bash
+docker compose --profile with-ollama up
+# In a second terminal, pull the model you want to use:
+docker compose exec ollama ollama pull gemma3:4b
+```
+
+### Run from the CLI without Docker
 
 ```bash
 git clone https://github.com/assaban/qallm-uva.git
 cd qallm-uva
 pip install -e .
-```
 
-### Run from the CLI
+export OPENAI_API_KEY=sk-...   # or ANTHROPIC_API_KEY
 
-```bash
 # Static analysis only, on a notebook
 qallm --source notebooks/analysis.ipynb --strategy hypothesis
 
@@ -165,9 +231,26 @@ qallm --source notebooks/analysis.ipynb --strategy rl --rounds 5 --llm openai
 
 Inputs may be a single `.py` or `.ipynb` file, a directory, a `.zip` archive, or a GitHub URL.
 
-### Web UI (in development)
+### Develop the UI locally
 
-A React-based dashboard is being developed in [`src/qallm/web/`](src/qallm/web) (Option B from the architecture review: a Vite-built React SPA served as static assets by the same FastAPI process that exposes the QALLM API). The current state is a working FastAPI stub and a JSX design prototype; the production frontend lives on a feature branch and is wired stage-by-stage to the pipeline (upload, analyse, repair, re-analyse, generate tests, RL loop). The web UI is a planned thesis deliverable, not a finished one. CLI is the supported entry point today.
+For UI development, run the API and the Vite dev server separately so you get hot reload:
+
+```bash
+# Terminal 1: API on :8000
+pip install -e .
+uvicorn qallm.api.main:app --reload --port 8000
+
+# Terminal 2: frontend on :5173 with proxy to the API
+cd web/frontend
+npm install
+npm run dev
+```
+
+Open <http://localhost:5173>. Vite proxies `/api/*` to the FastAPI process automatically (see `web/frontend/vite.config.ts`).
+
+### Deployment to a shared server
+
+For a shared deployment (e.g. a UvA-managed VM), the Compose stack above is the unit of deployment. The recommended setup adds a reverse proxy in front for HTTPS; that's covered in a follow-up to this README. For now, see `.env.example` for the variables you need to provide.
 
 ## Repository layout
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import tempfile
 import uuid
@@ -23,6 +24,7 @@ from typing import Dict, List, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from qallm.config import settings
@@ -598,3 +600,39 @@ async def health():
         "anthropic": bool(settings.ANTHROPIC_API_KEY),
         "sessions": len(sessions),
     }
+
+
+# ─── Frontend static files ──────────────────────────────────────────
+# In a built/deployed image we serve the React app from the same process
+# as the API. The dist directory is created by the Docker frontend build
+# stage. In a local dev setup it usually doesn't exist (the developer
+# runs `vite dev` separately on :5173), so we mount only if present.
+#
+# Path resolution: if QALLM_FRONTEND_DIST is set (Docker), trust it.
+# Otherwise compute from the source tree, which only works for editable
+# installs (`pip install -e .`). A non-editable install must set the
+# env var because __file__ then points to site-packages, not the repo.
+
+_env_dist = os.getenv("QALLM_FRONTEND_DIST")
+if _env_dist:
+    _FRONTEND_DIST = Path(_env_dist)
+else:
+    # Editable / source-tree fallback: src/qallm/api/main.py -> repo root -> web/dist
+    _FRONTEND_DIST = Path(__file__).resolve().parents[2].parent / "web" / "dist"
+
+if _FRONTEND_DIST.is_dir():
+    # html=True makes FastAPI serve index.html for any unmatched path,
+    # which is what the React SPA router needs to handle client-side
+    # routes (e.g. /step/3) without hitting the API.
+    app.mount(
+        "/",
+        StaticFiles(directory=str(_FRONTEND_DIST), html=True),
+        name="frontend",
+    )
+    logger.info("Serving frontend static files from %s", _FRONTEND_DIST)
+else:
+    logger.info(
+        "Frontend dist not found at %s; running API only "
+        "(use `npm run dev` from web/frontend for local UI)",
+        _FRONTEND_DIST,
+    )
