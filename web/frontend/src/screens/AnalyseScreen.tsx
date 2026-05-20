@@ -12,7 +12,7 @@ const SEV_CLS: Record<string, string> = {
   LOW: "bg-blue-100 text-blue-800"
 };
 
-export default function AnalyseScreen({ state, patch }: { state: SessionState; patch: (p: Partial<SessionState>) => void }) {
+export default function AnalyseScreen({ state, patch }: { state: SessionState; patch: (p: Partial<SessionState>) => void; autoMode?: boolean }) {
   const [availableTools, setAvailableTools] = useState<string[]>([]);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set(state.files));
