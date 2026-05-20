@@ -94,17 +94,17 @@ The judge is the workflow's most critical and most contentious component.
 
 Given a variant and its parent in the lineage, the judge decides whether the variant is an improvement. The verdict is one of:
 
-* `improvement` — accept into the lineage.
-* `regression` — abandon.
-* `no_change` — abandon (no point keeping a variant that did not move the needle).
+* `improvement`: accept into the lineage.
+* `regression`: abandon.
+* `no_change`: abandon (no point keeping a variant that did not move the needle).
 
-### 5.2 How it decides — two inputs, both stored
+### 5.2 How it decides: two inputs, both stored
 
-`DECIDED` — for every round we store both of these, side by side:
+`DECIDED`: for every round we store both of these, side by side:
 
 1. **Raw numerical metrics.** Per-dimension, per-indicator values from the EVERSE profile. These are deterministic and reproducible. Example: `maintainability_index`: parent 62.4, variant 71.0; `bandit_high_findings`: parent 0, variant 0; `test_pass_rate`: parent 0.75, variant 0.92.
 
-2. **A model verdict.** The same LLM that performs repair (or a separate small judge model — see section 9 OPEN) is asked: "Given these EVERSE profile numbers for the parent and the variant, in the context of this code unit, is the variant an improvement, a regression, or no change?" The model returns a verdict and a written explanation.
+2. **A model verdict.** The same LLM that performs repair (or a separate small judge model: see section 9 OPEN) is asked: "Given these EVERSE profile numbers for the parent and the variant, in the context of this code unit, is the variant an improvement, a regression, or no change?" The model returns a verdict and a written explanation.
 
 Both are stored on the round record. Both are surfaced in the report. The model verdict is what drives the lineage decision in v1.
 
@@ -118,11 +118,11 @@ This is a small extra storage cost and an explicit thesis methodology choice. It
 
 For v1, the judge sees only the EVERSE profile output for parent and variant. It does not see the raw source code in the verdict prompt. This keeps the judge focused on quality dimensions and avoids the LLM falling back to "the code looks nicer."
 
-`OPEN — needs Nafis` — should the judge also see the raw test pass/fail counts and the actual bug list from verification, or only the rolled-up indicator booleans (`PASS`/`FAIL`/`SKIPPED`)? Argument for raw: more information leads to better judgements. Argument against: the profile is supposed to be the contract; bypassing it defeats the purpose of profiles. Default position: only the profile output, with raw metrics in storage but not in the prompt.
+`OPEN (needs Nafis)`: should the judge also see the raw test pass/fail counts and the actual bug list from verification, or only the rolled-up indicator booleans (`PASS`/`FAIL`/`SKIPPED`)? Argument for raw: more information leads to better judgements. Argument against: the profile is supposed to be the contract; bypassing it defeats the purpose of profiles. Default position: only the profile output, with raw metrics in storage but not in the prompt.
 
 ## 6. Budget and cost containment
 
-`DECIDED` — hard caps live in the loop's control logic. They are not negotiable by configuration alone. The order of precedence is: hard cap > soft env cap > model-judged stop.
+`DECIDED` hard caps live in the loop's control logic. They are not negotiable by configuration alone. The order of precedence is: hard cap > soft env cap > model-judged stop.
 
 | Cap                | Default | Configurable via    | What happens on trip                       |
 |--------------------|---------|---------------------|--------------------------------------------|
@@ -131,9 +131,9 @@ For v1, the judge sees only the EVERSE profile output for parent and variant. It
 | Max wall-clock     | 1800 s  | `QALLM_MAX_SECONDS` | Loop halts at next round boundary.         |
 | Max per-round time | 600 s   | `QALLM_ROUND_TIMEOUT` | Current round abandoned, loop continues.  |
 
-The hard caps are floors in the control flow — even if env vars are larger, the code enforces a ceiling (initial proposal: 10 rounds, 2M tokens, 3600 s total). This protects against config errors and runaway scripts. Final ceilings to be agreed.
+The hard caps are floors in the control flow, even if env vars are larger, the code enforces a ceiling (initial proposal: 10 rounds, 2M tokens, 3600 s total). This protects against config errors and runaway scripts. Final ceilings to be agreed.
 
-`OPEN — needs Nafis` — should there also be a per-provider dollar cap? E.g. "halt if estimated cost exceeds 5 USD this session." This is harder because it requires keeping price tables in sync; but for a deployed beta where Zhao or Nafis might run multiple sessions, a dollar fence may be the cleanest user-facing safeguard.
+`OPEN (needs Nafis`): should there also be a per-provider dollar cap? E.g. "halt if estimated cost exceeds 5 USD this session." This is harder because it requires keeping price tables in sync; but for a deployed beta where Zhao or Nafis might run multiple sessions, a dollar fence may be the cleanest user-facing safeguard.
 
 ## 7. Abandoned variants
 
@@ -152,7 +152,7 @@ This data has two uses:
 
 ## 8. Manual and auto mode
 
-`DECIDED` — manual and auto mode execute the same workflow. The only difference is who decides to start the next round:
+`DECIDED`: manual and auto mode execute the same workflow. The only difference is who decides to start the next round:
 
 * **Manual**: the user clicks "Next" between rounds.
 * **Auto**: the loop runs to completion or to budget exhaustion without user intervention.
