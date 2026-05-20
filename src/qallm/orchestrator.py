@@ -49,7 +49,7 @@ class QALLMOrchestrator:
     ) -> None:
         self.ingestion_manager = IngestionManager()
         self.analysis_manager = AnalysisManager()
-        self.reporter = QualityReporter("outputs/quality_reporter", datetime.now().strftime("%Y%m%d_%H%M%S"))
+        self.reporter = QualityReporter("/tmp/outputs/quality_reporter", datetime.now().strftime("%Y%m%d_%H%M%S"))
 
         self.stage = stage
         self.strategy = strategy
