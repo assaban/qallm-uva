@@ -19,10 +19,10 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from qallm.analysis.metrics import StaticAnalyzer
+from qallm.analysis.analysis_manager import AnalysisManager
 from qallm.analysis.normalizer import LifecycleNormalizer, LifecycleStage
 from qallm.config import settings
-from qallm.ingestion.parsers import IngestionManager
+from qallm.ingestion.ingestion_manager import IngestionManager
 from qallm.llm.base import TokenTracker
 from qallm.llm.openai_provider import OpenAIModel
 from qallm.llm.anthropic_provider import AnthropicModel
@@ -160,7 +160,7 @@ def run_experiment(
             continue
 
         for unit in units:
-            source_code = unit.source
+            source_code = unit.source_code
             source_filename = f"source_{unit.original_path.stem}_c{unit.cell_index}.py"
 
             # Strategy (a): Hypothesis (once per file, no model variation)

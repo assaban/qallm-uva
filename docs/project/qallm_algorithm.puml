@@ -1,0 +1,163 @@
+@startuml QALLM_Algorithm
+!theme plain
+skinparam backgroundColor white
+skinparam ActivityBorderColor #333333
+skinparam ActivityBackgroundColor #F8F9FA
+skinparam ActivityDiamondBorderColor #333333
+skinparam ArrowColor #333333
+skinparam NoteBackgroundColor #FFF3CD
+skinparam NoteBorderColor #856404
+skinparam PartitionBorderColor #0D6EFD
+skinparam PartitionBackgroundColor #E7F1FF
+
+title QALLM: Execution-Based Quality Assessment Algorithm
+
+start
+
+partition "**Stage 0: Setup**" {
+  :User uploads source files
+  (.py, .ipynb, .zip, Git URL);
+  :User selects configuration:
+  - LLM model (provider:model)
+  - Oracle type (crash | property | metamorphic)
+  - Number of QALLM rounds (N);
+  :Ingest: parse notebooks,
+  extract code units,
+  strip magics;
+}
+
+partition "**Baseline (Round 0): Static Analysis Only**" {
+  :Run static analysis on original code
+  (Bandit, Radon, Ruff);
+  :Store findings as **baseline_findings**;
+  :Generate **Baseline Report**
+  - Finding count by severity
+  - Maintainability Index
+  - Cyclomatic Complexity;
+  note right
+    This is the "before" snapshot.
+    No repair, no tests.
+    Used for RQ2 comparison.
+  end note
+}
+
+:round = 1;
+
+repeat
+
+  partition "**Round N: QALLM Feedback Cycle**" {
+
+    partition "Step 1: LLM Repair" #DCFCE7 {
+      :Build repair prompt from
+      **previous round's findings**;
+      :Call LLM to generate
+      complete corrected file;
+      :Validate with compile();
+      if (Compiles?) then (yes)
+        :Accept repaired code;
+      else (no)
+        :Feed SyntaxError back to LLM;
+        :Retry once;
+        if (Compiles now?) then (yes)
+          :Accept retried code;
+        else (no)
+          :Keep original code unchanged;
+        endif
+      endif
+      :Generate unified diff;
+      :Store repair artifacts
+      (original, repaired, diff, meta);
+    }
+
+    partition "Step 2: Re-Analyse" #E0F2FE {
+      :Run static analysis on **repaired** code;
+      :Compute delta vs baseline:
+      - resolved_findings
+      - introduced_findings
+      - improvement_detected;
+      :Store as **round_N_findings**;
+    }
+
+    partition "Step 3: RL-Guided Verification" #FEF3C7 {
+      :Extract functions from
+      current (repaired) code;
+
+      :For each function:;
+      :Build oracle-specific prompt
+      (crash / property / metamorphic);
+      :Call LLM to generate pytest test suite;
+      :Validate test code with AST parser
+      (CodeExtractor, multi-strategy);
+      :Force-prepend source module import;
+      :Execute tests in isolated sandbox
+      (DependencyMapper copies siblings);
+      :Collect: passed, failed, errors,
+      branch coverage %;
+      :Compute reward:
+      +1.0 per new bug found
+      +0.5 per new coverage %
+      -0.5 for invalid test
+      -0.2 per redundant test;
+      note right
+        The reward scores this round's
+        test quality. It does NOT feed
+        back into more test generation
+        within the same round (Option A).
+      end note
+    }
+
+    partition "Step 4: Round Report" #F3E8FF {
+      :Generate round report:
+      - Static findings delta (vs baseline + vs prev round)
+      - Bugs found by verification
+      - Branch coverage achieved
+      - Reward score
+      - Token usage and cost;
+      :Append to learning curve:
+      cumulative_reward[round] =
+      sum of rewards up to this round;
+    }
+  }
+
+  :round = round + 1;
+
+repeat while (round <= N?) is (yes)
+-> no;
+
+partition "**Final: Cross-Round Analysis**" {
+  :Compute aggregate statistics:
+  - Total bugs found across all rounds
+  - Final vs baseline finding count
+  - False confidence rate
+  - Average branch coverage
+  - Total cost (tokens, USD);
+  :Generate learning curve chart
+  (cumulative reward vs round);
+  :Compute improvement trajectory:
+  - Findings resolved per round
+  - Bugs discovered per round
+  - Coverage gain per round;
+  :Save full experiment report
+  (JSON + CSV);
+}
+
+stop
+
+legend right
+  **QALLM Round** = full pipeline cycle
+  (repair + analyse + verify + report)
+
+  **Baseline** = static analysis only
+  (Round 0, no LLM involvement)
+
+  **RQ1**: Does RL-guided verification
+  find more bugs than baselines?
+
+  **RQ2**: Does execution-based verification
+  improve assessment vs static-only?
+
+  **RQ3**: How to integrate into
+  researcher workflows?
+end legend
+
+@enduml

@@ -21,6 +21,9 @@ dependencies = [
     "openai",
     "anthropic",
     "gitPython",
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
 ]
 
 [project.scripts]

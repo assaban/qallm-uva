@@ -7,8 +7,27 @@ of the test generation and execution pipeline.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, List
 
+from qallm.repair.repair_model import RepairedCodeUnit
+
+
+@dataclass
+class TestedCodeUnit:
+    """The outcome of Stage 3: Verification."""
+    repaired_unit: RepairedCodeUnit
+    sessions: List[TestGenerationSession] = field(default_factory=list) #
+
+    @property
+    def total_bugs(self) -> int:
+        """Sum of bugs found across all function sessions."""
+        return sum(s.final_bugs for s in self.sessions) #[cite: 41]
+
+    @property
+    def avg_coverage(self) -> float:
+        """Average coverage across all tested functions."""
+        valid_covs = [s.final_coverage for s in self.sessions if s.final_coverage is not None]
+        return sum(valid_covs) / len(valid_covs) if valid_covs else 0.0 #[cite: 41]
 
 @dataclass(frozen=True)
 class FunctionInfo:
@@ -150,12 +169,14 @@ class TestGenerationSession:
 
     @property
     def learning_curve(self) -> list[float]:
-        """List of cumulative reward totals per round, for plotting."""
-        cumulative = 0.0
+        """Cumulative reward trend across rounds[cite: 28]."""
         curve = []
+        cumulative = 0.0
         for r in self.rounds:
-            cumulative += r.reward.total
-            curve.append(round(cumulative, 4))
+            # Defensive check: skip if reward is missing or treat as 0
+            if r.reward and hasattr(r.reward, 'total'):
+                cumulative += r.reward.total
+            curve.append(round(cumulative, 2))
         return curve
 
     @property

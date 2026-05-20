@@ -29,3 +29,4 @@ coverage.xml
 
 # Research Outputs
 outputs/
+/web/frontend/.vite/

@@ -13,9 +13,13 @@ logger = logging.getLogger(__name__)
 class OllamaModel(LLMModel):
     def __init__(self, model_id: str | None = None) -> None:
         self._model_id = model_id or settings.OLLAMA_MODEL
+        self.tracker: TokenTracker = TokenTracker(budget=199999999999)
 
     def name(self) -> str:
         return f"ollama/{self._model_id}"
+
+    def token_tracker(self) -> TokenTracker:
+        return self.tracker
 
     def is_configured(self) -> bool:
         base_url = settings.OLLAMA_BASE_URL

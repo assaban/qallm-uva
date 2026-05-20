@@ -11,12 +11,13 @@ import logging
 import re
 
 from qallm.llm.base import LLMModel, TokenTracker
-from qallm.verification.models import FunctionInfo, GeneratedTest, OracleType
+from qallm.verification.models import FunctionInfo, GeneratedTest, OracleType, TestGenerationSession
 from qallm.verification.prompts import (
     SYSTEM_PROMPT,
     build_crash_oracle_prompt,
     build_metamorphic_oracle_prompt,
     build_property_oracle_prompt,
+    build_feedback_prompt
 )
 from qallm.verification.sandbox import CodeExtractor
 
@@ -55,21 +56,40 @@ class TestGenerator:
         self.tracker = tracker or TokenTracker(budget=50_000)
 
     def generate(
-        self,
-        func: FunctionInfo,
-        oracle: OracleType = "crash",
-        module_name: str = "source_module",
+            self,
+            func: FunctionInfo,
+            oracle: OracleType = "crash",
+            module_name: str = "source_module",
+            existing_session: TestGenerationSession | None = None
     ) -> GeneratedTest:
-        builder = PROMPT_BUILDERS.get(oracle)
-        if builder is None:
-            return GeneratedTest(
-                function_name=func.name, oracle=oracle, test_code="",
-                is_valid=False, generation_error=f"Unknown oracle type: {oracle}",
+        """
+        Generates pytest test cases. If an existing_session with previous rounds
+        is provided, it switches to a feedback-driven prompt.
+        """
+        # 1. Select the appropriate prompt builder based on session state
+        if existing_session and len(existing_session.rounds) > 0:
+            last_round = existing_session.rounds[-1]
+            logger.info("Generating feedback-based tests for %s (Round %d)",
+                        func.name, len(existing_session.rounds) + 1)
+
+            user_prompt = build_feedback_prompt(
+                func=func,
+                previous_test_code=last_round.generated_test.test_code,
+                execution=last_round.execution,
+                reward=last_round.reward,
+                round_number=len(existing_session.rounds) + 1,
             )
+        else:
+            builder = PROMPT_BUILDERS.get(oracle)
+            if builder is None:
+                return GeneratedTest(
+                    function_name=func.name, oracle=oracle, test_code="",
+                    is_valid=False, generation_error=f"Unknown oracle type: {oracle}",
+                )
+            logger.info("Generating initial %s tests for %s", oracle, func.name)
+            user_prompt = builder(func)
 
-        user_prompt = builder(func)
-        logger.info("Generating %s tests for %s via %s", oracle, func.name, self.llm.name())
-
+        # 2. Call the LLM[cite: 39]
         resp = self.llm.chat(SYSTEM_PROMPT, user_prompt, self.tracker)
 
         if resp.error:
@@ -81,10 +101,11 @@ class TestGenerator:
                 input_tokens=resp.input_tokens, output_tokens=resp.output_tokens,
             )
 
-        # Use CodeExtractor for robust parsing (P0 fix)
+        # 3. Extract and sanitize the code
         extracted_code, strategy = CodeExtractor.extract(resp.content)
         logger.info("Extraction strategy: %s", strategy)
 
+        # Apply module name fixing and validation[cite: 39]
         test_code = _fix_source_import(extracted_code, module_name)
         is_valid, validation_error = _validate_test_code(test_code)
 
@@ -92,8 +113,13 @@ class TestGenerator:
             logger.warning("Generated tests for %s are invalid: %s", func.name, validation_error)
 
         return GeneratedTest(
-            function_name=func.name, oracle=oracle, test_code=test_code,
-            is_valid=is_valid, generation_error=validation_error,
-            model=resp.model, provider=resp.provider,
-            input_tokens=resp.input_tokens, output_tokens=resp.output_tokens,
+            function_name=func.name,
+            oracle=oracle,
+            test_code=test_code,
+            is_valid=is_valid,
+            generation_error=validation_error,
+            model=resp.model,
+            provider=resp.provider,
+            input_tokens=resp.input_tokens,
+            output_tokens=resp.output_tokens,
         )

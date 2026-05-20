@@ -256,10 +256,20 @@ class TestGenerationLoop:
 
 
 def save_session(session: TestGenerationSession, output_path: Path) -> None:
-    """Persist a verification session as JSON for reproducibility."""
+    """Persist a verification session as JSON for reproducibility.
+
+    Includes computed properties (final_coverage, final_bugs, learning_curve)
+    which are @property methods not captured by dataclasses.asdict().
+    """
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    data = asdict(session)
+    # Inject computed properties that asdict() skips
+    data["final_coverage"] = session.final_coverage
+    data["final_bugs"] = session.final_bugs
+    data["learning_curve"] = session.learning_curve
+    data["reward_per_round"] = session.reward_per_round
     output_path.write_text(
-        json.dumps(asdict(session), indent=2, default=str),
+        json.dumps(data, indent=2, default=str),
         encoding="utf-8",
     )
     logger.info("Session saved to %s", output_path)

@@ -60,7 +60,7 @@ def main():
         cov_str = f"{cov:.1f}%" if cov is not None else "N/A"
         curve = s.get("learning_curve", [])
         curve_str = f", curve={[round(x, 2) for x in curve]}" if curve else ""
-        print(f"  {s['function']}: coverage={cov_str}, bugs={s['final_bugs']}{curve_str}")
+        print(f"  {s['function_name']}: coverage={cov_str}, bugs={s['final_bugs']}{curve_str}")
 
 if __name__ == "__main__":
     main()
