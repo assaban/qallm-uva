@@ -1,6 +1,6 @@
 # QALLM Workflow Design
 
-**Status:** Draft for discussion with Nafis. Decisions marked `DECIDED`, `TENTATIVE`, or `OPEN`.
+**Status:** Draft v3. Decisions marked `DECIDED`, `TENTATIVE`, or `OPEN`. v3 incorporates the configurable test-stability strategy, expanded outputs (tests + canonical JSON), and reframes EVERSE as one demonstrator among three quality frameworks.
 **Authors:** Mohssin Assaban, with architectural input from a working session.
 **Last updated:** May 2026.
 
@@ -10,20 +10,24 @@ The intent is to lock in the workflow before further code is written, surface th
 
 ## 1. Scope and non-goals
 
+QALLM is an execution-based verification instrument. Its architecture is profile-agnostic: the loop, the judge, the lineage, and the budget caps operate on whatever quality framework the active profile materialises. v1 ships with an EVERSE profile because that is the framework Zhao's MNS group and the broader EVERSE programme work in, but the thesis discusses three frameworks (see section 13) and the codebase is designed for additional profiles to be added with no changes to the core workflow.
+
 In scope for v1:
 
 * A single code unit (one function, one notebook cell, one short script) processed by one orchestrator instance.
 * Sequential repair attempts. One variant per round.
 * A bounded number of rounds with hard budget caps.
-* EVERSE-profile-driven evaluation of round outcomes.
+* Profile-driven evaluation of round outcomes; EVERSE profile shipped as the default.
 * Logging of both accepted and abandoned rounds for later analysis.
+* A configurable test-stability strategy (see section 4.5), with `frozen` as the v1 default.
 
 Out of scope for v1, listed so we are explicit:
 
-* Parallel variant generation and selection (the genetic-style fan-out is a v2 idea; sequential first).
-* Cross-session learning or fine-tuning from past runs (the abandoned-round data may feed this in future work).
+* Parallel variant generation and selection. The genetic-style fan-out is future work; sequential first.
+* Cross-session learning or fine-tuning from past runs. The abandoned-round data may feed this in future work.
 * Human-in-the-loop intervention mid-run.
 * Multi-language support. Python only.
+* FAIR4RS and SonarQube profiles. Their role in this thesis is as related-work positioning (see section 13); implementation as additional profiles is future work.
 
 ## 2. Vocabulary
 
@@ -86,6 +90,48 @@ Round 0 is the baseline. It has two purposes:
 
 Round 0 differs from later rounds in that no repair runs first. It is `analyse → verify → judge`, where the judge records but does not compare.
 
+## 4.5 Test stability across the lineage
+
+`DECIDED`. Test stability is implemented as a configurable strategy. v1 ships with `frozen` as the default; `per_round` is provided as an alternative and as future work for empirical comparison.
+
+### 4.5.1 The problem
+
+If every round generates a fresh test suite for its variant, the comparison across rounds is invalid. The RL loop generates tests adversarially; nothing prevents it from generating an easier suite for a worse variant. A bad variant could score higher than a good parent simply because its tests were less demanding. The judge's improvement verdict would then be measuring luck in test generation, not actual quality.
+
+### 4.5.2 Two strategies, one configuration
+
+The orchestrator accepts a `test_stability` parameter with two values.
+
+**`frozen` (v1 default).** The test suite is bound to the code unit, not the variant. The first round generates an initial suite. Subsequent rounds run their variant against that same suite. The suite may grow across rounds: tests added by later rounds, typically to expose suspected bugs in the current variant, accumulate and are then applied to all variants going forward. No test is ever removed or replaced.
+
+**`per_round` (available but not default).** Each round generates a fresh suite for its variant, scored independently. Comparison across rounds is then comparison of (variant, suite) pairs rather than variants alone. The judge receives both suites when comparing.
+
+### 4.5.3 Why `frozen` is the v1 default
+
+* Every variant in the lineage has been run against the full union of tests generated so far.
+* Cross-round metrics (pass rate, bugs caught, coverage) are apples-to-apples comparable.
+* The suite gets stronger over the lineage; it does not get arbitrarily different.
+* Verification cost is bounded: a variant pays only for the additional tests beyond what its predecessors already ran.
+
+`per_round` has its own virtues, notably the ability to tailor tests to the specific weaknesses of each variant. We do not commit to one strategy as universally better; we ship `frozen` because it produces the cleanest comparison story for the thesis claim, and we keep `per_round` available for empirical comparison.
+
+### 4.5.4 What this implies for the verification module
+
+Under either strategy the verification module needs to persist test suites per session, keyed by code unit. The difference is what it stores and reapplies:
+
+* `frozen`: store one suite per code unit; append new tests across rounds; apply the full union to every new variant.
+* `per_round`: store one suite per (code unit, round) pair; do not reapply across rounds.
+
+This is a real but small change to the verification module. Estimated 80 to 100 lines plus tests for the persistence layer; the strategy dispatch is a handful of lines.
+
+### 4.5.5 What this does not solve
+
+This rule does not protect against the RL loop generating tests that are too hard to pass with any variant. That is a different failure mode, overfit-to-bugs, and the answer is the same as for any LLM-as-evaluator: validate against ground truth. See section 9.5 on the HumanEval validation experiment.
+
+### 4.5.6 Future work
+
+Running QALLM with `frozen` and with `per_round` on the same input set and comparing outcomes is itself a small experiment. It is not part of the v1 thesis claim but it is a paragraph the thesis can include if time allows, and it is a paper-shaped piece of follow-up work either way.
+
 ## 5. The judge
 
 The judge is the workflow's most critical and most contentious component.
@@ -100,11 +146,11 @@ Given a variant and its parent in the lineage, the judge decides whether the var
 
 ### 5.2 How it decides: two inputs, both stored
 
-`DECIDED`: for every round we store both of these, side by side:
+`DECIDED`. for every round we store both of these, side by side:
 
 1. **Raw numerical metrics.** Per-dimension, per-indicator values from the EVERSE profile. These are deterministic and reproducible. Example: `maintainability_index`: parent 62.4, variant 71.0; `bandit_high_findings`: parent 0, variant 0; `test_pass_rate`: parent 0.75, variant 0.92.
 
-2. **A model verdict.** The same LLM that performs repair (or a separate small judge model: see section 9 OPEN) is asked: "Given these EVERSE profile numbers for the parent and the variant, in the context of this code unit, is the variant an improvement, a regression, or no change?" The model returns a verdict and a written explanation.
+2. **A model verdict.** A judge LLM (configurable; may be the same model as repair or a separate one, see section 9.1) is asked: "Given these EVERSE profile numbers and raw verification results for the parent and the variant, in the context of this code unit, is the variant an improvement, a regression, or no change?" The model returns a verdict and a written explanation.
 
 Both are stored on the round record. Both are surfaced in the report. The model verdict is what drives the lineage decision in v1.
 
@@ -116,13 +162,15 @@ This is a small extra storage cost and an explicit thesis methodology choice. It
 
 ### 5.4 What the judge looks at
 
-For v1, the judge sees only the EVERSE profile output for parent and variant. It does not see the raw source code in the verdict prompt. This keeps the judge focused on quality dimensions and avoids the LLM falling back to "the code looks nicer."
+The judge sees both the EVERSE profile output *and* the raw verification numbers for parent and variant. This was discussed with Nafis; see section 9.2. Specifically:
 
-`OPEN (needs Nafis)`: should the judge also see the raw test pass/fail counts and the actual bug list from verification, or only the rolled-up indicator booleans (`PASS`/`FAIL`/`SKIPPED`)? Argument for raw: more information leads to better judgements. Argument against: the profile is supposed to be the contract; bypassing it defeats the purpose of profiles. Default position: only the profile output, with raw metrics in storage but not in the prompt.
+* Profile output: per-dimension verdict and per-indicator measured values plus thresholds.
+* Raw verification numbers: test pass/fail counts, the individual bug list, coverage delta.
+* The judge does **not** see the source code of parent or variant in v1. The judgement is over evidence, not over how the code looks. This keeps the judge from falling back to surface aesthetics.
 
 ## 6. Budget and cost containment
 
-`DECIDED` hard caps live in the loop's control logic. They are not negotiable by configuration alone. The order of precedence is: hard cap > soft env cap > model-judged stop.
+`DECIDED`. hard caps live in the loop's control logic. They are not negotiable by configuration alone. The order of precedence is: hard cap > soft env cap > model-judged stop.
 
 | Cap                | Default | Configurable via    | What happens on trip                       |
 |--------------------|---------|---------------------|--------------------------------------------|
@@ -130,10 +178,11 @@ For v1, the judge sees only the EVERSE profile output for parent and variant. It
 | Max total tokens   | 500_000 | `TOKEN_BUDGET`      | Loop halts at next round boundary.         |
 | Max wall-clock     | 1800 s  | `QALLM_MAX_SECONDS` | Loop halts at next round boundary.         |
 | Max per-round time | 600 s   | `QALLM_ROUND_TIMEOUT` | Current round abandoned, loop continues.  |
+| Max estimated cost | 5.00 USD | `QALLM_MAX_COST_USD` | Loop halts at next round boundary.         |
 
-The hard caps are floors in the control flow, even if env vars are larger, the code enforces a ceiling (initial proposal: 10 rounds, 2M tokens, 3600 s total). This protects against config errors and runaway scripts. Final ceilings to be agreed.
+The hard caps are floors in the control flow. Even if env vars are larger, the code enforces a ceiling (initial proposal: 10 rounds, 2M tokens, 3600 s total, 25 USD per session). This protects against config errors and runaway scripts. Final ceilings to be agreed.
 
-`OPEN (needs Nafis`): should there also be a per-provider dollar cap? E.g. "halt if estimated cost exceeds 5 USD this session." This is harder because it requires keeping price tables in sync; but for a deployed beta where Zhao or Nafis might run multiple sessions, a dollar fence may be the cleanest user-facing safeguard.
+Estimated cost is computed from a per-model price table maintained in `qallm.config`. Prices change; the table is updated by hand. This is acceptable maintenance overhead for a research tool. See section 9.6.
 
 ## 7. Abandoned variants
 
@@ -152,7 +201,7 @@ This data has two uses:
 
 ## 8. Manual and auto mode
 
-`DECIDED`: manual and auto mode execute the same workflow. The only difference is who decides to start the next round:
+`DECIDED`. manual and auto mode execute the same workflow. The only difference is who decides to start the next round:
 
 * **Manual**: the user clicks "Next" between rounds.
 * **Auto**: the loop runs to completion or to budget exhaustion without user intervention.
@@ -161,61 +210,159 @@ Both produce the same lineage, the same abandoned log, the same final report. If
 
 Auto mode currently halts after one round. The fix is to make the loop iterate until the verdict says stop or the budget says stop. The fix is small and follows directly from this document.
 
-## 9. Open questions for Nafis
+## 9. Design decisions discussed with supervisors
 
-These are not bugs. They are design decisions we want supervisor input on before locking in.
+Items previously listed as open have been discussed with Nafis (with Zhao's input where noted). Their resolution is captured here. Items still genuinely open are marked `OPEN`.
 
-1. **Judge model identity.** Should the judge be the same LLM as the repair model, or a separate (potentially smaller, deterministic, possibly local) model? Same model is simpler and cheaper; separate model avoids the conflict of interest where the repair model is judging its own work.
+### 9.1 Judge model identity: `DECIDED`
 
-2. **Judge inputs.** Profile output only, or profile output plus raw test/bug numbers? See section 5.4.
+The judge and the repair model are *configurable independently*. Initially they may point to the same endpoint (cheapest, simplest), but the architecture allows pointing them at different models. This is interesting for the experiments: same model judging itself versus a separate judge model is a comparison worth running.
 
-3. **Improvement semantics.** Right now, the judge has to weigh multiple EVERSE dimensions against each other. If Maintainability improves but Security regresses, what wins? Options:
-   - Lexicographic order on dimensions (e.g. Security > Reliability > Maintainability).
-   - Any regression in any indicator is `regression`, full stop.
-   - Model decides freely and explains.
-   We currently lean toward the third, but it makes the analysis chapter harder.
+Implementation: the orchestrator accepts `repair_model` and `judge_model` as separate configuration. If only one is set, both default to it.
 
-4. **EVERSE coverage scope.** v1 covers Maintainability, Security, Reliability, Reproducibility. Sufficient for the thesis claim? Or should we add at least one more (e.g. an FAIRness indicator) so the framework covers more of EVERSE?
+### 9.2 Judge inputs: `DECIDED`
 
-5. **Validation experiment.** The thesis already has a primary experiment (Li's dataset, real notebooks). Should we add a secondary validation experiment using HumanEval with injected bugs as ground truth? This would let us measure QALLM's bug-finding rate against known answers, which strengthens the methodology section. Cost: a few days of setup; benefit: a paragraph that any reviewer will appreciate.
+The judge sees both the EVERSE profile output *and* the raw verification numbers (test pass/fail counts, individual bug list, coverage delta). Section 5.4 of the previous draft is superseded: profile output alone is insufficient information for a fair judgement.
 
-6. **Per-dollar budget.** See section 6.
+### 9.3 Improvement semantics: `DECIDED`
 
-7. **Profile coupling.** Right now the profile is loaded once per session and held constant. Should it be possible to change the profile mid-session (e.g. start with Implementation profile for early rounds, switch to Publication for later)? Probably no for v1, but worth a sentence.
+All three options are provided as configurable strategies:
+
+* `lexicographic`: dimensions are ordered (default: Security > Reliability > Maintainability > Reproducibility > FAIRness), variants must not regress any higher-priority dimension to be accepted.
+* `strict`: any regression in any indicator means abandonment.
+* `model`: the judge model decides freely, with explanation. Default for v1.
+
+Comparing the three strategies empirically is itself a thesis contribution. Future work can add more.
+
+### 9.4 EVERSE coverage scope: `DECIDED`
+
+v1 covers five dimensions, not four: Maintainability, Security, Reliability, Reproducibility, and **FAIRness**. Nafis and Zhao explicitly requested FAIRness coverage. The FAIRness indicator(s) need to be selected; see section 11 for the implementation entry.
+
+Initial FAIRness indicators under consideration:
+
+* Presence of a license file in the project root.
+* Presence of a citation file (CITATION.cff, CITATION.bib).
+* Presence of a README with required sections (description, install, usage).
+* Documented function signatures (docstring coverage above a threshold).
+
+These are all detectable with simple file or AST checks; they do not require LLM calls. Final indicator set to be confirmed before implementation.
+
+### 9.5 Validation experiment: `DECIDED`
+
+QALLM will be evaluated on two datasets:
+
+1. **Primary**: Li's dataset (2,796 notebooks, 277 projects). The real-world EVERSE-relevant target population. The verification gap claim is made against this.
+2. **Validation**: HumanEval with injected bugs. Zhao requested this through Nafis at the weekly meeting. 164 functions with known ground truth; we mutate the reference solutions to introduce bugs (off-by-one, wrong operators, missing edge cases) and measure whether QALLM finds and fixes them. Ground-truth-backed methodology validation.
+
+Two experiments, two stories. Validation gives methodological credibility; primary gives the EVERSE finding.
+
+### 9.6 Per-dollar budget: `DECIDED`
+
+Implement a dollar fence in addition to token, round, and time budgets. The fence is *estimated cost*, computed from a price table maintained in code. Estimated cost is approximate; the contract is "stop before going much past the cap," not "stop exactly at the cap." Default cap to be agreed (suggested 5 USD per session for a beta).
+
+The price table lives in `qallm.config` and needs to be updated by hand when providers change pricing. This is acceptable maintenance cost for a research tool.
+
+### 9.7 Profile coupling: `DECIDED`
+
+A profile is loaded at session start and remains constant for the life of the session. Changing the profile requires starting a new session. Section 8 (manual vs auto) is unaffected by this.
+
+### 9.8 Test stability: `DECIDED`
+
+Test stability is a configurable strategy. The default is `frozen`: tests are bound to the code unit and may grow across rounds, never be replaced. `per_round` is provided as an alternative for empirical comparison. See section 4.5 for the full discussion.
 
 ## 10. What QALLM produces at the end
 
-For a session that completed:
+For a session that completed, the session directory contains three layers: a canonical machine-readable record, two human-readable views over it, and a complete provenance trail.
 
-* `summary.json` with the final lineage head, EVERSE verdict per dimension, total rounds, total tokens, total cost estimate, and a pointer to the abandoned log.
-* `lineage/round_<n>/` for each accepted round, with source, findings, verification session, profile output, judge verdict, and raw metrics.
-* `abandoned/round_<n>/` for each abandoned variant, same shape as lineage.
-* `report.html` (or `.md`) rendering the above for a human reader, organised by EVERSE dimension.
+### 10.1 Session-level artefacts
 
-The HTML/MD report is the artefact a researcher actually reads. Everything else is provenance.
+* `summary.json` is the canonical record. It contains the final lineage head, the profile verdict per dimension, total rounds, total tokens, total cost estimate, and pointers to every lineage and abandoned round. All other artefacts are derivable from it.
+* `report.md` and `report.html` are views over `summary.json`, generated for human readers. They organise the result by quality dimension, surface the judge's verdict and explanation per round, and link to the test sources and variant sources on disk.
+
+The `summary.json` matters because aggregate analysis across many sessions (your full-scale experiments on Li's dataset, your HumanEval validation experiment) needs structured data, not rendered HTML. The HTML matters because a researcher reading one session at a time will not parse JSON. Both are produced; neither is skipped.
+
+### 10.2 Per-round contents
+
+Each accepted round is recorded at `lineage/round_<n>/`. Each abandoned variant is recorded at `abandoned/round_<n>/` with the same shape. Both directories contain:
+
+* `source.py`: the variant source code at that round (round 0 is the original baseline).
+* `tests/`: the test source files generated for or applied to this variant. Under the `frozen` test-stability strategy, later rounds will see more tests in this directory than earlier ones; under `per_round`, each round's directory has its own independent suite.
+* `static.json`: static analysis findings (Radon, Bandit, Ruff).
+* `verification.json`: the verification session output: per-test pass/fail, coverage, bug list, traces.
+* `profile.json`: the profile verdict, per-indicator measured values, and pass/fail status.
+* `judge.json`: the judge LLM's verdict, explanation, and the raw numerical comparison against the parent.
+
+### 10.3 Why tests are first-class
+
+Test sources are part of the artefact because reviewers and future researchers need to reconstruct exactly what was run. Verification numbers without the test sources are unreproducible. Reviewers ask "what did the tests look like" and the answer needs to be a file path, not "we'll generate them again."
 
 ## 11. Mapping to existing modules
 
-For implementation, the workflow maps cleanly onto the modules already in place:
+For implementation, the workflow maps onto the modules already in place, plus the new ones implied by sections 4.5, 9, and 10.
 
-| Workflow step              | Module                                                             | Status                            |
-|----------------------------|--------------------------------------------------------------------|-----------------------------------|
-| Ingest                     | `qallm.ingestion`                                                  | Working.                          |
-| Static analysis            | `qallm.analysis`                                                   | Working.                          |
-| Verification (RL loop)     | `qallm.verification`                                               | Working.                          |
-| Profile evaluation         | `qallm.profiles` + `qallm.evaluation`                              | Working; reliability stubs only.  |
-| Judge                      | New: `qallm.judge` (a small module that calls an LLM with a prompt) | To build. ~150 lines.             |
-| Loop / orchestration       | `qallm.orchestrator`                                               | Loop logic to extend per section 3. |
-| Lineage and abandoned log  | New: extend `qallm.utils.reporter`                                 | To build.                         |
-| Web UI integration         | `qallm.api.main` + `web/frontend`                                  | Auto mode needs the loop fix.     |
+| Workflow step              | Module                                                                | Status                            |
+|----------------------------|-----------------------------------------------------------------------|-----------------------------------|
+| Ingest                     | `qallm.ingestion`                                                     | Working.                          |
+| Static analysis            | `qallm.analysis`                                                      | Working.                          |
+| Verification (RL loop)     | `qallm.verification`                                                  | Working.                          |
+| Test suite persistence     | New: `qallm.verification.test_persistence`                            | To build. ~80 to 100 lines. Section 4.5. |
+| Profile evaluation         | `qallm.profiles` + `qallm.evaluation`                                 | Working; reliability stubs only. Framework-agnostic by design. |
+| FAIRness indicators        | New: extend `qallm.evaluation` with `qallm.fairness` evaluators       | To build. ~100 lines. Section 9.4. |
+| Judge                      | New: `qallm.judge`                                                    | To build. ~150 lines plus tests.  |
+| Improvement strategies     | New: `qallm.judge.strategies`: lexicographic, strict, model           | To build alongside judge.         |
+| Cost estimation            | New: extend `qallm.config` with a price table; new `qallm.cost`       | To build. ~80 lines.              |
+| Budget enforcement         | Extend `qallm.orchestrator` with hard-cap checks at round boundary    | To build. ~50 lines.              |
+| Loop / orchestration       | `qallm.orchestrator`                                                  | Loop logic to extend per section 3. |
+| Lineage and abandoned log  | Extend `qallm.utils.reporter`                                         | To build.                         |
+| Canonical JSON + views     | Extend `qallm.utils.reporter`: emit `summary.json`, `report.md`, `report.html` | To build. Section 10.        |
+| Web UI integration         | `qallm.api.main` + `web/frontend`                                     | Auto mode needs the loop fix.     |
 
-## 12. Next steps once this document is agreed
+## 12. Next steps
 
-1. Discuss with Nafis at the next 1:1. Resolve section 9.
-2. Implement the judge module (~150 lines + tests).
-3. Extend the orchestrator's auto loop per section 3 (~100 lines).
-4. Wire reliability indicators in `qallm.evaluation` to actual verification output, not stubs.
-5. Add the budget caps as described in section 6.
-6. Update the web UI auto mode to drive the new loop.
+All design questions are resolved. The implementation roadmap below is the basis for the project backlog; each item is one focused, reviewable PR.
 
-Each of those is a focused, reviewable PR. None of them should be started before sections 5 and 9 are resolved.
+1. Extend verification for test-suite persistence per section 4.5, with both `frozen` and `per_round` strategies. 80 to 100 lines.
+2. Build the judge module (`qallm.judge`) with the three improvement strategies. 150 lines plus tests.
+3. Wire reliability indicators in `qallm.evaluation` to actual verification output. No more stubs.
+4. Add FAIRness indicators (`qallm.fairness`): licence, citation, README, docstrings. 100 lines plus tests.
+5. Add budget enforcement in the orchestrator: rounds, tokens, time, cost. Cost requires a price table in `qallm.config`. 50 plus 80 lines.
+6. Extend the orchestrator loop per section 3. 100 lines.
+7. Extend the reporter with lineage, abandoned-variant logging, canonical `summary.json`, and the markdown/HTML views (section 10). 100 lines.
+8. Update the web UI auto mode to drive the new loop. Small change.
+9. HumanEval validation experiment (section 9.5). A separate driver script that mutates HumanEval reference solutions and runs QALLM against the mutants. Independent of the main pipeline.
+
+Approximate total: 10 to 15 hours of focused implementation work for items 1 through 8, plus the HumanEval experiment which is its own piece of work.
+
+## 13. Quality frameworks: EVERSE as one demonstrator among three
+
+QALLM is an execution-based verification instrument; the quality framework is a use case, not the spine. v1 ships with an EVERSE profile because that is the framework Zhao's MNS group works in, and EVERSE is the most natural starting point for research software. The thesis positions QALLM against three frameworks, each playing a different role.
+
+### 13.1 ISO/IEC 25010: the general reference
+
+ISO/IEC 25010, Systems and software Quality Requirements and Evaluation, is the parent standard. Its product-quality model defines the dimensions (Functional Suitability, Reliability, Maintainability, Security, Compatibility, Portability, Performance Efficiency, Usability) that the entire field of software-quality engineering builds on. EVERSE is one specialisation of ISO/IEC 25010 for research software; SonarQube is another, for industrial software.
+
+Role in the thesis: cited as the standards anchor in the introduction and the related-work chapter. Used to justify why QALLM measures along dimensions at all and why the dimensions are named what they are. Not implemented as a runtime profile.
+
+### 13.2 FAIR4RS: the principles anchor
+
+FAIR4RS, the FAIR Principles for Research Software, defines what makes research software Findable, Accessible, Interoperable, and Reusable. Where ISO/IEC 25010 is about the product, FAIR4RS is about the surrounding scholarly practice: documentation, identifiers, licences, citation, reusability. EVERSE's FAIRness dimension is essentially FAIR4RS made measurable.
+
+Role in the thesis: cited as the principles anchor when discussing the FAIRness dimension and reproducibility. Demonstrated indirectly through the FAIRness indicators QALLM computes (licence presence, citation file presence, docstring coverage, README presence). FAIR4RS may be implemented as a standalone profile in future work; the architecture supports this.
+
+### 13.3 SonarQube: the commercial baseline
+
+SonarQube is the dominant industrial code-quality tool. Its reliability, security, and maintainability ratings use a conceptual model that overlaps strongly with ISO/IEC 25010, with different thresholds and a quality-gates presentation aimed at CI pipelines.
+
+Role in the thesis: cited as the commercial baseline. SonarQube is what an industry team would use today. The related-work chapter contrasts its static-only reach with QALLM's execution-based reach: SonarQube tells you the code is maintainable and free of known security smells, but it does not tell you whether the function is functionally correct at runtime. That is the gap QALLM addresses.
+
+### 13.4 EVERSE: the v1 demonstrator
+
+EVERSE Research Software Quality Dimensions is the framework QALLM implements first. It adapts ISO/IEC 25010 to research software, adds FAIRness (from FAIR4RS), and emphasises reproducibility. QALLM's v1 profile materialises five EVERSE dimensions into measurable indicators with thresholds. The pilot experiments and the full-scale experiments on Li's dataset both use the EVERSE profile.
+
+### 13.5 What this means for the codebase
+
+The profiles module (`qallm.profiles`) already supports multiple frameworks. Adding a FAIR4RS-only or SonarQube-shaped profile is a matter of writing a new `QualityProfile` object that maps that framework's dimensions to existing or new evaluators. No core change required. This is intentional and was the reason for keeping the profile shape framework-agnostic from the start.
+
+### 13.6 What this means for the thesis
+
+The thesis frames QALLM as profile-agnostic. The contribution is the execution-based verification loop and its integration with quality profiles, not loyalty to any single framework. The related-work chapter situates QALLM against ISO/IEC 25010 (general), FAIR4RS (principles), SonarQube (commercial), and presents EVERSE as the v1 instantiation that the experiments use.
