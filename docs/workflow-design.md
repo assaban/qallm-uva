@@ -317,7 +317,7 @@ For implementation, the workflow maps onto the modules already in place, plus th
 | Static analysis            | `qallm.analysis`                                                      | Working.                          |
 | Verification (RL loop)     | `qallm.verification`                                                  | Working.                          |
 | Test suite persistence     | `qallm.verification.test_persistence`                                 | Built (PR feature/test-stability). 250 lines plus 22 tests. Section 4.5. |
-| Profile evaluation         | `qallm.profiles` + `qallm.evaluation`                                 | Working; reliability stubs only. Framework-agnostic by design. |
+| Profile evaluation         | `qallm.profiles` + `qallm.evaluation`                                 | Working; reliability indicators wired in NEW-03. Framework-agnostic by design. |
 | FAIRness indicators        | New: extend `qallm.evaluation` with `qallm.fairness` evaluators       | To build. ~100 lines. Section 9.4. |
 | Judge                      | New: `qallm.judge`                                                    | To build. ~150 lines plus tests.  |
 | Improvement strategies     | New: `qallm.judge.strategies`: lexicographic, strict, model           | To build alongside judge.         |
@@ -334,7 +334,7 @@ All design questions are resolved. The implementation roadmap below is the basis
 
 1. ~~Extend verification for test-suite persistence per section 4.5.~~ **Done.** Two-axis configurable strategy (`test_stability` x `generation_policy`) with three meaningful modes. New `qallm.verification.test_persistence` module, 250 lines plus 22 tests. CLI flags `--test-stability` and `--generation-policy`. `summary.json` records the mode. Section 4.5.
 2. Build the judge module (`qallm.judge`) with the three improvement strategies. 150 lines plus tests.
-3. Wire reliability indicators in `qallm.evaluation` to actual verification output. No more stubs.
+3. ~~Wire reliability indicators in `qallm.evaluation` to actual verification output.~~ **Done.** Both `qallm.verification.pass_rate` and `qallm.verification.bugs` now read `context["verification_sessions"]: list[TestGenerationSession]`. Added a `final_pass_rate` property on the session model. 12 new tests; all 126 prior tests still pass.
 4. Add FAIRness indicators (`qallm.fairness`): licence, citation, README, docstrings. 100 lines plus tests.
 5. Add budget enforcement in the orchestrator: rounds, tokens, time, cost. Cost requires a price table in `qallm.config`. 50 plus 80 lines.
 6. Extend the orchestrator loop per section 3. 100 lines.

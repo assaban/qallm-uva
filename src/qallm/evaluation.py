@@ -24,11 +24,11 @@ results are consistent between the legacy ``StaticAnalyzer`` and the new
 profile-based path.
 
 Verification-backed evaluators (``qallm.verification.pass_rate``,
-``qallm.verification.bugs``) are registered as deferred stubs. They
-require a running verification session, which is expensive and out of
-scope for this PR. They return ``None`` so the indicators are recorded
-as ``SKIPPED`` until a follow-up wires the orchestrator into the
-evaluator path.
+``qallm.verification.bugs``) read a list of
+:class:`~qallm.verification.models.TestGenerationSession` instances from
+the evaluation context under the key ``"verification_sessions"``.
+Callers that have not run verification can omit the key, in which case
+the indicators are reported as ``SKIPPED``.
 
 References
 ----------
@@ -329,17 +329,41 @@ def _repro_determinism(source: str, context: dict[str, Any]) -> float | None:
 
 
 def _verification_pass_rate(source: str, context: dict[str, Any]) -> float | None:
-    """Reliability indicator backed by the verification loop. Deferred."""
-    # Profiles can reference verification-backed indicators, but evaluating
-    # them requires a verification session, which is expensive and stateful.
-    # A follow-up commit will wire the orchestrator into the evaluator
-    # path so that callers opting into verification get a real number.
-    return None
+    """Reliability indicator: average test pass rate across function sessions.
+
+    Reads ``context["verification_sessions"]`` (a list of
+    :class:`TestGenerationSession`). Returns the mean of each session's
+    ``final_pass_rate``, skipping sessions whose pass rate is undefined
+    (no rounds or zero passed+failed tests).
+
+    Returns ``None`` if the context has no sessions key, or if every session
+    has an undefined pass rate. This is consistent with the SKIPPED semantics
+    elsewhere in the module.
+    """
+    sessions = context.get("verification_sessions")
+    if not sessions:
+        return None
+    rates = [
+        s.final_pass_rate for s in sessions if s.final_pass_rate is not None
+    ]
+    if not rates:
+        return None
+    return sum(rates) / len(rates)
 
 
 def _verification_bugs(source: str, context: dict[str, Any]) -> float | None:
-    """Reliability indicator backed by the verification loop. Deferred."""
-    return None
+    """Reliability indicator: total bugs caught across function sessions.
+
+    Reads ``context["verification_sessions"]`` (a list of
+    :class:`TestGenerationSession`). Returns the sum of each session's
+    ``final_bugs`` as a float. Returns ``None`` only if there is no
+    sessions key at all; an empty list yields ``0.0`` because "we ran
+    verification and found no bugs" is a meaningful zero, not a SKIP.
+    """
+    sessions = context.get("verification_sessions")
+    if sessions is None:
+        return None
+    return float(sum(s.final_bugs for s in sessions))
 
 
 def _register_builtins() -> None:

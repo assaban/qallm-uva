@@ -177,11 +177,212 @@ def test_repro_manifest_returns_none_without_project_root():
     assert fn("anything", {}) is None
 
 
-def test_verification_evaluators_are_deferred():
-    # Reliability indicators are registered, but in v1 they decline to
-    # produce a value here; they require an orchestrator-driven session.
+def test_verification_evaluators_skip_without_sessions():
+    # Reliability indicators are registered. They require a list of
+    # verification sessions in the context; without it, they decline to
+    # produce a value (SKIPPED), which is what we want.
     assert resolve("qallm.verification.pass_rate")("source", {}) is None
     assert resolve("qallm.verification.bugs")("source", {}) is None
+
+
+# ---------------------------------------------------------------------------
+# Verification-backed evaluators: pass_rate and bugs
+# ---------------------------------------------------------------------------
+
+
+def _make_session(
+    *,
+    function_name: str = "f",
+    passed: int = 0,
+    failed: int = 0,
+    errors: int = 0,
+    final_bugs: int = 0,
+):
+    """Build a TestGenerationSession with one round whose execution result has
+    the given counts. final_bugs sets the cumulative_bugs on that round.
+    """
+    from qallm.verification.models import (
+        ExecutionResult,
+        GeneratedTest,
+        RewardBreakdown,
+        RoundResult,
+        TestGenerationSession,
+    )
+
+    execution = ExecutionResult(
+        passed=passed,
+        failed=failed,
+        errors=errors,
+        total=passed + failed + errors,
+    )
+    generated = GeneratedTest(
+        function_name=function_name,
+        oracle="crash",
+        test_code="def test_x(): pass",
+        is_valid=True,
+        generation_error=None,
+        model="stub",
+        provider="stub",
+        input_tokens=0,
+        output_tokens=0,
+    )
+    reward = RewardBreakdown(total=0.0)
+    round_result = RoundResult(
+        round_number=1,
+        generated_test=generated,
+        execution=execution,
+        reward=reward,
+        cumulative_coverage=100.0,
+        cumulative_bugs=final_bugs,
+    )
+    session = TestGenerationSession(
+        function_name=function_name,
+        source_code="def f(): pass",
+        oracle="crash",
+        model="stub",
+        total_rounds=1,
+    )
+    session.rounds.append(round_result)
+    return session
+
+
+class TestVerificationPassRate:
+    """Behaviour of the qallm.verification.pass_rate evaluator."""
+
+    def test_returns_none_without_sessions_key(self):
+        fn = resolve("qallm.verification.pass_rate")
+        assert fn("src", {}) is None
+
+    def test_returns_none_for_empty_sessions_list(self):
+        fn = resolve("qallm.verification.pass_rate")
+        assert fn("src", {"verification_sessions": []}) is None
+
+    def test_single_session_all_passing(self):
+        fn = resolve("qallm.verification.pass_rate")
+        sessions = [_make_session(passed=10, failed=0)]
+        assert fn("src", {"verification_sessions": sessions}) == 1.0
+
+    def test_single_session_half_passing(self):
+        fn = resolve("qallm.verification.pass_rate")
+        sessions = [_make_session(passed=5, failed=5)]
+        assert fn("src", {"verification_sessions": sessions}) == 0.5
+
+    def test_errors_excluded_from_denominator(self):
+        # Five passed, zero failed, two errored => pass rate is 5/5 = 1.0.
+        # Errors are infrastructure failures, not test results, and shouldn't
+        # be punished as 'not passing'.
+        fn = resolve("qallm.verification.pass_rate")
+        sessions = [_make_session(passed=5, failed=0, errors=2)]
+        assert fn("src", {"verification_sessions": sessions}) == 1.0
+
+    def test_multi_session_averages(self):
+        # Two functions, one perfect, one 50%. Mean is 0.75.
+        fn = resolve("qallm.verification.pass_rate")
+        sessions = [
+            _make_session(function_name="f", passed=10, failed=0),
+            _make_session(function_name="g", passed=5, failed=5),
+        ]
+        assert fn("src", {"verification_sessions": sessions}) == 0.75
+
+    def test_skips_undefined_sessions(self):
+        # If one session has 0 passed + 0 failed (only errors), its rate is
+        # undefined and should be excluded from the average rather than
+        # counted as zero.
+        fn = resolve("qallm.verification.pass_rate")
+        sessions = [
+            _make_session(function_name="f", passed=10, failed=0),
+            _make_session(function_name="g", passed=0, failed=0, errors=3),
+        ]
+        # Only the first session contributes: rate is 1.0.
+        assert fn("src", {"verification_sessions": sessions}) == 1.0
+
+
+class TestVerificationBugs:
+    """Behaviour of the qallm.verification.bugs evaluator."""
+
+    def test_returns_none_without_sessions_key(self):
+        fn = resolve("qallm.verification.bugs")
+        assert fn("src", {}) is None
+
+    def test_empty_list_is_zero(self):
+        # An empty list means 'we ran verification on nothing' which is a
+        # meaningful 0, not a SKIP.
+        fn = resolve("qallm.verification.bugs")
+        assert fn("src", {"verification_sessions": []}) == 0.0
+
+    def test_sums_across_sessions(self):
+        fn = resolve("qallm.verification.bugs")
+        sessions = [
+            _make_session(function_name="f", final_bugs=2),
+            _make_session(function_name="g", final_bugs=3),
+        ]
+        assert fn("src", {"verification_sessions": sessions}) == 5.0
+
+
+class TestFinalPassRateProperty:
+    """The TestGenerationSession.final_pass_rate property added for NEW-03."""
+
+    def test_no_rounds_returns_none(self):
+        from qallm.verification.models import TestGenerationSession
+
+        session = TestGenerationSession(
+            function_name="f",
+            source_code="def f(): pass",
+            oracle="crash",
+            model="stub",
+            total_rounds=1,
+        )
+        assert session.final_pass_rate is None
+
+    def test_zero_denominator_returns_none(self):
+        # Latest round had only errors, no pass/fail outcomes.
+        session = _make_session(passed=0, failed=0, errors=3)
+        assert session.final_pass_rate is None
+
+    def test_uses_latest_round_only(self):
+        # Two rounds: first one bad, second one perfect. Should reflect the
+        # current variant, which is the latest round.
+        from qallm.verification.models import (
+            ExecutionResult,
+            GeneratedTest,
+            RewardBreakdown,
+            RoundResult,
+            TestGenerationSession,
+        )
+
+        def _make_round(round_num, passed, failed):
+            return RoundResult(
+                round_number=round_num,
+                generated_test=GeneratedTest(
+                    function_name="f",
+                    oracle="crash",
+                    test_code="x",
+                    is_valid=True,
+                    generation_error=None,
+                    model="stub",
+                    provider="stub",
+                    input_tokens=0,
+                    output_tokens=0,
+                ),
+                execution=ExecutionResult(
+                    passed=passed, failed=failed, total=passed + failed
+                ),
+                reward=RewardBreakdown(total=0.0),
+                cumulative_coverage=100.0,
+                cumulative_bugs=0,
+            )
+
+        session = TestGenerationSession(
+            function_name="f",
+            source_code="def f(): pass",
+            oracle="crash",
+            model="stub",
+            total_rounds=2,
+        )
+        session.rounds.append(_make_round(1, passed=2, failed=8))  # 0.2
+        session.rounds.append(_make_round(2, passed=10, failed=0))  # 1.0
+
+        assert session.final_pass_rate == 1.0  # latest, not historical
 
 
 # ---------------------------------------------------------------------------
