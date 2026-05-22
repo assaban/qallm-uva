@@ -1,8 +1,13 @@
 """Verification Manager: RL-guided test generation with incremental persistence.
 
-Within a QALLM round (Option A), test generation runs ONCE per function.
-The multi-round learning happens at the orchestrator level across QALLM rounds
-(repair → analyse → verify → report), not within test generation.
+Within a QALLM round, test generation behaviour depends on the
+`TestStabilityConfig` (see `qallm.verification.test_persistence`):
+
+* FROZEN + REPLAY_ONLY: generate once per code unit (round 0), then replay
+  the same tests against every subsequent variant.
+* FROZEN + GROW: generate per round, accumulating tests; later rounds run
+  against the full union of previously-generated tests.
+* PER_ROUND + GROW: generate fresh tests each round; no carry-over.
 
 After each function completes, artifacts are saved immediately to disk.
 """
@@ -12,7 +17,7 @@ import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Dict, Callable, Optional
+from typing import Callable, Optional
 
 from qallm.verification.models import ExecutionResult
 from qallm.repair.repair_model import RepairedCodeUnit
@@ -21,21 +26,56 @@ from .generator import TestGenerator
 from .executor import run_tests
 from .models import TestGenerationSession, RoundResult, TestedCodeUnit
 from .reward import compute_reward
+from .test_persistence import (
+    GenerationPolicy,
+    StoredTest,
+    TestStability,
+    TestStabilityConfig,
+    TestSuiteStore,
+)
 
 logger = logging.getLogger(__name__)
 
 
+def _concatenate_test_codes(stored: list[StoredTest]) -> str:
+    """Combine multiple stored test files into a single pytest module.
+
+    Each test's source is included with a small header indicating its origin
+    round. pytest is happy with multiple `def test_*` functions in one file
+    and we get a single coverage report.
+    """
+    parts: list[str] = []
+    for i, t in enumerate(stored):
+        parts.append(f"# --- stored test {i + 1} (generated in round {t.generated_in_round}) ---")
+        parts.append(t.test_code.strip())
+        parts.append("")  # blank line between blocks
+    return "\n".join(parts)
+
+
 class VerificationManager:
-    def __init__(self, llm, tracker, oracle: str = "crash", total_rounds: int = 5):
+    def __init__(
+        self,
+        llm,
+        tracker,
+        oracle: str = "crash",
+        total_rounds: int = 5,
+        stability_config: Optional[TestStabilityConfig] = None,
+    ):
         self.generator = TestGenerator(llm, tracker=tracker)
         self.oracle = oracle
         self.total_rounds = total_rounds
-        self._session_registry: Dict[str, TestGenerationSession] = {}
+        self.stability_config = stability_config or TestStabilityConfig()
+        self.store = TestSuiteStore(self.stability_config)
+        logger.info(
+            "VerificationManager initialised with stability=%s, policy=%s",
+            self.stability_config.stability.value,
+            self.stability_config.policy.value,
+        )
 
     def get_session_data(self) -> list[dict]:
         """Formats sessions for the summary report and CLI output."""
         session_data = []
-        for session in self._session_registry.values():
+        for session in self.store.all_sessions():
             data = dataclasses.asdict(session)
             data["function"] = session.function_name
             data["final_coverage"] = session.final_coverage
@@ -44,80 +84,181 @@ class VerificationManager:
             session_data.append(data)
         return session_data
 
+    def get_stability_summary(self) -> dict:
+        """Surface the test-stability state for inclusion in summary.json."""
+        return self.store.summary()
+
     def verify(
         self,
         repaired_unit: RepairedCodeUnit,
         persist_dir: Optional[Path] = None,
         on_function_complete: Optional[Callable] = None,
+        round_number: int = 1,
     ) -> TestedCodeUnit:
-        """Run test generation once per function (Option A: single pass per QALLM round).
+        """Verify a repaired code unit. Behaviour depends on stability config.
 
-        After each function completes:
-          1. Saves test code + session JSON immediately to persist_dir
-          2. Calls on_function_complete callback (for real-time UI updates)
+        For each function in the unit:
+          1. Resolve a stable key (path, cell, function).
+          2. Ask the store whether to generate fresh tests or replay stored ones.
+          3. If generating: call the LLM, optionally append to the store.
+          4. If replaying: concatenate stored test codes; run them; no LLM call.
+          5. Record the round result on the session; persist to disk if asked.
 
-        The multi-round learning happens at the orchestrator level:
-        code improves via repair between QALLM rounds, not via test gen iteration.
+        Args:
+            repaired_unit: the variant under verification.
+            persist_dir: where to save per-function artefacts.
+            on_function_complete: callback for UI updates after each function.
+            round_number: 1-indexed QALLM round number. Used to label stored
+                tests with their origin round.
         """
         unit = repaired_unit.repaired_code_unit
         source, path = unit.source_code, unit.original_path
 
         functions = extract_functions_from_source(source, str(path))
-        unit_sessions = []
+        unit_sessions: list[TestGenerationSession] = []
 
         for func_idx, func in enumerate(functions):
-            session_key = f"{path.absolute()}::{func.name}"
-            session = self._session_registry.get(session_key)
-            if not session:
+            key = TestSuiteStore.make_key(path, unit.cell_index, func.name)
+            record = self.store.get_or_create_record(key, func.name)
+
+            # Reuse or create the session.
+            if record.session is None:
                 session = TestGenerationSession(
                     function_name=func.name,
                     source_code=source,
                     oracle=self.oracle,
                     model=self.generator.llm.name(),
-                    total_rounds=self.total_rounds
+                    total_rounds=self.total_rounds,
                 )
-                self._session_registry[session_key] = session
+                self.store.attach_session(key, session)
+            else:
+                session = record.session
 
             module_name = f"source_{path.stem}_c{unit.cell_index}"
 
             logger.info(
-                "Verifying %s [%d/%d]",
-                func.name, func_idx + 1, len(functions),
+                "Verifying %s [%d/%d] in round %d (stability=%s, policy=%s)",
+                func.name,
+                func_idx + 1,
+                len(functions),
+                round_number,
+                self.stability_config.stability.value,
+                self.stability_config.policy.value,
             )
 
-            # Generate tests (single pass per QALLM round)
-            generated = self.generator.generate(func, module_name=module_name, existing_session=session)
+            # ----- decide: generate or replay -----
+            generate = self.store.should_generate(key)
+            test_code_to_run: str = ""
+            generated = None
 
-            if generated.is_valid:
-                execution = run_tests(source, generated.test_code, f"{module_name}.py", path)
-            else:
-                execution = ExecutionResult(
-                    execution_error=f"Skipped: {generated.generation_error or 'invalid test code'}"
+            if generate:
+                generated = self.generator.generate(
+                    func, module_name=module_name, existing_session=session
                 )
+                # Record only valid tests in the store under FROZEN modes;
+                # under PER_ROUND we still record so artefacts are tracked.
+                if self.store.carries_tests() or self.stability_config.policy is GenerationPolicy.GROW:
+                    self.store.record_generated(
+                        key, func.name, generated, round_number
+                    )
+                test_code_to_run = generated.test_code if generated.is_valid else ""
+            else:
+                # Replay: build a combined test module from stored tests.
+                stored = self.store.replay_tests(key)
+                if not stored:
+                    logger.warning(
+                        "Replay requested for %s but no stored tests found; skipping",
+                        func.name,
+                    )
+                    test_code_to_run = ""
+                else:
+                    test_code_to_run = _concatenate_test_codes(stored)
+                    logger.info(
+                        "Replaying %d stored test(s) for %s against round-%d variant",
+                        len(stored),
+                        func.name,
+                        round_number,
+                    )
+
+            # Under FROZEN + GROW with prior tests in store, we also replay
+            # prior tests against the new variant in addition to running the
+            # freshly generated ones. Concatenate everything we have.
+            if (
+                self.stability_config.stability is TestStability.FROZEN
+                and self.stability_config.policy is GenerationPolicy.GROW
+                and generated is not None
+                and generated.is_valid
+            ):
+                all_stored = self.store.replay_tests(key)
+                if len(all_stored) > 1:
+                    test_code_to_run = _concatenate_test_codes(all_stored)
+                    logger.info(
+                        "FROZEN+GROW: running %d accumulated test(s) for %s",
+                        len(all_stored),
+                        func.name,
+                    )
+
+            # ----- execute -----
+            if test_code_to_run:
+                execution = run_tests(
+                    source, test_code_to_run, f"{module_name}.py", path
+                )
+            else:
+                error_msg = (
+                    f"Skipped: {generated.generation_error or 'invalid test code'}"
+                    if generated
+                    else "Skipped: no tests available to run"
+                )
+                execution = ExecutionResult(execution_error=error_msg)
 
             reward = compute_reward(execution, session.final_coverage)
 
-            session.rounds.append(RoundResult(
-                round_number=len(session.rounds) + 1,
-                generated_test=generated, execution=execution, reward=reward,
-                cumulative_coverage=max(session.final_coverage or 0.0,
-                                        execution.coverage_percent or 0.0) if execution else 0.0,
-                cumulative_bugs=session.final_bugs + (execution.bugs_found if execution else 0)
-            ))
+            # Use a placeholder GeneratedTest for replay rounds, since there's
+            # no fresh generation. We mark it as a replay for transparency.
+            from qallm.verification.models import GeneratedTest as _GT
+            generated_for_record = generated or _GT(
+                function_name=func.name,
+                oracle=self.oracle,
+                test_code=test_code_to_run,
+                is_valid=bool(test_code_to_run),
+                generation_error=None,
+                model=f"replay (round {round_number})",
+                provider="store",
+                input_tokens=0,
+                output_tokens=0,
+            )
+
+            session.rounds.append(
+                RoundResult(
+                    round_number=len(session.rounds) + 1,
+                    generated_test=generated_for_record,
+                    execution=execution,
+                    reward=reward,
+                    cumulative_coverage=max(
+                        session.final_coverage or 0.0,
+                        execution.coverage_percent or 0.0,
+                    )
+                    if execution
+                    else 0.0,
+                    cumulative_bugs=session.final_bugs
+                    + (execution.bugs_found if execution else 0),
+                )
+            )
 
             logger.info(
                 "  %s: reward=%.2f, coverage=%.1f%%, bugs=%d, valid=%s",
-                func.name, reward.total,
+                func.name,
+                reward.total,
                 execution.coverage_percent or 0.0,
                 execution.bugs_found if execution else 0,
-                generated.is_valid,
+                generated_for_record.is_valid,
             )
 
             # Incremental persistence: save immediately after each function
             if persist_dir:
                 self._save_function_artifacts(session, func, persist_dir, path.stem)
 
-            # Callback for real-time updates (e.g. WebSocket, progress bar)
+            # Callback for real-time updates
             if on_function_complete:
                 on_function_complete(func.name, session, func_idx + 1, len(functions))
 

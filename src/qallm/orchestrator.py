@@ -35,6 +35,7 @@ LLM_PROVIDERS = {
 
 # 1. Add the import at the top of orchestrator.py
 from qallm.verification.verification_manager import VerificationManager
+from qallm.verification.test_persistence import TestStabilityConfig
 
 
 class QALLMOrchestrator:
@@ -46,16 +47,24 @@ class QALLMOrchestrator:
             model_name: str | None = None,
             oracle: OracleType = "crash",
             rounds: int = 5,
+            test_stability: str = "frozen",
+            generation_policy: str = "grow",
     ) -> None:
         self.ingestion_manager = IngestionManager()
         self.analysis_manager = AnalysisManager()
-        self.reporter = QualityReporter("/tmp/outputs/quality_reporter", datetime.now().strftime("%Y%m%d_%H%M%S"))
+        self.reporter = QualityReporter("outputs/quality_reporter", datetime.now().strftime("%Y%m%d_%H%M%S"))
 
         self.stage = stage
         self.strategy = strategy
         self.oracle = oracle
         self.rounds = 1 if rounds < 1 else rounds
         self.current_round: int = 1
+
+        # Test-stability config: validated here so a bad combination fails
+        # at orchestrator construction rather than mid-run.
+        self.stability_config = TestStabilityConfig.from_strings(
+            stability=test_stability, policy=generation_policy
+        )
 
         provider_cls = LLM_PROVIDERS.get(llm_type, OpenAIModel)
         self.llm: LLMModel = provider_cls(model_name) if model_name else provider_cls()
@@ -64,15 +73,21 @@ class QALLMOrchestrator:
         # 2. Initialize Repair Manager
         self.repair_manager = RepairManager(LLMRepairAgent(self.llm), analyzer=self.analysis_manager)
 
-        # Initialize Verification Manager with the round limit from the CLI/settings[cite: 36]
+        # Initialize Verification Manager with the round limit and stability config
         self.verification_manager = VerificationManager(
             llm=self.llm,
             tracker=self.tracker,
             oracle=self.oracle,
-            total_rounds=self.rounds  # Pass the parameter here[cite: 36]
+            total_rounds=self.rounds,
+            stability_config=self.stability_config,
         )
 
-        logger.info(f"Initialization completed! Strategy {self.strategy}")
+        logger.info(
+            "Initialization completed! Strategy %s, stability %s, policy %s",
+            self.strategy,
+            self.stability_config.stability.value,
+            self.stability_config.policy.value,
+        )
 
     def run(self, source_path: str) -> dict:
         """Execute the full QALLM pipeline on a source path.
@@ -102,6 +117,9 @@ class QALLMOrchestrator:
             next_round_cus_to_process = [tcu.repaired_unit.repaired_code_unit for tcu in round_cus_tested]
             round_cus_to_process = next_round_cus_to_process
             self.current_round += 1
+            # Under PER_ROUND, tests don't carry between rounds. Drop them
+            # so the next round starts with an empty store. No-op for FROZEN.
+            self.verification_manager.store.clear_for_round()
 
         session_data = self.verification_manager.get_session_data()
         summary = self._build_summary(source_path, units, session_data)
@@ -125,7 +143,7 @@ class QALLMOrchestrator:
             # Step 3: Verify (generates tests, executes, scores)
             # persist_dir enables incremental saving after each function
             tested_unit = self.verification_manager.verify(
-                repaired, persist_dir=persist_dir
+                repaired, persist_dir=persist_dir, round_number=self.current_round
             )
             self.reporter.save_verification_artifacts(tested_unit, round_suffix)
 
@@ -148,6 +166,7 @@ class QALLMOrchestrator:
             "units_analyzed": len(units),
             "functions_verified": len(sessions_data),
             "cost": self.tracker.to_dict(),
+            "test_persistence": self.verification_manager.get_stability_summary(),
             "sessions": sessions_data,
         }
         summary_path = self.reporter.report_dir / "summary.json"
