@@ -146,6 +146,8 @@ class TestGenerationSession:
     Stored as JSON for reproducibility and learning curve analysis.
     """
 
+    __test__ = False  # pytest: this is a data class, not a test class
+
     function_name: str
     source_code: str
     oracle: OracleType
@@ -166,6 +168,25 @@ class TestGenerationSession:
         if not self.rounds:
             return 0
         return self.rounds[-1].cumulative_bugs
+
+    @property
+    def final_pass_rate(self) -> float | None:
+        """Fraction of tests that passed in the latest round.
+
+        Returns ``None`` if there are no rounds, or if the latest round ran
+        zero tests (so the ratio is undefined). Errors do not count as failed
+        tests: pass_rate is ``passed / (passed + failed)``, excluding errored
+        and skipped tests, because we want a clean reliability signal.
+        """
+        if not self.rounds:
+            return None
+        latest = self.rounds[-1].execution
+        if latest is None:
+            return None
+        denom = latest.passed + latest.failed
+        if denom == 0:
+            return None
+        return latest.passed / denom
 
     @property
     def learning_curve(self) -> list[float]:
