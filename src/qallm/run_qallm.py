@@ -43,6 +43,24 @@ def main():
             "grow: yes (existing tests are kept and new ones added)."
         ),
     )
+    # Budget caps. Default values are sensible for a beta session; the
+    # ceilings in qallm.cost override any larger value silently.
+    parser.add_argument(
+        "--max-tokens", type=int, default=None,
+        help="Max total tokens for the session (default: 500000, ceiling: 2M).",
+    )
+    parser.add_argument(
+        "--max-seconds", type=int, default=None,
+        help="Wall-clock cap for the whole session (default: 1800, ceiling: 3600).",
+    )
+    parser.add_argument(
+        "--max-round-seconds", type=int, default=None,
+        help="Time cap per single round (default: 600, ceiling: 1200).",
+    )
+    parser.add_argument(
+        "--max-cost-usd", type=float, default=None,
+        help="Estimated USD cost cap for the session (default: 5.00, ceiling: 25.00).",
+    )
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
@@ -52,6 +70,17 @@ def main():
     )
 
     stage = LifecycleStage(args.stage)
+    # Build BudgetCaps from args, falling back to config defaults. Any
+    # value above the ceilings in qallm.cost is clamped by from_kwargs.
+    from qallm.cost import BudgetCaps
+    from qallm.config import settings
+    caps = BudgetCaps.from_kwargs(
+        max_rounds=args.rounds,
+        max_tokens=args.max_tokens if args.max_tokens is not None else settings.TOKEN_BUDGET,
+        max_seconds=args.max_seconds if args.max_seconds is not None else settings.QALLM_MAX_SECONDS,
+        max_round_seconds=args.max_round_seconds if args.max_round_seconds is not None else settings.QALLM_MAX_ROUND_SECONDS,
+        max_cost_usd=args.max_cost_usd if args.max_cost_usd is not None else settings.QALLM_MAX_COST_USD,
+    )
     orchestrator = QALLMOrchestrator(
         stage=stage,
         strategy=args.strategy,
@@ -61,6 +90,7 @@ def main():
         rounds=args.rounds,
         test_stability=args.test_stability,
         generation_policy=args.generation_policy,
+        caps=caps,
     )
 
     summary = orchestrator.run(args.source)
@@ -74,6 +104,9 @@ def main():
     print(f"Units:    {summary['units_analyzed']}")
     print(f"Verified: {summary['functions_verified']}")
     print(f"Cost:     ${summary['cost']['total_cost_usd']:.4f}")
+    halt = summary.get("halt_reason")
+    if halt and halt != "completed" and halt != "max_rounds":
+        print(f"Halted:   {halt} (budget cap)")
     print()
 
     for s in summary["sessions"]:

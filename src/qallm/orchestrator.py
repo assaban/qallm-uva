@@ -36,6 +36,7 @@ LLM_PROVIDERS = {
 # 1. Add the import at the top of orchestrator.py
 from qallm.verification.verification_manager import VerificationManager
 from qallm.verification.test_persistence import TestStabilityConfig
+from qallm.cost import BudgetCaps, BudgetState, HaltReason
 
 
 class QALLMOrchestrator:
@@ -49,6 +50,7 @@ class QALLMOrchestrator:
             rounds: int = 5,
             test_stability: str = "frozen",
             generation_policy: str = "grow",
+            caps: BudgetCaps | None = None,
     ) -> None:
         self.ingestion_manager = IngestionManager()
         self.analysis_manager = AnalysisManager()
@@ -57,7 +59,16 @@ class QALLMOrchestrator:
         self.stage = stage
         self.strategy = strategy
         self.oracle = oracle
-        self.rounds = 1 if rounds < 1 else rounds
+
+        # Budget caps: if not supplied, construct from the legacy `rounds`
+        # argument plus default ceilings on the other axes. `rounds` is
+        # kept as a positional parameter for backward compatibility with
+        # earlier orchestrator clients (web UI, tests) that don't yet pass
+        # a full BudgetCaps.
+        self.caps = caps or BudgetCaps.from_kwargs(max_rounds=rounds)
+        # Legacy: keep `self.rounds` as an alias for caps.max_rounds so
+        # downstream code that reads it still works.
+        self.rounds = self.caps.max_rounds
         self.current_round: int = 1
 
         # Test-stability config: validated here so a bad combination fails
@@ -68,7 +79,13 @@ class QALLMOrchestrator:
 
         provider_cls = LLM_PROVIDERS.get(llm_type, OpenAIModel)
         self.llm: LLMModel = provider_cls(model_name) if model_name else provider_cls()
-        self.tracker = TokenTracker(budget=settings.TOKEN_BUDGET)
+        # The token tracker's own budget mirrors the cost-caps token budget,
+        # so the per-LLM-call "stop on out-of-tokens" logic still works.
+        self.tracker = TokenTracker(budget=self.caps.max_tokens)
+        # Budget state: tracks elapsed time and round count for cap checks.
+        self.budget_state = BudgetState(caps=self.caps, tracker=self.tracker)
+        # Set on halt; null until then.
+        self.halt_reason: HaltReason | None = None
 
         # 2. Initialize Repair Manager
         self.repair_manager = RepairManager(LLMRepairAgent(self.llm), analyzer=self.analysis_manager)
@@ -83,10 +100,11 @@ class QALLMOrchestrator:
         )
 
         logger.info(
-            "Initialization completed! Strategy %s, stability %s, policy %s",
+            "Initialization completed! Strategy %s, stability %s, policy %s, caps %s",
             self.strategy,
             self.stability_config.stability.value,
             self.stability_config.policy.value,
+            self.caps.to_dict(),
         )
 
     def run(self, source_path: str) -> dict:
@@ -111,15 +129,39 @@ class QALLMOrchestrator:
         logger.info("Baseline complete. Stored as round_00_baseline.")
 
         # QALLM rounds: Repair → Analyse → Verify → Report
+        # Loop terminates when either max_rounds is reached or any other
+        # budget cap trips at a round boundary.
         round_cus_to_process = units
-        while self.current_round <= self.rounds:
+        while True:
+            self.budget_state.mark_round_start()
             round_cus_tested = self.run_round(round_cus_to_process)
+            self.budget_state.mark_round_end()
+
             next_round_cus_to_process = [tcu.repaired_unit.repaired_code_unit for tcu in round_cus_tested]
             round_cus_to_process = next_round_cus_to_process
             self.current_round += 1
             # Under PER_ROUND, tests don't carry between rounds. Drop them
             # so the next round starts with an empty store. No-op for FROZEN.
             self.verification_manager.store.clear_for_round()
+
+            # Cap check at the round boundary. The first cap to trip wins;
+            # MAX_ROUNDS is the natural completion signal.
+            halt = self.budget_state.check()
+            if halt is not None:
+                self.halt_reason = halt
+                if halt is HaltReason.MAX_ROUNDS:
+                    logger.info("Completed all %d rounds.", self.caps.max_rounds)
+                else:
+                    logger.warning(
+                        "Budget cap tripped: %s. Halting after round %d. "
+                        "Spent: %d tokens, $%.4f, %.1fs total.",
+                        halt.value,
+                        self.budget_state.rounds_completed,
+                        self.tracker.total_tokens,
+                        self.tracker.total_cost_usd,
+                        self.budget_state.elapsed_seconds,
+                    )
+                break
 
         session_data = self.verification_manager.get_session_data()
         summary = self._build_summary(source_path, units, session_data)
@@ -166,6 +208,10 @@ class QALLMOrchestrator:
             "units_analyzed": len(units),
             "functions_verified": len(sessions_data),
             "cost": self.tracker.to_dict(),
+            "budget": self.budget_state.summary(),
+            "halt_reason": (
+                self.halt_reason.value if self.halt_reason is not None else None
+            ),
             "test_persistence": self.verification_manager.get_stability_summary(),
             "sessions": sessions_data,
         }
