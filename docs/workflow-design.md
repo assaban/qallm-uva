@@ -319,8 +319,8 @@ For implementation, the workflow maps onto the modules already in place, plus th
 | Test suite persistence     | `qallm.verification.test_persistence`                                 | Built (PR feature/test-stability). 250 lines plus 22 tests. Section 4.5. |
 | Profile evaluation         | `qallm.profiles` + `qallm.evaluation`                                 | Working; reliability indicators wired in NEW-03. Framework-agnostic by design. |
 | FAIRness indicators        | New: extend `qallm.evaluation` with `qallm.fairness` evaluators       | To build. ~100 lines. Section 9.4. |
-| Judge                      | New: `qallm.judge`                                                    | To build. ~150 lines plus tests.  |
-| Improvement strategies     | New: `qallm.judge.strategies`: lexicographic, strict, model           | To build alongside judge.         |
+| Judge                      | `qallm.judge` package: models, comparator, prompts, strategies        | Built (NEW-02). 31 tests.         |
+| Improvement strategies     | `qallm.judge.strategies`: StrictJudge, LexicographicJudge, ModelJudge | Built (NEW-02). Model has Strict fallback on LLM error. |
 | Cost estimation            | `qallm.cost` (price table reused from `qallm.llm.base.MODEL_RATES`)   | Built (NEW-05). 220 lines, 20 tests. |
 | Budget enforcement         | `qallm.orchestrator` round-boundary check via `BudgetState.check()`   | Built (NEW-05). Five caps with ceilings. |
 | Loop / orchestration       | `qallm.orchestrator`                                                  | Loop logic to extend per section 3. |
@@ -333,7 +333,7 @@ For implementation, the workflow maps onto the modules already in place, plus th
 All design questions are resolved. The implementation roadmap below is the basis for the project backlog; each item is one focused, reviewable PR.
 
 1. ~~Extend verification for test-suite persistence per section 4.5.~~ **Done.** Two-axis configurable strategy (`test_stability` x `generation_policy`) with three meaningful modes. New `qallm.verification.test_persistence` module, 250 lines plus 22 tests. CLI flags `--test-stability` and `--generation-policy`. `summary.json` records the mode. Section 4.5.
-2. Build the judge module (`qallm.judge`) with the three improvement strategies. 150 lines plus tests.
+2. ~~Build the judge module (`qallm.judge`) with the three improvement strategies.~~ **Done.** New `qallm.judge` package: `models.py`, `comparator.py`, `prompts.py`, `strategies.py`. Three strategies (Strict, Lexicographic, Model). ModelJudge falls back to Strict on LLM error, parse failure, or `error` field on response. Every JudgeVerdict stores both the structured numerical comparison and (for Model) the LLM's free-text reasoning. 31 tests. FAIRness is omitted from the default Lexicographic priority until NEW-04 ships.
 3. ~~Wire reliability indicators in `qallm.evaluation` to actual verification output.~~ **Done.** Both `qallm.verification.pass_rate` and `qallm.verification.bugs` now read `context["verification_sessions"]: list[TestGenerationSession]`. Added a `final_pass_rate` property on the session model. 12 new tests; all 126 prior tests still pass.
 4. Add FAIRness indicators (`qallm.fairness`): licence, citation, README, docstrings. 100 lines plus tests.
 5. ~~Add budget enforcement in the orchestrator: rounds, tokens, time, cost.~~ **Done.** Five caps with ceilings (rounds 5/10, tokens 500k/2M, seconds 1800/3600, round-seconds 600/1200, cost $5/$25). Reuses the existing `MODEL_RATES` table in `qallm.llm.base`. New module `qallm.cost` with `BudgetCaps`, `BudgetState`, and `HaltReason`. CLI flags `--max-tokens`, `--max-seconds`, `--max-round-seconds`, `--max-cost-usd`. Halt reason recorded in `summary.json`. 20 new tests, 159 tests total.
