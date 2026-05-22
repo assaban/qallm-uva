@@ -24,6 +24,25 @@ def main():
     parser.add_argument("--oracle", default="crash", choices=["crash", "property", "metamorphic"])
     parser.add_argument("--stage", default="implementation",
                         choices=["initialization", "implementation", "publication"])
+    parser.add_argument(
+        "--test-stability",
+        default="frozen",
+        choices=["frozen", "per_round"],
+        help=(
+            "Whether test suites carry across QALLM rounds for the same code "
+            "unit (default: frozen). frozen: yes; per_round: regenerate every round."
+        ),
+    )
+    parser.add_argument(
+        "--generation-policy",
+        default="grow",
+        choices=["replay_only", "grow"],
+        help=(
+            "Whether the LLM may add new tests for new variants (default: grow). "
+            "replay_only: never (only stored tests are run). "
+            "grow: yes (existing tests are kept and new ones added)."
+        ),
+    )
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
@@ -40,6 +59,8 @@ def main():
         model_name=args.model,
         oracle=args.oracle,
         rounds=args.rounds,
+        test_stability=args.test_stability,
+        generation_policy=args.generation_policy,
     )
 
     summary = orchestrator.run(args.source)
