@@ -321,8 +321,8 @@ For implementation, the workflow maps onto the modules already in place, plus th
 | FAIRness indicators        | New: extend `qallm.evaluation` with `qallm.fairness` evaluators       | To build. ~100 lines. Section 9.4. |
 | Judge                      | New: `qallm.judge`                                                    | To build. ~150 lines plus tests.  |
 | Improvement strategies     | New: `qallm.judge.strategies`: lexicographic, strict, model           | To build alongside judge.         |
-| Cost estimation            | New: extend `qallm.config` with a price table; new `qallm.cost`       | To build. ~80 lines.              |
-| Budget enforcement         | Extend `qallm.orchestrator` with hard-cap checks at round boundary    | To build. ~50 lines.              |
+| Cost estimation            | `qallm.cost` (price table reused from `qallm.llm.base.MODEL_RATES`)   | Built (NEW-05). 220 lines, 20 tests. |
+| Budget enforcement         | `qallm.orchestrator` round-boundary check via `BudgetState.check()`   | Built (NEW-05). Five caps with ceilings. |
 | Loop / orchestration       | `qallm.orchestrator`                                                  | Loop logic to extend per section 3. |
 | Lineage and abandoned log  | Extend `qallm.utils.reporter`                                         | To build.                         |
 | Canonical JSON + views     | Extend `qallm.utils.reporter`: emit `summary.json`, `report.md`, `report.html` | To build. Section 10.        |
@@ -336,7 +336,7 @@ All design questions are resolved. The implementation roadmap below is the basis
 2. Build the judge module (`qallm.judge`) with the three improvement strategies. 150 lines plus tests.
 3. ~~Wire reliability indicators in `qallm.evaluation` to actual verification output.~~ **Done.** Both `qallm.verification.pass_rate` and `qallm.verification.bugs` now read `context["verification_sessions"]: list[TestGenerationSession]`. Added a `final_pass_rate` property on the session model. 12 new tests; all 126 prior tests still pass.
 4. Add FAIRness indicators (`qallm.fairness`): licence, citation, README, docstrings. 100 lines plus tests.
-5. Add budget enforcement in the orchestrator: rounds, tokens, time, cost. Cost requires a price table in `qallm.config`. 50 plus 80 lines.
+5. ~~Add budget enforcement in the orchestrator: rounds, tokens, time, cost.~~ **Done.** Five caps with ceilings (rounds 5/10, tokens 500k/2M, seconds 1800/3600, round-seconds 600/1200, cost $5/$25). Reuses the existing `MODEL_RATES` table in `qallm.llm.base`. New module `qallm.cost` with `BudgetCaps`, `BudgetState`, and `HaltReason`. CLI flags `--max-tokens`, `--max-seconds`, `--max-round-seconds`, `--max-cost-usd`. Halt reason recorded in `summary.json`. 20 new tests, 159 tests total.
 6. Extend the orchestrator loop per section 3. 100 lines.
 7. Extend the reporter with lineage, abandoned-variant logging, canonical `summary.json`, and the markdown/HTML views (section 10). 100 lines.
 8. Update the web UI auto mode to drive the new loop. Small change.
