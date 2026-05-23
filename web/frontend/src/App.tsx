@@ -9,7 +9,7 @@ import AnalyseScreen from "./screens/AnalyseScreen";
 import RepairScreen from "./screens/RepairScreen";
 import ReanalyseScreen from "./screens/ReanalyseScreen";
 import TestGenScreen from "./screens/TestGenScreen";
-import RLScreen from "./screens/RLScreen";
+import ResultsScreen from "./screens/ResultsScreen";
 
 const STEPS = 6;
 
@@ -35,7 +35,7 @@ export default function App() {
       case 3: return <RepairScreen state={state} patch={patch} autoMode={mode === "auto"} />;
       case 4: return <ReanalyseScreen state={state} patch={patch} />;
       case 5: return <TestGenScreen state={state} patch={patch} autoMode={mode === "auto"} />;
-      case 6: return <RLScreen state={state} />;
+      case 6: return <ResultsScreen state={state} />;
       default: return null;
     }
   })();

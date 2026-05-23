@@ -305,7 +305,7 @@ This data has two uses:
 
 Both produce the same lineage, the same abandoned log, the same final report. If manual and auto ever produce different outputs for the same input, that is a bug.
 
-Auto mode currently halts after one round. The fix is to make the loop iterate until the verdict says stop or the budget says stop. The fix is small and follows directly from this document.
+Auto mode previously halted after one round because the API's verification handler bypassed `orch.run()` and called the verification manager directly. NEW-08 fixed this: the handler now invokes the full v3 loop, including judge accept/abandon decisions and budget caps. The UI's Advanced panel exposes the v1 configuration surface (judge strategy, test stability, generation policy, budget caps, and separate repair / test-gen models).
 
 ## 9. Design decisions discussed with supervisors
 
@@ -438,7 +438,7 @@ For implementation, the workflow maps onto the modules already in place, plus th
 | Loop / orchestration       | `qallm.orchestrator` (judge + lineage + abandoned + budget)            | Built (NEW-06). 9 integration tests covering accept/abandon paths. |
 | Lineage and abandoned log  | Extend `qallm.utils.reporter`                                         | To build.                         |
 | Canonical JSON + views     | `qallm.utils.reporter` + new `qallm.utils.views` (markdown + HTML)    | Built (NEW-07). Per-unit lineage / abandoned dirs each with six artefacts; report.md and report.html generated from `summary.json`. 29 tests. |
-| Web UI integration         | `qallm.api.main` + `web/frontend`                                     | Auto mode needs the loop fix.     |
+| Web UI integration         | `qallm.api.main` + `web/frontend`                                     | Built (NEW-08). API uses v3 loop end-to-end; UploadScreen Advanced panel exposes judge / stability / policy / caps / separate models; ResultsScreen surfaces lineage, abandoned, halt, budget. 19 new tests. |
 
 ## 12. Next steps
 
@@ -451,7 +451,7 @@ All design questions are resolved. The implementation roadmap below is the basis
 5. ~~Add budget enforcement in the orchestrator: rounds, tokens, time, cost.~~ **Done.** Five caps with ceilings (rounds 5/10, tokens 500k/2M, seconds 1800/3600, round-seconds 600/1200, cost $5/$25). Reuses the existing `MODEL_RATES` table in `qallm.llm.base`. New module `qallm.cost` with `BudgetCaps`, `BudgetState`, and `HaltReason`. CLI flags `--max-tokens`, `--max-seconds`, `--max-round-seconds`, `--max-cost-usd`. Halt reason recorded in `summary.json`. 20 new tests, 159 tests total.
 6. ~~Extend the orchestrator loop per section 3.~~ **Done.** The orchestrator now drives a per-unit lineage with accept/abandon decisions. New `LineageEntry`, `AbandonedEntry`, and `UnitTrack` dataclasses; round-1 unconditional acceptance; round N>=2 calls the configured judge, with REGRESSION reverting to the unit's parent and IMPROVEMENT/NO_CHANGE extending its lineage. CLI flag `--judge-strategy` (strict | lexicographic | model), default lexicographic. `summary.json` gains a per-unit `tracks` field plus `rounds_accepted_total` and `rounds_abandoned_total` aggregates. 9 new integration tests with stubbed collaborators.
 7. ~~Extend the reporter with lineage, abandoned-variant logging, canonical `summary.json`, and the markdown/HTML views (section 10).~~ **Done.** New `QualityReporter` API: `save_baseline` and `save_round_artefacts(..., accepted=...)`. Six files per round per unit: `source.py`, `static.json`, `verification.json`, `profile.json`, `judge.json`, `tests/`. Accepted variants land in `lineage/round_NN/<unit>/`; rejected in `abandoned/round_NN/<unit>/`. New `qallm.utils.views` produces `report.md` and `report.html` from `summary.json`; both are written automatically at session end. Per-unit directory names escape path separators and colons. The orchestrator's old fan-out save calls were replaced with a single per-unit save after the judge decision. 29 new tests; 266 total.
-8. Update the web UI auto mode to drive the new loop. Small change.
+8. ~~Update the web UI auto mode to drive the new loop.~~ **Done.** The API's verification handler now calls `orch.run()` (the v3 loop) and returns the full surface (tracks, judge verdicts, halt reason, budget) alongside the legacy `functions` list. The upload endpoint accepts `judge_strategy`, `test_stability`, `generation_policy`, budget caps (`max_tokens`, `max_seconds`, `max_round_seconds`, `max_cost_usd`), and separate `repair_model` / `testgen_model`. The orchestrator gained `repair_llm_type`, `repair_model_name`, `testgen_llm_type`, `testgen_model_name` parameters; the `LLMRepairAgent` and `VerificationManager` each get their own LLM instance when these are set. UploadScreen has an Advanced panel exposing the full v1 surface; ResultsScreen replaces RLScreen with per-unit lineage and abandoned views, halt-reason badges, and budget consumed. 19 new tests; 287 total.
 9. HumanEval validation experiment (section 9.5). A separate driver script that mutates HumanEval reference solutions and runs QALLM against the mutants. Independent of the main pipeline.
 
 Approximate total: 10 to 15 hours of focused implementation work for items 1 through 8, plus the HumanEval experiment which is its own piece of work.

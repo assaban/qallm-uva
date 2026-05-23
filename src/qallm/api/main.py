@@ -114,9 +114,29 @@ async def upload_session(
     model: str = Form("openai:gpt-4o-mini"),
     oracle: str = Form("crash"),
     rounds: int = Form(5),
+    # Separate models for repair and test generation. Optional: when None,
+    # both inherit the session default `model`.
+    repair_model: Optional[str] = Form(None),
+    testgen_model: Optional[str] = Form(None),
+    # Judge strategy (NEW-02): which strategy decides accept/abandon.
+    judge_strategy: str = Form("lexicographic"),
+    # Test stability (NEW-01).
+    test_stability: str = Form("frozen"),
+    generation_policy: str = Form("grow"),
+    # Budget caps (NEW-05). All optional; orchestrator fills sensible defaults.
+    max_tokens: Optional[int] = Form(None),
+    max_seconds: Optional[float] = Form(None),
+    max_round_seconds: Optional[float] = Form(None),
+    max_cost_usd: Optional[float] = Form(None),
 ):
-    """Upload files, create session, initialize orchestrator."""
-    # Write uploads to /tmp to avoid triggering uvicorn --reload
+    """Upload files, create session, initialise orchestrator.
+
+    Accepts the full v1 configuration surface: separate models for repair
+    and test generation, judge strategy, test stability, budget caps. All
+    advanced settings are optional with sensible defaults; the basic flow
+    works with just ``model``, ``oracle``, and ``rounds`` as before.
+    """
+    # Write uploads to /tmp to avoid triggering uvicorn --reload.
     upload_root = Path(tempfile.mkdtemp(prefix="qallm_upload_"))
 
     for archive in archives:
@@ -132,6 +152,34 @@ async def upload_session(
     session_id = str(uuid.uuid4())
     llm_type, model_name = _parse_model_id(model)
 
+    # Resolve separate models. None means "inherit default."
+    repair_llm_type, repair_model_name = (None, None)
+    if repair_model:
+        repair_llm_type, repair_model_name = _parse_model_id(repair_model)
+
+    testgen_llm_type, testgen_model_name = (None, None)
+    if testgen_model:
+        testgen_llm_type, testgen_model_name = _parse_model_id(testgen_model)
+
+    # Build budget caps if any cap field was supplied; otherwise let the
+    # orchestrator construct defaults from `rounds` alone.
+    caps = None
+    if any(v is not None for v in (max_tokens, max_seconds, max_round_seconds, max_cost_usd)):
+        from qallm.cost import BudgetCaps
+        cap_kwargs = {"max_rounds": rounds}
+        # `BudgetCaps.from_kwargs` treats 0 or negative as "unset"; we pass
+        # only fields the caller explicitly supplied to avoid overriding
+        # a sensible default with None.
+        if max_tokens is not None:
+            cap_kwargs["max_tokens"] = max_tokens
+        if max_seconds is not None:
+            cap_kwargs["max_seconds"] = max_seconds
+        if max_round_seconds is not None:
+            cap_kwargs["max_round_seconds"] = max_round_seconds
+        if max_cost_usd is not None:
+            cap_kwargs["max_cost_usd"] = max_cost_usd
+        caps = BudgetCaps.from_kwargs(**cap_kwargs)
+
     try:
         orchestrator = QALLMOrchestrator(
             stage=stage,
@@ -140,6 +188,14 @@ async def upload_session(
             model_name=model_name,
             oracle=oracle,
             rounds=rounds,
+            test_stability=test_stability,
+            generation_policy=generation_policy,
+            judge_strategy=judge_strategy,
+            caps=caps,
+            repair_llm_type=repair_llm_type,
+            repair_model_name=repair_model_name,
+            testgen_llm_type=testgen_llm_type,
+            testgen_model_name=testgen_model_name,
         )
         units = orchestrator.ingestion_manager.collect(target)
 
@@ -149,15 +205,27 @@ async def upload_session(
             "analysed_units": {},
             "repaired_units": {},
             "analysis_rounds": [],
+            "source_path": target,
             "config": {
                 "stage": stage,
                 "strategy": strategy,
                 "model_id": model,
                 "llm_type": llm_type,
                 "model_name": model_name,
-                "model_label": next((e["label"] for e in MODEL_CATALOG if e["id"] == model), model),
+                "model_label": _model_label(model),
+                "repair_model_id": repair_model or model,
+                "repair_model_label": _model_label(repair_model or model),
+                "testgen_model_id": testgen_model or model,
+                "testgen_model_label": _model_label(testgen_model or model),
                 "oracle": oracle,
                 "rounds": rounds,
+                "judge_strategy": judge_strategy,
+                "test_stability": test_stability,
+                "generation_policy": generation_policy,
+                "max_tokens": max_tokens,
+                "max_seconds": max_seconds,
+                "max_round_seconds": max_round_seconds,
+                "max_cost_usd": max_cost_usd,
             },
         }
 
@@ -165,10 +233,16 @@ async def upload_session(
             "session_id": session_id,
             "files": [u.original_path.name for u in units],
             "model": sessions[session_id]["config"]["model_label"],
+            "config": sessions[session_id]["config"],
         }
     except Exception as e:
         logger.error("Ingestion failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _model_label(model_id: str) -> str:
+    """Look up the human-readable label for a model id; fall back to id itself."""
+    return next((e["label"] for e in MODEL_CATALOG if e["id"] == model_id), model_id)
 
 
 @app.post("/api/session/ingest")
@@ -428,61 +502,61 @@ async def get_functions(session_id: str):
 def _run_verification_work(sid: str) -> dict:
     """Synchronous body of the verification step.
 
-    Extracted so it can be backgrounded via the JobStore. Runs the full
-    RL verification loop for every code unit in the session and returns
-    the result payload the frontend expects.
+    Calls ``orch.run(source_path)`` which executes the full v3 loop:
+    Baseline → N rounds of (repair → analyse → verify → profile → judge),
+    with budget caps enforced at round boundaries and per-unit lineage
+    tracking for accept/abandon decisions.
+
+    Returns a result payload with both the legacy ``functions`` list (for
+    back-compat with the existing UI) and the new v3 fields (tracks,
+    judge verdicts, halt reason, budget summary).
     """
     state = _get_state(sid)
     orch: QALLMOrchestrator = state["orchestrator"]
+    source_path = state.get("source_path")
+    if not source_path:
+        raise RuntimeError(
+            "Session has no source_path; cannot run the v3 loop. "
+            "This indicates a session created before NEW-08 plumbed it through."
+        )
 
-    from qallm.repair.repair_model import RepairedCodeUnit, RepairResult
-    from qallm.analysis.analysis_model import AnalysedCodeUnit
+    # The orchestrator owns the full loop, including ingestion, baseline,
+    # rounds, judging, and persistence. It writes summary.json + views to
+    # its reporter directory and returns the summary dict.
+    summary = orch.run(source_path)
 
-    all_sessions = []
-    total_bugs = 0
+    # Cache for the stats endpoint to read later.
+    state["verification_sessions"] = summary.get("sessions", [])
+    state["last_summary"] = summary
 
-    for unit in state["units"]:
-        name = unit.original_path.name
-        repaired = state.get("repaired_units", {}).get(name)
-        if not repaired:
-            # Create a passthrough wrapper: original code, no changes
-            dummy_analysed = AnalysedCodeUnit(code_unit=unit)
-            dummy_repair = RepairResult(
-                file_path=str(unit.original_path),
-                repaired_source=unit.source_code,
-                explanation="No repair applied",
-                compiles=True,
-            )
-            repaired = RepairedCodeUnit(
-                analysis_result=dummy_analysed,
-                repaired_result=dummy_repair,
-            )
-
-        # Incremental persistence: save after each function completes
-        persist_dir = orch.reporter.report_dir / f"round_{len(state.get('analysis_rounds', [])):02d}"
-        tested_unit = orch.verification_manager.verify(repaired, persist_dir=persist_dir)
-        total_bugs += tested_unit.total_bugs
-
-        for session in tested_unit.sessions:
-            s_data = asdict(session)
-            s_data["function"] = session.function_name
-            s_data["final_coverage"] = session.final_coverage
-            s_data["final_bugs"] = session.final_bugs
-            s_data["learning_curve"] = session.learning_curve
-            all_sessions.append(s_data)
-
-    # Store for stats endpoint
-    state["verification_sessions"] = all_sessions
+    # The UI expects a `functions` list with per-function rollup numbers
+    # (legacy shape). Build it from the sessions in the summary.
+    sessions_data = summary.get("sessions", [])
+    total_bugs = sum(s.get("final_bugs", 0) for s in sessions_data)
 
     return {
         "session_id": sid,
         "total_bugs": total_bugs,
-        "total_functions": len(all_sessions),
-        "functions": all_sessions,
-        "model": orch.llm.name(),
-        "oracle": orch.verification_manager.oracle,
-        "rounds_per_function": orch.rounds,
-        "token_usage": orch.tracker.to_dict(),
+        "total_functions": len(sessions_data),
+        "functions": sessions_data,
+        "model": summary.get("model"),
+        "repair_model": summary.get("repair_model"),
+        "testgen_model": summary.get("testgen_model"),
+        "oracle": summary.get("oracle"),
+        "rounds_per_function": summary.get("rounds_per_function"),
+        "token_usage": summary.get("cost", {}),
+        # New v3 surface: full per-unit tracks, judge strategy, halt reason,
+        # budget summary, test-stability summary.
+        "tracks": summary.get("tracks", {}),
+        "rounds_accepted_total": summary.get("rounds_accepted_total", 0),
+        "rounds_abandoned_total": summary.get("rounds_abandoned_total", 0),
+        "judge_strategy": summary.get("judge_strategy"),
+        "halt_reason": summary.get("halt_reason"),
+        "budget": summary.get("budget", {}),
+        "test_persistence": summary.get("test_persistence", {}),
+        # Path to the session directory so the frontend can deep-link the
+        # generated report.html if it wants.
+        "report_dir": str(orch.reporter.report_dir),
     }
 
 

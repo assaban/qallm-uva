@@ -28,6 +28,17 @@ export interface SessionConfig {
   model_name: string;
   oracle: string;
   rounds: number;
+  // Optional advanced settings (NEW-08). Undefined values fall back to
+  // server defaults; the upload endpoint only forwards what's present.
+  repair_model?: string;
+  testgen_model?: string;
+  judge_strategy?: "strict" | "lexicographic" | "model";
+  test_stability?: "frozen" | "per_round";
+  generation_policy?: "replay_only" | "grow";
+  max_tokens?: number;
+  max_seconds?: number;
+  max_round_seconds?: number;
+  max_cost_usd?: number;
 }
 
 // ─── Step 0: Upload / Ingest ───
@@ -39,8 +50,19 @@ export async function uploadFiles(files: FileList, config: SessionConfig) {
   form.append("model", config.model_name);
   form.append("oracle", config.oracle);
   form.append("rounds", config.rounds.toString());
+  // Optional advanced fields. Only append when defined so the server uses
+  // its own defaults for the rest.
+  if (config.repair_model) form.append("repair_model", config.repair_model);
+  if (config.testgen_model) form.append("testgen_model", config.testgen_model);
+  if (config.judge_strategy) form.append("judge_strategy", config.judge_strategy);
+  if (config.test_stability) form.append("test_stability", config.test_stability);
+  if (config.generation_policy) form.append("generation_policy", config.generation_policy);
+  if (config.max_tokens !== undefined) form.append("max_tokens", String(config.max_tokens));
+  if (config.max_seconds !== undefined) form.append("max_seconds", String(config.max_seconds));
+  if (config.max_round_seconds !== undefined) form.append("max_round_seconds", String(config.max_round_seconds));
+  if (config.max_cost_usd !== undefined) form.append("max_cost_usd", String(config.max_cost_usd));
 
-  return req<{ session_id: string; files: string[] }>("/api/session/upload", {
+  return req<{ session_id: string; files: string[]; config?: Record<string, unknown> }>("/api/session/upload", {
     method: "POST",
     body: form,
   });
