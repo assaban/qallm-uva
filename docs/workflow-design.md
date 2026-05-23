@@ -81,6 +81,76 @@ In prose:
 
 When the loop ends (budget exhausted or explicit halt), the final lineage is the result. The head of the lineage is the best variant. The abandoned-variants log is preserved alongside.
 
+### 3.1 Full loop, end to end
+
+The diagram below traces a single QALLM session in detail: how each unit moves through its own lineage independently, where budget caps fire, where the judge falls back, and what artefacts land on disk. This is the picture that matches the v1 implementation (NEW-01 through NEW-06).
+
+```mermaid
+flowchart TD
+    Start([CLI: qallm SOURCE --strategy rl --judge-strategy lexicographic]) --> Init[Construct orchestrator:<br/>BudgetCaps, TestStabilityConfig,<br/>VerificationManager, Judge]
+    Init --> Ingest[Ingestion: collect CodeUnits]
+    Ingest --> Tracks[Initialise UnitTrack per unit:<br/>empty lineage, empty abandoned]
+    Tracks --> Baseline[Round 0 baseline:<br/>static analysis only<br/>round_00_baseline/]
+
+    Baseline --> LoopHead[For each round r = 1..max_rounds]
+    LoopHead --> BudgetStart[BudgetState.mark_round_start]
+    BudgetStart --> UnitLoop[For each unit u in next_inputs]
+
+    UnitLoop --> Analyse[Analyse u]
+    Analyse --> Repair[Repair: LLM produces variant v]
+    Repair --> Verify["Verify: TestSuiteStore decides<br/>generate vs replay (NEW-01);<br/>tracker records tokens, cost"]
+    Verify --> Profile[evaluate_profile: ProfileVerdict with all<br/>five EVERSE dimensions populated]
+    Profile --> ParentCheck{Round 1?}
+
+    ParentCheck -- Yes --> AcceptR1[Append to track.lineage<br/>judge_verdict = None]
+    AcceptR1 --> NextUnit
+
+    ParentCheck -- No --> Judge["Judge.decide(parent.verdict,<br/>variant.verdict, raw_evidence)"]
+    Judge --> JudgeKind{Strategy?}
+    JudgeKind -- strict / lex --> RuleOutcome["Outcome from deltas<br/>(deterministic)"]
+    JudgeKind -- model --> LLM["LLM chat: parse JSON"]
+    LLM --> ParseOK{"Parsed?<br/>Error-free?"}
+    ParseOK -- No --> Fallback["Fallback to Strict;<br/>fallback_used = True"]
+    ParseOK -- Yes --> ModelOutcome[Outcome from model]
+
+    RuleOutcome --> Outcome
+    Fallback --> Outcome
+    ModelOutcome --> Outcome[JudgeVerdict.outcome]
+
+    Outcome --> Decide{Outcome?}
+    Decide -- IMPROVEMENT / NO_CHANGE --> Accept[Append to track.lineage<br/>next_inputs.u = variant]
+    Decide -- REGRESSION --> Abandon[Append to track.abandoned<br/>next_inputs.u = parent.code]
+
+    Accept --> NextUnit
+    Abandon --> NextUnit
+    NextUnit{More units?} -- Yes --> UnitLoop
+    NextUnit -- No --> BudgetEnd[BudgetState.mark_round_end]
+    BudgetEnd --> ClearStore["TestSuiteStore.clear_for_round<br/>(no-op under FROZEN)"]
+    ClearStore --> BudgetCheck[BudgetState.check]
+
+    BudgetCheck --> Halt{Trip?}
+    Halt -- "rounds, cost, tokens,<br/>seconds, round-seconds" --> RecordHalt[halt_reason set;<br/>break loop]
+    Halt -- None --> LoopHead
+
+    RecordHalt --> Summary["Build summary.json:<br/>tracks, lineage, abandoned,<br/>budget, halt_reason"]
+    Summary --> Done([Done])
+
+    classDef accept fill:#d4edda,stroke:#28a745
+    classDef abandon fill:#f8d7da,stroke:#dc3545
+    classDef budget fill:#fff3cd,stroke:#ffc107
+    class Accept,AcceptR1 accept
+    class Abandon abandon
+    class BudgetStart,BudgetEnd,BudgetCheck,RecordHalt budget
+```
+
+Reading guide for the diagram:
+
+* **Green** boxes mark acceptances onto the lineage. **Red** boxes mark abandonment.  **Yellow** marks budget-state interactions.
+* The judge branch shows the Model strategy's fallback path explicitly: any parse failure, any LLM error, falls back to Strict and records `fallback_used = True` on the verdict.
+* The per-unit loop runs inside the per-round loop: every unit makes its own accept/abandon decision in each round, so unit A can advance while unit B stalls.
+* `next_inputs.u = parent.code` on REGRESSION is the key abandon semantic: the next round repairs the parent, not the rejected variant. The rejected variant is preserved in the abandoned log but does not propagate.
+* `clear_for_round` is a no-op under `FROZEN` test stability; it only fires under `PER_ROUND` to discard stored tests between rounds (NEW-01).
+
 ## 4. Round 0 specifics
 
 Round 0 is the baseline. It has two purposes:
@@ -88,7 +158,23 @@ Round 0 is the baseline. It has two purposes:
 * **Reference point** for every subsequent round's improvement judgement. Without it, "did this round improve" has nothing to compare to.
 * **Verification-gap evidence**. Round 0 is precisely the input that static-only tools have access to. If the EVERSE profile says the baseline passes everything *static*, but verification reveals bugs at runtime, that is the verification gap made concrete for this specific code unit.
 
-Round 0 differs from later rounds in that no repair runs first. It is `analyse → verify → judge`, where the judge records but does not compare.
+### 4.1 Current behaviour (`v1, as shipped in NEW-06`)
+
+Round 0 in the shipped orchestrator is *static analysis only*. It does not run repair, does not run verification, does not produce a `ProfileVerdict`. The artefact saved on disk is the raw static analysis of the original code, stored under `round_00_baseline/`.
+
+Consequence: round 1 has no parent verdict to compare against, so round 1 is **unconditionally accepted** as the first entry in the lineage. The judge is not called for round 1. Round 2 onwards calls the judge with round 1 (or the last accepted variant) as the parent.
+
+### 4.2 Open question: should round 0 also run verification?
+
+We considered two options when implementing NEW-06:
+
+**(a) Round 0 is static-only** (shipped). Round 1 is unconditionally accepted. Pro: cheapest; preserves the methodological framing that the static-only baseline is what the developer started with. Con: round 1 never gets judged, so we cannot answer "did round 1 actually improve over the original" with a structured verdict.
+
+**(b) Round 0 also runs verification** (deferred). Round 0 produces a full `ProfileVerdict` with all five EVERSE dimensions populated. Round 1 is judged against it normally. Pro: every round including the first is judged with the same machinery; we can answer "did repair help, or did the original already pass?". Con: roughly 20% token-budget increase per session (adds one verification pass for round 0); the verification-gap claim shifts subtly from "static vs execution" to "the round-0 test suite vs the round-N test suite", which needs to be framed carefully in the thesis methodology chapter.
+
+This question is filed as an open methodology decision. It will be revisited after the pilot experiments on Li's dataset; if option (a) produces obviously suspect outcomes (e.g. round 1 accepts variants that the eye says are clearly worse than the original), we switch to (b). Until then, (a) is the working configuration.
+
+The orchestrator architecture supports both: extending the run loop to call `verification_manager.verify(original_unit)` for the baseline before the main loop is a roughly 15-line change.
 
 ## 4.5 Test stability across the lineage
 
@@ -349,7 +435,7 @@ For implementation, the workflow maps onto the modules already in place, plus th
 | Improvement strategies     | `qallm.judge.strategies`: StrictJudge, LexicographicJudge, ModelJudge | Built (NEW-02). Model has Strict fallback on LLM error. |
 | Cost estimation            | `qallm.cost` (price table reused from `qallm.llm.base.MODEL_RATES`)   | Built (NEW-05). 220 lines, 20 tests. |
 | Budget enforcement         | `qallm.orchestrator` round-boundary check via `BudgetState.check()`   | Built (NEW-05). Five caps with ceilings. |
-| Loop / orchestration       | `qallm.orchestrator`                                                  | Loop logic to extend per section 3. |
+| Loop / orchestration       | `qallm.orchestrator` (judge + lineage + abandoned + budget)            | Built (NEW-06). 9 integration tests covering accept/abandon paths. |
 | Lineage and abandoned log  | Extend `qallm.utils.reporter`                                         | To build.                         |
 | Canonical JSON + views     | Extend `qallm.utils.reporter`: emit `summary.json`, `report.md`, `report.html` | To build. Section 10.        |
 | Web UI integration         | `qallm.api.main` + `web/frontend`                                     | Auto mode needs the loop fix.     |
@@ -363,7 +449,7 @@ All design questions are resolved. The implementation roadmap below is the basis
 3. ~~Wire reliability indicators in `qallm.evaluation` to actual verification output.~~ **Done.** Both `qallm.verification.pass_rate` and `qallm.verification.bugs` now read `context["verification_sessions"]: list[TestGenerationSession]`. Added a `final_pass_rate` property on the session model. 12 new tests; all 126 prior tests still pass.
 4. ~~Add FAIRness indicators (`qallm.fairness`): licence, citation, README, docstrings.~~ **Done.** New module `qallm.fairness` with four evaluators registered in `qallm.evaluation`. `QualityDimension.FAIRNESS` added to the enum. `IMPLEMENTATION_DEFAULT` profile extended to five dimensions. Default Lexicographic priority updated to include FAIRness at the end. The README indicator uses section validation with synonyms (description / installation / usage); the docstring-coverage indicator counts public symbols by default and is configurable via context. 40 new tests; 230 total.
 5. ~~Add budget enforcement in the orchestrator: rounds, tokens, time, cost.~~ **Done.** Five caps with ceilings (rounds 5/10, tokens 500k/2M, seconds 1800/3600, round-seconds 600/1200, cost $5/$25). Reuses the existing `MODEL_RATES` table in `qallm.llm.base`. New module `qallm.cost` with `BudgetCaps`, `BudgetState`, and `HaltReason`. CLI flags `--max-tokens`, `--max-seconds`, `--max-round-seconds`, `--max-cost-usd`. Halt reason recorded in `summary.json`. 20 new tests, 159 tests total.
-6. Extend the orchestrator loop per section 3. 100 lines.
+6. ~~Extend the orchestrator loop per section 3.~~ **Done.** The orchestrator now drives a per-unit lineage with accept/abandon decisions. New `LineageEntry`, `AbandonedEntry`, and `UnitTrack` dataclasses; round-1 unconditional acceptance; round N>=2 calls the configured judge, with REGRESSION reverting to the unit's parent and IMPROVEMENT/NO_CHANGE extending its lineage. CLI flag `--judge-strategy` (strict | lexicographic | model), default lexicographic. `summary.json` gains a per-unit `tracks` field plus `rounds_accepted_total` and `rounds_abandoned_total` aggregates. 9 new integration tests with stubbed collaborators.
 7. Extend the reporter with lineage, abandoned-variant logging, canonical `summary.json`, and the markdown/HTML views (section 10). 100 lines.
 8. Update the web UI auto mode to drive the new loop. Small change.
 9. HumanEval validation experiment (section 9.5). A separate driver script that mutates HumanEval reference solutions and runs QALLM against the mutants. Independent of the main pipeline.
