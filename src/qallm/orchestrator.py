@@ -157,7 +157,24 @@ class QALLMOrchestrator:
             caps: BudgetCaps | None = None,
             judge_strategy: str = "lexicographic",
             profile: QualityProfile = IMPLEMENTATION_DEFAULT,
+            repair_llm_type: str | None = None,
+            repair_model_name: str | None = None,
+            testgen_llm_type: str | None = None,
+            testgen_model_name: str | None = None,
     ) -> None:
+        """Construct the orchestrator.
+
+        The primary ``llm_type`` and ``model_name`` are the session's default
+        model, used for any operation that doesn't specify its own. The four
+        ``repair_*`` and ``testgen_*`` parameters allow callers to use
+        different models for repair and test generation; if a ``repair_*``
+        or ``testgen_*`` pair is left as ``None``, that subsystem inherits
+        the default model.
+
+        The judge always uses the default model (it sits between the two
+        subsystems and is logically session-wide). This can be revisited
+        later if model-specific judging becomes interesting.
+        """
         self.ingestion_manager = IngestionManager()
         self.analysis_manager = AnalysisManager()
         self.reporter = QualityReporter("outputs/quality_reporter", datetime.now().strftime("%Y%m%d_%H%M%S"))
@@ -177,16 +194,43 @@ class QALLMOrchestrator:
             stability=test_stability, policy=generation_policy
         )
 
+        # Default (session-wide) LLM.
         provider_cls = LLM_PROVIDERS.get(llm_type, OpenAIModel)
         self.llm: LLMModel = provider_cls(model_name) if model_name else provider_cls()
+
+        # Repair LLM: separate instance if specified, else reuse default.
+        if repair_llm_type or repair_model_name:
+            repair_cls = LLM_PROVIDERS.get(repair_llm_type or llm_type, OpenAIModel)
+            self.repair_llm: LLMModel = (
+                repair_cls(repair_model_name)
+                if repair_model_name else repair_cls()
+            )
+        else:
+            self.repair_llm = self.llm
+
+        # Test-gen LLM: separate instance if specified, else reuse default.
+        if testgen_llm_type or testgen_model_name:
+            testgen_cls = LLM_PROVIDERS.get(testgen_llm_type or llm_type, OpenAIModel)
+            self.testgen_llm: LLMModel = (
+                testgen_cls(testgen_model_name)
+                if testgen_model_name else testgen_cls()
+            )
+        else:
+            self.testgen_llm = self.llm
+
+        # Single tracker across all subsystems; the cost report aggregates
+        # tokens regardless of which subsystem spent them. A future refinement
+        # could attribute tokens per subsystem.
         self.tracker = TokenTracker(budget=self.caps.max_tokens)
         self.budget_state = BudgetState(caps=self.caps, tracker=self.tracker)
         self.halt_reason: HaltReason | None = None
 
-        self.repair_manager = RepairManager(LLMRepairAgent(self.llm), analyzer=self.analysis_manager)
+        self.repair_manager = RepairManager(
+            LLMRepairAgent(self.repair_llm), analyzer=self.analysis_manager
+        )
 
         self.verification_manager = VerificationManager(
-            llm=self.llm,
+            llm=self.testgen_llm,
             tracker=self.tracker,
             oracle=self.oracle,
             total_rounds=self.rounds,
@@ -436,6 +480,8 @@ class QALLMOrchestrator:
             "oracle": self.oracle,
             "rounds_per_function": self.rounds,
             "model": "hypothesis" if self.strategy == "hypothesis" else self.llm.name(),
+            "repair_model": self.repair_llm.name(),
+            "testgen_model": self.testgen_llm.name(),
             "units_analyzed": len(units),
             "functions_verified": len(sessions_data),
             "rounds_accepted_total": total_accepted,
