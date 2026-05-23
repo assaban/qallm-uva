@@ -35,12 +35,13 @@ from qallm.profiles import (
 # ---------------------------------------------------------------------------
 
 
-def test_default_profile_covers_the_four_v1_dimensions():
+def test_default_profile_covers_the_v1_dimensions():
     expected = {
         QualityDimension.MAINTAINABILITY,
         QualityDimension.SECURITY,
         QualityDimension.RELIABILITY,
         QualityDimension.REPRODUCIBILITY,
+        QualityDimension.FAIRNESS,
     }
     actual = {spec.dimension for spec in IMPLEMENTATION_DEFAULT.dimensions}
     assert actual == expected
@@ -161,6 +162,7 @@ def test_profile_roundtrips_through_json():
         "Security",
         "Reliability",
         "Reproducibility",
+        "FAIRness",
     }
 
 

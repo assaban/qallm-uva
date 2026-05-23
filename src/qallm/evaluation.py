@@ -374,6 +374,20 @@ def _register_builtins() -> None:
     register("qallm.repro.determinism", _repro_determinism)
     register("qallm.verification.pass_rate", _verification_pass_rate)
     register("qallm.verification.bugs", _verification_bugs)
+    # FAIRness indicators live in qallm.fairness; imported here to keep
+    # the indicator module thin and avoid a circular import.
+    from qallm.fairness import (
+        _fairness_citation,
+        _fairness_docstring_coverage,
+        _fairness_licence,
+        _fairness_readme,
+    )
+    register("qallm.fairness.licence", _fairness_licence)
+    # American spelling is the same evaluator; profiles in either dialect work.
+    register("qallm.fairness.license", _fairness_licence)
+    register("qallm.fairness.citation", _fairness_citation)
+    register("qallm.fairness.readme", _fairness_readme)
+    register("qallm.fairness.docstring_coverage", _fairness_docstring_coverage)
 
 
 _register_builtins()
