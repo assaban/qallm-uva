@@ -15,6 +15,7 @@ from qallm.repair.repair_model import RepairedCodeUnit
 @dataclass
 class TestedCodeUnit:
     """The outcome of Stage 3: Verification."""
+    __test__ = False  # pytest: this is a data class, not a test class
     repaired_unit: RepairedCodeUnit
     sessions: List[TestGenerationSession] = field(default_factory=list) #
 

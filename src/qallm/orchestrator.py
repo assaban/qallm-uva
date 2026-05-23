@@ -236,7 +236,7 @@ class QALLMOrchestrator:
         logger.info("Baseline (Round 0): Static analysis on original code")
         for unit in units:
             analysed = self.analysis_manager.analyse_code_unit(unit)
-            self.reporter.save_static_report(analysed, "round_00_baseline")
+            self.reporter.save_baseline(analysed)
         logger.info("Baseline complete. Stored as round_00_baseline.")
 
         # QALLM rounds: Repair → Analyse → Verify → Judge → Accept/Abandon.
@@ -294,8 +294,6 @@ class QALLMOrchestrator:
             "Round (%d of %d) started, %d unit(s)...",
             self.current_round, self.rounds, len(inputs),
         )
-        round_suffix = self._construct_round_suffix()
-        persist_dir = self.reporter.report_dir / round_suffix
         next_inputs: dict[str, CodeUnit] = {}
 
         for unit_id, unit in inputs.items():
@@ -303,19 +301,16 @@ class QALLMOrchestrator:
 
             # Step 1: Analyse current variant.
             analysed = self.analysis_manager.analyse_code_unit(unit)
-            self.reporter.save_static_report(analysed, round_suffix)
 
             # Step 2: Repair.
             repaired = self.repair_manager.repair_code_unit(analysed)
-            self.reporter.save_static_repair_artifacts(repaired, round_suffix)
 
             # Step 3: Verify.
             tested_unit = self.verification_manager.verify(
                 repaired,
-                persist_dir=persist_dir,
+                persist_dir=None,  # reporter owns disk layout under NEW-07
                 round_number=self.current_round,
             )
-            self.reporter.save_verification_artifacts(tested_unit, round_suffix)
 
             # Step 4: Build a ProfileVerdict for the variant.
             variant_unit = tested_unit.repaired_unit.repaired_code_unit
@@ -326,8 +321,9 @@ class QALLMOrchestrator:
             # Step 5 + 6: Judge and accept/abandon.
             parent = track.current_parent
             if parent is None:
-                # Round 1: no parent yet. The variant is unconditionally
-                # accepted as the lineage's first entry.
+                # Round 1: no parent yet. Unconditional acceptance.
+                judge_verdict = None
+                accepted = True
                 track.lineage.append(LineageEntry(
                     round_number=self.current_round,
                     code_unit=variant_unit,
@@ -338,38 +334,52 @@ class QALLMOrchestrator:
                 logger.info(
                     "  %s: round 1 accepted unconditionally", unit_id,
                 )
-                continue
-
-            judge_verdict = self.judge.decide(
-                parent.verdict, variant_verdict,
-                raw_evidence=self._raw_evidence_for(tested_unit),
-            )
-
-            if judge_verdict.outcome is JudgeOutcome.REGRESSION:
-                track.abandoned.append(AbandonedEntry(
-                    round_number=self.current_round,
-                    code_unit=variant_unit,
-                    verdict=variant_verdict,
-                    judge_verdict=judge_verdict,
-                ))
-                next_inputs[unit_id] = parent.code_unit
-                logger.info(
-                    "  %s: round %d REJECTED (%s); reverting to parent.",
-                    unit_id, self.current_round, judge_verdict.outcome.value,
-                )
             else:
-                # IMPROVEMENT or NO_CHANGE: variant joins the lineage.
-                track.lineage.append(LineageEntry(
-                    round_number=self.current_round,
-                    code_unit=variant_unit,
-                    verdict=variant_verdict,
-                    judge_verdict=judge_verdict,
-                ))
-                next_inputs[unit_id] = variant_unit
-                logger.info(
-                    "  %s: round %d ACCEPTED (%s).",
-                    unit_id, self.current_round, judge_verdict.outcome.value,
+                judge_verdict = self.judge.decide(
+                    parent.verdict, variant_verdict,
+                    raw_evidence=self._raw_evidence_for(tested_unit),
                 )
+                if judge_verdict.outcome is JudgeOutcome.REGRESSION:
+                    accepted = False
+                    track.abandoned.append(AbandonedEntry(
+                        round_number=self.current_round,
+                        code_unit=variant_unit,
+                        verdict=variant_verdict,
+                        judge_verdict=judge_verdict,
+                    ))
+                    next_inputs[unit_id] = parent.code_unit
+                    logger.info(
+                        "  %s: round %d REJECTED (%s); reverting to parent.",
+                        unit_id, self.current_round, judge_verdict.outcome.value,
+                    )
+                else:
+                    accepted = True
+                    track.lineage.append(LineageEntry(
+                        round_number=self.current_round,
+                        code_unit=variant_unit,
+                        verdict=variant_verdict,
+                        judge_verdict=judge_verdict,
+                    ))
+                    next_inputs[unit_id] = variant_unit
+                    logger.info(
+                        "  %s: round %d ACCEPTED (%s).",
+                        unit_id, self.current_round, judge_verdict.outcome.value,
+                    )
+
+            # Step 7: persist the variant's full provenance bundle. The
+            # accepted flag routes into lineage/ or abandoned/.
+            self.reporter.save_round_artefacts(
+                round_number=self.current_round,
+                unit_id=unit_id,
+                code_unit=variant_unit,
+                analysed=analysed,
+                tested=tested_unit,
+                profile_verdict=variant_verdict,
+                judge_verdict_dict=(
+                    judge_verdict.to_dict() if judge_verdict is not None else None
+                ),
+                accepted=accepted,
+            )
 
         logger.info(
             "Round (%d of %d) completed.",
@@ -407,9 +417,6 @@ class QALLMOrchestrator:
             "coverage": [s.final_coverage for s in sessions],
         }
 
-    def _construct_round_suffix(self) -> str:
-        return f"round_{self.current_round:02d}"
-
     def _build_summary(
         self,
         source_path: str,
@@ -446,4 +453,7 @@ class QALLMOrchestrator:
         summary_path.write_text(
             json.dumps(summary, indent=2, default=str), encoding="utf-8"
         )
+        # Derived human-readable views.
+        from qallm.utils.views import write_views
+        write_views(summary, self.reporter.report_dir)
         return summary
