@@ -43,6 +43,19 @@ def main():
             "grow: yes (existing tests are kept and new ones added)."
         ),
     )
+    parser.add_argument(
+        "--judge-strategy",
+        default="lexicographic",
+        choices=["strict", "lexicographic", "model"],
+        help=(
+            "How the judge decides accept/abandon per round per unit "
+            "(default: lexicographic). strict: any regression rejects. "
+            "lexicographic: high-priority regression rejects, low-priority "
+            "improvement accepts. model: LLM-driven decision with structured "
+            "JSON output and Strict fallback. The model strategy adds one "
+            "LLM call per round per unit; lexicographic and strict are free."
+        ),
+    )
     # Budget caps. Default values are sensible for a beta session; the
     # ceilings in qallm.cost override any larger value silently.
     parser.add_argument(
@@ -91,6 +104,7 @@ def main():
         test_stability=args.test_stability,
         generation_policy=args.generation_policy,
         caps=caps,
+        judge_strategy=args.judge_strategy,
     )
 
     summary = orchestrator.run(args.source)
