@@ -442,3 +442,43 @@ class TestNoChangeIsAccepted:
         # NO_CHANGE).
         assert len(track.lineage) == 3
         assert len(track.abandoned) == 0
+
+
+class TestReporterIntegration:
+    """Assert the orchestrator drives the v3 reporter API (NEW-07)."""
+
+    def test_save_baseline_called_once_per_unit(self, stub_orchestrator, tmp_path):
+        unit_a = _make_unit(tmp_path, "def a(): pass\n", "a.py")
+        unit_b = _make_unit(tmp_path, "def b(): pass\n", "b.py")
+        _wire_collaborators(
+            stub_orchestrator,
+            units=[unit_a, unit_b],
+            verdicts_per_round=[[_stub_verdict(), _stub_verdict()]],
+            judge_outcomes=[[JudgeOutcome.IMPROVEMENT, JudgeOutcome.IMPROVEMENT]],
+        )
+        stub_orchestrator.run(str(tmp_path))
+        assert stub_orchestrator.reporter.save_baseline.call_count == 2
+
+    def test_save_round_artefacts_routes_accepted_into_lineage(
+        self, stub_orchestrator, tmp_path
+    ):
+        unit_a = _make_unit(tmp_path, "def a(): pass\n", "a.py")
+        _wire_collaborators(
+            stub_orchestrator,
+            units=[unit_a],
+            verdicts_per_round=[
+                [_stub_verdict()],
+                [_stub_verdict()],
+            ],
+            judge_outcomes=[
+                [JudgeOutcome.IMPROVEMENT],
+                [JudgeOutcome.REGRESSION],
+            ],
+        )
+        stub_orchestrator.run(str(tmp_path))
+        # Two save_round_artefacts calls total (one per round).
+        calls = stub_orchestrator.reporter.save_round_artefacts.call_args_list
+        assert len(calls) == 2
+        # Round 1 is accepted=True; round 2 is accepted=False.
+        assert calls[0].kwargs["accepted"] is True
+        assert calls[1].kwargs["accepted"] is False
