@@ -620,13 +620,14 @@ def test_evaluate_default_profile_on_real_source_does_not_crash(
         simple_clean_source,
         context={"project_root": str(temp_project_with_manifest)},
     )
-    # All four EVERSE dimensions appear in the verdict.
+    # All five EVERSE dimensions appear in the verdict.
     dims = {d.dimension for d in verdict.dimensions}
     assert dims == {
         QualityDimension.MAINTAINABILITY,
         QualityDimension.SECURITY,
         QualityDimension.RELIABILITY,
         QualityDimension.REPRODUCIBILITY,
+        QualityDimension.FAIRNESS,
     }
     # Reliability is fully deferred in v1, so its dimension status is SKIPPED.
     rel = verdict.get_dimension(QualityDimension.RELIABILITY)

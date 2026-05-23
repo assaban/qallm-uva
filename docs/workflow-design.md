@@ -245,18 +245,44 @@ All three options are provided as configurable strategies:
 
 Comparing the three strategies empirically is itself a thesis contribution. Future work can add more.
 
-### 9.4 EVERSE coverage scope: `DECIDED`
+### 9.4 EVERSE coverage scope: `DELIVERED` (NEW-04)
 
-v1 covers five dimensions, not four: Maintainability, Security, Reliability, Reproducibility, and **FAIRness**. Nafis and Zhao explicitly requested FAIRness coverage. The FAIRness indicator(s) need to be selected; see section 11 for the implementation entry.
+v1 covers five dimensions: Maintainability, Security, Reliability, Reproducibility, and **FAIRness**. Nafis and Zhao explicitly requested FAIRness coverage. NEW-04 shipped the four FAIRness indicators below.
 
-Initial FAIRness indicators under consideration:
+```mermaid
+flowchart TD
+    P["IMPLEMENTATION_DEFAULT<br/>profile (5 dimensions)"] --> EE["evaluate_profile()"]
+    CTX["Evaluation context:<br/>project_root, source,<br/>include_private?"] --> EE
+    EE --> FN{Resolve evaluator id}
+    FN -->|qallm.fairness.licence| L["_fairness_licence<br/>(scans project_root)"]
+    FN -->|qallm.fairness.citation| C["_fairness_citation<br/>(scans project_root)"]
+    FN -->|qallm.fairness.readme| R["_fairness_readme<br/>(reads README body)"]
+    FN -->|qallm.fairness.docstring_coverage| D["_fairness_docstring_coverage<br/>(walks source AST)"]
+    L --> O["IndicatorResult (pass / fail / skipped)"]
+    C --> O
+    R --> O
+    D --> O
+    O --> V["DimensionResult: FAIRness"]
+```
 
-* Presence of a license file in the project root.
-* Presence of a citation file (CITATION.cff, CITATION.bib).
-* Presence of a README with required sections (description, install, usage).
-* Documented function signatures (docstring coverage above a threshold).
+The four indicators in the FAIRness dimension:
 
-These are all detectable with simple file or AST checks; they do not require LLM calls. Final indicator set to be confirmed before implementation.
+| Indicator              | Data source        | Threshold | Comparator | Notes                                                                                          |
+|------------------------|--------------------|-----------|------------|------------------------------------------------------------------------------------------------|
+| `has_licence`          | `project_root`     | 1.0       | GE         | Accepts LICENSE, LICENCE, COPYING, LICENSE.md, etc. (case-insensitive)                         |
+| `has_citation`         | `project_root`     | 1.0       | GE         | Accepts CITATION.cff or CITATION.bib (case-insensitive)                                        |
+| `has_readme`           | `project_root`     | 1.0       | GE         | Three checks: presence, body >= 200 chars, all required sections (description, install, usage) |
+| `docstring_coverage`   | `source` + AST     | 0.5       | GE         | Public symbols by default; `context['include_private'] = True` widens the count                |
+
+#### Required README sections
+
+The README indicator encodes a methodological opinion: a FAIR research-software README must explain *what* the software does, *how* to install it, and *how* to use it. Each required section accepts a set of synonyms so different but reasonable README structures are not penalised:
+
+* Description: `description`, `about`, `overview`, `introduction`
+* Installation: `install`, `installation`, `setup`, `getting started`
+* Usage: `usage`, `use`, `example`, `examples`, `how to use`
+
+The threshold (200 characters of body, all three section keywords present) is documented as a working definition; it is conservative enough to pass typical research-software READMEs and strict enough to fail empty stubs. Future work may refine this with corpus-grounded thresholds.
 
 ### 9.5 Validation experiment: `DECIDED`
 
@@ -318,7 +344,7 @@ For implementation, the workflow maps onto the modules already in place, plus th
 | Verification (RL loop)     | `qallm.verification`                                                  | Working.                          |
 | Test suite persistence     | `qallm.verification.test_persistence`                                 | Built (PR feature/test-stability). 250 lines plus 22 tests. Section 4.5. |
 | Profile evaluation         | `qallm.profiles` + `qallm.evaluation`                                 | Working; reliability indicators wired in NEW-03. Framework-agnostic by design. |
-| FAIRness indicators        | New: extend `qallm.evaluation` with `qallm.fairness` evaluators       | To build. ~100 lines. Section 9.4. |
+| FAIRness indicators        | `qallm.fairness` module + four evaluators in `qallm.evaluation`       | Built (NEW-04). 40 tests, four indicators across project root and source AST. |
 | Judge                      | `qallm.judge` package: models, comparator, prompts, strategies        | Built (NEW-02). 31 tests.         |
 | Improvement strategies     | `qallm.judge.strategies`: StrictJudge, LexicographicJudge, ModelJudge | Built (NEW-02). Model has Strict fallback on LLM error. |
 | Cost estimation            | `qallm.cost` (price table reused from `qallm.llm.base.MODEL_RATES`)   | Built (NEW-05). 220 lines, 20 tests. |
@@ -335,7 +361,7 @@ All design questions are resolved. The implementation roadmap below is the basis
 1. ~~Extend verification for test-suite persistence per section 4.5.~~ **Done.** Two-axis configurable strategy (`test_stability` x `generation_policy`) with three meaningful modes. New `qallm.verification.test_persistence` module, 250 lines plus 22 tests. CLI flags `--test-stability` and `--generation-policy`. `summary.json` records the mode. Section 4.5.
 2. ~~Build the judge module (`qallm.judge`) with the three improvement strategies.~~ **Done.** New `qallm.judge` package: `models.py`, `comparator.py`, `prompts.py`, `strategies.py`. Three strategies (Strict, Lexicographic, Model). ModelJudge falls back to Strict on LLM error, parse failure, or `error` field on response. Every JudgeVerdict stores both the structured numerical comparison and (for Model) the LLM's free-text reasoning. 31 tests. FAIRness is omitted from the default Lexicographic priority until NEW-04 ships.
 3. ~~Wire reliability indicators in `qallm.evaluation` to actual verification output.~~ **Done.** Both `qallm.verification.pass_rate` and `qallm.verification.bugs` now read `context["verification_sessions"]: list[TestGenerationSession]`. Added a `final_pass_rate` property on the session model. 12 new tests; all 126 prior tests still pass.
-4. Add FAIRness indicators (`qallm.fairness`): licence, citation, README, docstrings. 100 lines plus tests.
+4. ~~Add FAIRness indicators (`qallm.fairness`): licence, citation, README, docstrings.~~ **Done.** New module `qallm.fairness` with four evaluators registered in `qallm.evaluation`. `QualityDimension.FAIRNESS` added to the enum. `IMPLEMENTATION_DEFAULT` profile extended to five dimensions. Default Lexicographic priority updated to include FAIRness at the end. The README indicator uses section validation with synonyms (description / installation / usage); the docstring-coverage indicator counts public symbols by default and is configurable via context. 40 new tests; 230 total.
 5. ~~Add budget enforcement in the orchestrator: rounds, tokens, time, cost.~~ **Done.** Five caps with ceilings (rounds 5/10, tokens 500k/2M, seconds 1800/3600, round-seconds 600/1200, cost $5/$25). Reuses the existing `MODEL_RATES` table in `qallm.llm.base`. New module `qallm.cost` with `BudgetCaps`, `BudgetState`, and `HaltReason`. CLI flags `--max-tokens`, `--max-seconds`, `--max-round-seconds`, `--max-cost-usd`. Halt reason recorded in `summary.json`. 20 new tests, 159 tests total.
 6. Extend the orchestrator loop per section 3. 100 lines.
 7. Extend the reporter with lineage, abandoned-variant logging, canonical `summary.json`, and the markdown/HTML views (section 10). 100 lines.

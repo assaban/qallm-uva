@@ -44,14 +44,17 @@ logger = logging.getLogger(__name__)
 
 # Higher priority first. Workflow design v3 section 9.3.
 #
-# v1 priority covers the four EVERSE dimensions currently implemented.
-# FAIRness will be added by NEW-04; it slots in at the end (lowest priority)
-# without changing the order of the others.
+# Priority order rationale: Security issues block release entirely;
+# Reliability is the next-most-binding (a feature that doesn't work is
+# not really a feature); Maintainability and Reproducibility are
+# important for sustainability but not blocking; FAIRness is documentation
+# hygiene that should not override engineering quality concerns.
 DEFAULT_DIMENSION_PRIORITY: tuple[QualityDimension, ...] = (
     QualityDimension.SECURITY,
     QualityDimension.RELIABILITY,
     QualityDimension.MAINTAINABILITY,
     QualityDimension.REPRODUCIBILITY,
+    QualityDimension.FAIRNESS,
 )
 
 

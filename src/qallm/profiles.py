@@ -32,15 +32,17 @@ from typing import Any
 class QualityDimension(str, Enum):
     """The EVERSE quality dimensions QALLM measures automatically in v1.
 
-    The full EVERSE catalogue is broader (FAIRness, Usability, Performance,
-    Compatibility, etc.). These four are the ones QALLM has tooling for:
-    static metrics for the first two, execution evidence for the others.
+    The full EVERSE catalogue is broader (Usability, Performance,
+    Compatibility, etc.). These five are the ones QALLM has tooling for:
+    static metrics for Maintainability and Security, execution evidence
+    for Reliability, project-shape checks for Reproducibility and FAIRness.
     """
 
     MAINTAINABILITY = "Maintainability"
     SECURITY = "Security"
     RELIABILITY = "Reliability"
     REPRODUCIBILITY = "Reproducibility"
+    FAIRNESS = "FAIRness"
 
 
 class LifecycleStage(str, Enum):
@@ -264,6 +266,54 @@ IMPLEMENTATION_DEFAULT: QualityProfile = QualityProfile(
                     description=(
                         "1 if repeated runs in the sandbox produce identical "
                         "test telemetry, 0 otherwise."
+                    ),
+                ),
+            ),
+        ),
+        DimensionSpec(
+            dimension=QualityDimension.FAIRNESS,
+            repair_prompt_id="fairness_repair_v1",
+            indicators=(
+                QualityIndicator(
+                    name="has_licence",
+                    evaluator="qallm.fairness.licence",
+                    threshold=1.0,
+                    comparator=Comparator.GE,
+                    description=(
+                        "1 if a recognised licence file (LICENSE, LICENCE, "
+                        "COPYING, etc.) is present at the project root, "
+                        "0 otherwise."
+                    ),
+                ),
+                QualityIndicator(
+                    name="has_citation",
+                    evaluator="qallm.fairness.citation",
+                    threshold=1.0,
+                    comparator=Comparator.GE,
+                    description=(
+                        "1 if CITATION.cff or CITATION.bib is present at "
+                        "the project root, 0 otherwise."
+                    ),
+                ),
+                QualityIndicator(
+                    name="has_readme",
+                    evaluator="qallm.fairness.readme",
+                    threshold=1.0,
+                    comparator=Comparator.GE,
+                    description=(
+                        "1 if a non-trivial README (>= 200 chars) exists "
+                        "and contains description, installation, and usage "
+                        "sections; 0 otherwise."
+                    ),
+                ),
+                QualityIndicator(
+                    name="docstring_coverage",
+                    evaluator="qallm.fairness.docstring_coverage",
+                    threshold=0.5,
+                    comparator=Comparator.GE,
+                    description=(
+                        "Fraction of public functions, methods, and classes "
+                        "with a non-empty docstring. Threshold 0.5."
                     ),
                 ),
             ),
