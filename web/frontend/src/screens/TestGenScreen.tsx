@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
-import { FlaskConical, Play, Lock, CheckSquare, Square, FileCode2 } from "lucide-react";
+import { FlaskConical, Play, Lock, CheckSquare, Square, FileCode2, Activity, Layers, Coins, Clock } from "lucide-react";
 import type { SessionState } from "../hooks/useSession";
 import type { FunctionEntry } from "../types";
 import * as api from "../api";
+import type { JobProgress } from "../api";
 
 const ORACLES: Record<string, { title: string; desc: string }> = {
   crash: { title: "Crash oracle", desc: "Feeds edge cases (empty inputs, None, overflow) and asserts the function fails cleanly rather than crashing." },
@@ -22,6 +23,10 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
   const [fns, setFns] = useState<FunctionEntry[]>([]);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [sessionConfig, setSessionConfig] = useState<SessionConfig>({});
+  // Live progress, updated on every poll while the verification job runs.
+  // null when nothing is running or when the job has just started and we
+  // have not received the first poll yet.
+  const [progress, setProgress] = useState<JobProgress | null>(null);
 
   useEffect(() => {
     if (!state.sessionId) return;
@@ -74,12 +79,28 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
 
   async function run() {
     if (!state.sessionId) return;
-    patch({ loading: true, error: null });
+    setProgress(null);
+    patch({ loading: true, error: null, progress: null });
     try {
-      const r = await api.runTestGen(state.sessionId, "", "", 0);
+      const r = await api.runTestGen(
+        state.sessionId, "", "", 0,
+        view => {
+          if (view.progress) {
+            setProgress(view.progress);
+            patch({ progress: view.progress });
+          }
+        },
+      );
       patch({ testGenResult: r, loading: false });
-    } catch (e: unknown) { patch({ loading: false, error: (e as Error).message }); }
+    } catch (e: unknown) {
+      patch({ loading: false, error: (e as Error).message });
+    }
   }
+
+  // Use the live local progress when present (manual mode); otherwise
+  // fall back to global state.progress (set by useAutoRunner during
+  // auto mode runs).
+  const liveProgress = progress ?? state.progress;
 
   const oracle = sessionConfig.oracle || "crash";
 
@@ -165,6 +186,68 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
               <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-500" /> Generating tests automatically...
             </div>
           ) : null}
+
+          {/* Live progress: surfaces what the orchestrator is doing right
+              now. Renders only while the job runs and progress has been
+              received. Designed as a status line plus counters, not a
+              progress bar; LLM call durations and judge-driven early-halt
+              make percentage estimates misleading. */}
+          {state.loading && liveProgress && (
+            <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-indigo-600 animate-pulse" />
+                <span className="text-sm font-semibold capitalize text-slate-800">
+                  {liveProgress.phase === "rounds"
+                    ? `Round ${liveProgress.current_round} of ${liveProgress.total_rounds}`
+                    : liveProgress.phase}
+                </span>
+                {liveProgress.current_stage && (
+                  <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-medium capitalize text-indigo-700">
+                    {liveProgress.current_stage}
+                  </span>
+                )}
+              </div>
+
+              {liveProgress.current_unit_id && (
+                <div className="flex items-start gap-2 text-xs text-slate-600">
+                  <FileCode2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  <span className="font-mono break-all">{liveProgress.current_unit_id}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                <div className="flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-emerald-600" />
+                  <span className="text-slate-500">Accepted:</span>
+                  <span className="font-semibold text-emerald-700">{liveProgress.rounds_accepted}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-rose-600" />
+                  <span className="text-slate-500">Abandoned:</span>
+                  <span className="font-semibold text-rose-700">{liveProgress.rounds_abandoned}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-slate-400" />
+                  <span className="text-slate-500">Elapsed:</span>
+                  <span className="font-semibold text-slate-700">{liveProgress.elapsed_seconds.toFixed(1)}s</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Coins className="h-3.5 w-3.5 text-amber-600" />
+                  <span className="text-slate-500">Cost:</span>
+                  <span className="font-semibold text-slate-700">${liveProgress.cost_usd.toFixed(4)}</span>
+                </div>
+              </div>
+
+              {liveProgress.tokens_used > 0 && (
+                <div className="text-xs text-slate-500">
+                  {liveProgress.tokens_used.toLocaleString()} tokens used
+                  {liveProgress.units_total > 0 && (
+                    <> · {liveProgress.units_completed} of {liveProgress.units_total} units completed</>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">

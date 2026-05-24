@@ -139,6 +139,22 @@ export interface JobHandle {
   status: JobStatus;
 }
 
+export interface JobProgress {
+  phase: "initialising" | "baseline" | "rounds" | "summary" | "done";
+  current_round: number;
+  total_rounds: number;
+  current_stage: "analyse" | "repair" | "verify" | "judge" | null;
+  current_unit_id: string | null;
+  units_total: number;
+  units_completed: number;
+  rounds_accepted: number;
+  rounds_abandoned: number;
+  elapsed_seconds: number;
+  tokens_used: number;
+  cost_usd: number;
+  halt_reason: string | null;
+}
+
 export interface JobView<T = unknown> {
   job_id: string;
   session_id: string;
@@ -149,12 +165,17 @@ export interface JobView<T = unknown> {
   finished_at: number | null;
   result: T | null;
   error: string | null;
+  // Present only while the orchestrator is running for this session.
+  progress?: JobProgress;
 }
 
 export interface PollOptions {
   intervalMs?: number;  // default 500
   timeoutMs?: number;   // default 10 minutes
   signal?: AbortSignal;
+  // Called with each intermediate view. Useful for surfacing live
+  // progress while the job is running.
+  onProgress?: (view: JobView) => void;
 }
 
 export async function getJob<T = unknown>(jobId: string): Promise<JobView<T>> {
@@ -174,6 +195,7 @@ export async function pollJobUntilDone<T = unknown>(
       throw new Error("Job polling aborted");
     }
     const view = await getJob<T>(jobId);
+    opts.onProgress?.(view);  // surface every snapshot
     if (view.status === "done") return view;
     if (view.status === "error") {
       throw new Error(view.error || "Job failed without an error message");
@@ -200,15 +222,17 @@ export async function submitTestGen(
 }
 
 // Backwards-compatible wrapper: submits a job and waits for the result.
-// Callers that want explicit progress can use submitTestGen + pollJobUntilDone.
+// Callers that want explicit progress can use submitTestGen + pollJobUntilDone,
+// or pass an ``onProgress`` callback here.
 export async function runTestGen(
   sid: string,
   model: string,
   oracle: string,
   rounds: number,
+  onProgress?: (view: JobView) => void,
 ): Promise<VerificationResult> {
   const handle = await submitTestGen(sid, model, oracle, rounds);
-  const view = await pollJobUntilDone<VerificationResult>(handle.job_id);
+  const view = await pollJobUntilDone<VerificationResult>(handle.job_id, { onProgress });
   if (view.result === null) {
     throw new Error("Verification job completed with no result");
   }
