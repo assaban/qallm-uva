@@ -344,15 +344,33 @@ class TestEdgeCases:
         assert parsed == []
 
 
-class TestUnitSegmentEscaping:
-    def test_path_separators_escaped(self):
-        # Slash becomes double-underscore; each colon becomes one underscore,
-        # so the conventional "::" separator becomes "__".
-        assert _safe_unit_segment("a/b::-1") == "a__b__-1"
+class TestUnitSegmentCleanNames:
+    """The segment is filename + cell_index, NOT the full escaped path."""
 
-    def test_colons_escaped(self):
-        # Each colon becomes one underscore; double colon becomes "__".
-        assert _safe_unit_segment("x.py::-1") == "x.py__-1"
+    def test_basename_only_for_unix_path(self):
+        # Long unix path collapses to just the basename.
+        assert _safe_unit_segment("/var/folders/x/y/z/demo.py::0") == "demo.py__0"
+
+    def test_basename_only_for_windows_path(self):
+        # Same for Windows-style paths.
+        assert _safe_unit_segment(r"C:\Users\foo\bar.ipynb::2") == "bar.ipynb__2"
+
+    def test_simple_filename_unchanged(self):
+        assert _safe_unit_segment("demo.py::3") == "demo.py__3"
+
+    def test_negative_cell_index(self):
+        # Cell index of -1 (used for whole-file ingestion) is preserved.
+        assert _safe_unit_segment("demo.py::-1") == "demo.py__-1"
+
+    def test_no_double_colon_falls_back_to_zero(self):
+        # If somehow we get a unit_id without "::", treat the whole thing
+        # as the path and default the cell index to 0.
+        assert _safe_unit_segment("standalone.py") == "standalone.py__0"
+
+    def test_empty_basename_after_trailing_slash(self):
+        # Defensive: a trailing slash before "::" yields no basename.
+        # We return "unit" as a fallback rather than an empty segment.
+        assert _safe_unit_segment("foo/bar/::0") == "unit__0"
 
     def test_safe_segment_used_in_round_directory(self, tmp_path: Path):
         r = _reporter(tmp_path)
@@ -368,8 +386,26 @@ class TestUnitSegmentEscaping:
             judge_verdict_dict=None,
             accepted=True,
         )
-        # The directory name has no raw slashes or colons.
-        segment = out.name
-        assert "/" not in segment
-        assert ":" not in segment
-        assert segment == "src__mod.py__-1"
+        # Directory name is just basename + cell index.
+        assert out.name == "mod.py__-1"
+
+    def test_temp_dir_path_does_not_explode(self, tmp_path: Path):
+        # Regression: a unit_id derived from a system temp dir used to
+        # produce a 100+ char folder name. Now: just the basename.
+        r = _reporter(tmp_path)
+        unit = _code_unit(tmp_path / "src", name="count_chars.py")
+        tested = _tested_with_one_session(unit)
+        long_id = "/var/folders/7z/yc4nm0ls6rg1gxbpqyg7frkmzzshkp/T/heval_Python_16_8o3xor8a/count_chars.py::0"
+        out = r.save_round_artefacts(
+            round_number=1,
+            unit_id=long_id,
+            code_unit=unit,
+            analysed=_analysed(unit),
+            tested=tested,
+            profile_verdict=_profile_verdict(),
+            judge_verdict_dict=None,
+            accepted=True,
+        )
+        assert out.name == "count_chars.py__0"
+        # And it's short.
+        assert len(out.name) < 30

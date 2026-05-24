@@ -189,18 +189,49 @@ class QualityReporter:
 
 
 def _safe_unit_segment(unit_id: str) -> str:
-    """Render a unit identifier as a single safe directory segment.
+    """Render a unit identifier as a clean, short directory segment.
 
-    A unit id is typically ``"<path>::<cell_index>"``; we replace the
-    separators that browsers and filesystems treat specially.
+    A unit id has the shape ``"<path>::<cell_index>"`` (the orchestrator's
+    ``_unit_id`` helper constructs it). The previous version of this
+    function escaped every path separator and produced verbose names like
+    ``__var__folders__7z__yc4nm0ls6rg1gxbpqyg7frkmzzshkp__T__heval_Python_16_8o3xor8a__count_distinct_characters.py__0``
+    when the source lived under a system temp directory.
+
+    The path's full hierarchy adds nothing useful to the artefact tree:
+    the source is already saved as ``source.py`` inside the round dir.
+    What identifies a unit uniquely within a session is ``<basename>::<cell_index>``,
+    which is much shorter and human-readable.
+
+    Examples::
+
+        "/var/folders/7z/.../count_distinct_characters.py::0"  ->  "count_distinct_characters.py__0"
+        "demo.py::3"                                            ->  "demo.py__3"
+        "C:\\Users\\foo\\bar.ipynb::2"                          ->  "bar.ipynb__2"
+
+    Collisions are theoretically possible if two units share the same
+    basename and cell_index (e.g. two notebooks named ``test.ipynb`` with
+    a cell_index 0). In practice this doesn't happen within one session
+    because the ingestion manager normalises notebook cells with unique
+    indices. We document the constraint rather than work around it.
     """
-    return (
-        unit_id
-        .replace("/", "__")
-        .replace("\\", "__")
-        .replace(":", "_")
-        .replace(" ", "_")
+    # Split on the conventional "::" separator; tolerant of inputs that
+    # don't follow the convention (returns the whole thing as the path).
+    if "::" in unit_id:
+        path_part, _, cell_part = unit_id.rpartition("::")
+    else:
+        path_part, cell_part = unit_id, "0"
+
+    # Take just the basename, agnostic to OS path separator.
+    basename = path_part.replace("\\", "/").rsplit("/", 1)[-1]
+    if not basename:
+        basename = "unit"
+
+    # Sanitise the cell_part: it's normally a number but be defensive.
+    cell_part = (
+        cell_part.replace("/", "_").replace("\\", "_")
+        .replace(":", "_").replace(" ", "_")
     )
+    return f"{basename}__{cell_part}"
 
 
 def _session_dict(session: TestGenerationSession) -> dict:
