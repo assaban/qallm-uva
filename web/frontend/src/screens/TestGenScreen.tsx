@@ -215,6 +215,19 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
                 </div>
               )}
 
+              {/* Function-level visibility inside the verify stage. On
+                  slow local LLMs the verify stage can run for tens of
+                  minutes per unit; showing "function 3 of 8: predict"
+                  is the difference between "stuck" and "working". */}
+              {liveProgress.current_function && liveProgress.function_total > 0 && (
+                <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <span className="rounded-md bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
+                    {liveProgress.function_index}/{liveProgress.function_total}
+                  </span>
+                  <span>Verifying function: <span className="font-mono font-semibold text-slate-800">{liveProgress.current_function}</span></span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
                 <div className="flex items-center gap-1.5">
                   <Layers className="h-3.5 w-3.5 text-emerald-600" />

@@ -138,6 +138,57 @@ class UnitTrack:
         }
 
 
+@dataclass
+class OrchestratorProgress:
+    """A snapshot of orchestrator progress, safe to expose via the API.
+
+    The orchestrator updates a handful of public attributes as it works
+    (``current_phase``, ``current_stage``, ``current_unit_id``). The
+    ``snapshot()`` method on the orchestrator reads those plus other
+    durable state (tracks, budget, halt reason) and returns this dataclass.
+
+    Designed for *display*, not for *control*. The fields are descriptive
+    strings and counts. The UI renders them as a status line plus live
+    counters; it does not infer a percentage.
+
+    Why "snapshot": the orchestrator is running in a worker thread when
+    the API endpoint reads its state. We never block on the worker, never
+    take a lock. Python's GIL plus the fact that we only *read* primitive
+    attributes makes a moment-in-time snapshot safe. The user does not
+    care if the values are 50 milliseconds old.
+    """
+
+    # Top-level phase.
+    phase: Literal["initialising", "baseline", "rounds", "summary", "done"]
+    # Within the rounds phase.
+    current_round: int
+    total_rounds: int
+    # Within one round, the stage of work for the *current* unit.
+    current_stage: Optional[Literal["analyse", "repair", "verify", "judge"]]
+    current_unit_id: Optional[str]
+    # Within the verify stage, the function currently being verified.
+    # On slow local LLMs an 8-function unit can spend 10+ minutes in
+    # verify; without function-level progress the user sees no change
+    # for that whole window.
+    current_function: Optional[str]
+    function_index: int       # 1-indexed within the current unit
+    function_total: int       # number of functions in the current unit
+    # Counts.
+    units_total: int
+    units_completed: int  # units that finished all rounds (or were abandoned)
+    rounds_accepted: int  # cumulative across all units
+    rounds_abandoned: int  # cumulative across all units
+    # Budget consumed so far.
+    elapsed_seconds: float
+    tokens_used: int
+    cost_usd: float
+    # Termination state.
+    halt_reason: Optional[str]
+
+    def to_dict(self) -> dict:
+        return dataclasses.asdict(self)
+
+
 def _unit_id(unit: CodeUnit) -> str:
     """Stable identifier for a code unit across rounds."""
     return f"{unit.original_path}::{unit.cell_index}"
@@ -215,6 +266,22 @@ class QALLMOrchestrator:
         self.caps = caps or BudgetCaps.from_kwargs(max_rounds=rounds)
         self.rounds = self.caps.max_rounds
         self.current_round: int = 1
+
+        # Progress-tracking state. These are written by the orchestrator
+        # as it works and read by snapshot() (typically from a different
+        # thread, when the API endpoint serves /api/jobs/{id}). We never
+        # take a lock; primitive reads under the GIL are safe enough for
+        # the fidelity the UI needs.
+        self.current_phase: str = "initialising"
+        self.current_stage: Optional[str] = None
+        self.current_unit_id: Optional[str] = None
+        # Function-level granularity inside verify. Updated via a callback
+        # the orchestrator passes to verification_manager.verify().
+        self.current_function: Optional[str] = None
+        self.function_index: int = 0
+        self.function_total: int = 0
+        self.units_total: int = 0
+        self.units_completed: int = 0
 
         self.stability_config = TestStabilityConfig.from_strings(
             stability=test_stability, policy=generation_policy
@@ -303,6 +370,12 @@ class QALLMOrchestrator:
         self.current_round = 1
         self.tracks.clear()
         self.halt_reason = None
+        # Reset progress fields too so the UI does not see stale state
+        # from a previous run.
+        self.current_phase = "baseline"
+        self.current_stage = None
+        self.current_unit_id = None
+        self.units_completed = 0
         # Budget state and tracker are intentionally NOT reset: a caller
         # who reuses the orchestrator should see the cumulative cost. If
         # truly independent runs are wanted, construct a new orchestrator.
@@ -310,6 +383,7 @@ class QALLMOrchestrator:
         logger.info("Stage 0: Ingesting %s", source_path)
         units = self.ingestion_manager.collect(source_path)
         logger.info("Stage 0 completed! Collected %d code units.", len(units))
+        self.units_total = len(units)
 
         # Initialise per-unit tracking before the first round runs.
         for unit in units:
@@ -320,6 +394,7 @@ class QALLMOrchestrator:
             analysed = self.analysis_manager.analyse_code_unit(unit)
             self.reporter.save_baseline(analysed)
         logger.info("Baseline complete. Stored as round_00_baseline.")
+        self.current_phase = "rounds"
 
         # QALLM rounds: Repair → Analyse → Verify → Judge → Accept/Abandon.
         # Each unit independently advances its lineage or stalls on its
@@ -353,9 +428,46 @@ class QALLMOrchestrator:
                     )
                 break
 
+        self.current_phase = "summary"
+        self.current_stage = None
+        self.current_unit_id = None
         session_data = self.verification_manager.get_session_data()
         summary = self._build_summary(source_path, units, session_data)
+        self.current_phase = "done"
         return summary
+
+    def snapshot(self) -> OrchestratorProgress:
+        """Read the orchestrator's current progress, safe across threads.
+
+        The API calls this from the request thread while the orchestrator
+        runs in a worker thread. We read primitive attributes only; no
+        locks. The values may be a few milliseconds stale, which is fine
+        for what the UI does with them.
+
+        Counts are derived freshly each call from ``self.tracks`` rather
+        than maintained as running totals, because lineage and abandoned
+        entries are appended atomically and counting them is cheap.
+        """
+        rounds_accepted = sum(len(t.lineage) for t in self.tracks.values())
+        rounds_abandoned = sum(len(t.abandoned) for t in self.tracks.values())
+        return OrchestratorProgress(
+            phase=self.current_phase,  # type: ignore[arg-type]
+            current_round=self.current_round,
+            total_rounds=self.rounds,
+            current_stage=self.current_stage,  # type: ignore[arg-type]
+            current_unit_id=self.current_unit_id,
+            current_function=self.current_function,
+            function_index=self.function_index,
+            function_total=self.function_total,
+            units_total=self.units_total,
+            units_completed=self.units_completed,
+            rounds_accepted=rounds_accepted,
+            rounds_abandoned=rounds_abandoned,
+            elapsed_seconds=self.budget_state.elapsed_seconds,
+            tokens_used=self.tracker.total_tokens,
+            cost_usd=self.tracker.total_cost_usd,
+            halt_reason=self.halt_reason.value if self.halt_reason else None,
+        )
 
     def _run_round(
         self, inputs: dict[str, CodeUnit]
@@ -380,21 +492,46 @@ class QALLMOrchestrator:
 
         for unit_id, unit in inputs.items():
             track = self.tracks[unit_id]
+            self.current_unit_id = unit_id
 
             # Step 1: Analyse current variant.
+            self.current_stage = "analyse"
             analysed = self.analysis_manager.analyse_code_unit(unit)
 
             # Step 2: Repair.
+            self.current_stage = "repair"
             repaired = self.repair_manager.repair_code_unit(analysed)
 
             # Step 3: Verify.
+            self.current_stage = "verify"
+
+            def _on_function_start(name: str, idx: int, total: int) -> None:
+                """Update orchestrator progress when verify enters each function.
+
+                On slow local LLMs (gemma3:4b ~30-90s per call), an 8-function
+                unit can spend 10+ minutes in verify. Without this callback
+                the snapshot would show stale "current_function" for that
+                entire window and the UI's inactivity timer could trip.
+                """
+                self.current_function = name
+                self.function_index = idx
+                self.function_total = total
+
             tested_unit = self.verification_manager.verify(
                 repaired,
                 persist_dir=None,  # reporter owns disk layout under NEW-07
+                on_function_start=_on_function_start,
                 round_number=self.current_round,
             )
 
+            # Verify finished: clear function-level fields so the next stage
+            # doesn't show stale "verifying foo" while we're in judge.
+            self.current_function = None
+            self.function_index = 0
+            self.function_total = 0
+
             # Step 4: Build a ProfileVerdict for the variant.
+            self.current_stage = "judge"
             variant_unit = tested_unit.repaired_unit.repaired_code_unit
             variant_verdict = self._evaluate_profile_for(
                 variant_unit, tested_unit

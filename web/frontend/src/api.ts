@@ -145,6 +145,13 @@ export interface JobProgress {
   total_rounds: number;
   current_stage: "analyse" | "repair" | "verify" | "judge" | null;
   current_unit_id: string | null;
+  // Function-level granularity inside the verify stage. On slow local
+  // LLMs an 8-function unit can spend 10+ minutes in verify; this field
+  // changes per function, giving the UI something to render and the
+  // inactivity timer something to reset on.
+  current_function: string | null;
+  function_index: number;
+  function_total: number;
   units_total: number;
   units_completed: number;
   rounds_accepted: number;
@@ -190,11 +197,21 @@ export async function getJob<T = unknown>(jobId: string): Promise<JobView<T>> {
   return req<JobView<T>>(`/api/jobs/${jobId}`);
 }
 
-/** Build a stable signature of the progress fields we expect to change. */
+/** Build a stable signature of the progress fields we expect to change.
+ *
+ * Includes ``current_function`` and ``function_index`` so that within the
+ * verify stage, advancing function-by-function resets the inactivity
+ * timer. Without these, a unit with many functions on a slow LLM would
+ * appear stuck for the duration even though work was happening.
+ */
 function progressSignature(view: JobView): string {
   const p = view.progress;
   if (!p) return view.status;
-  return `${p.phase}|${p.current_round}|${p.current_stage}|${p.current_unit_id}|${p.rounds_accepted}|${p.rounds_abandoned}|${p.tokens_used}`;
+  return [
+    p.phase, p.current_round, p.current_stage, p.current_unit_id,
+    p.current_function, p.function_index,
+    p.rounds_accepted, p.rounds_abandoned, p.tokens_used,
+  ].join("|");
 }
 
 export async function pollJobUntilDone<T = unknown>(

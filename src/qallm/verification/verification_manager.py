@@ -93,6 +93,7 @@ class VerificationManager:
         repaired_unit: RepairedCodeUnit,
         persist_dir: Optional[Path] = None,
         on_function_complete: Optional[Callable] = None,
+        on_function_start: Optional[Callable] = None,
         round_number: int = 1,
     ) -> TestedCodeUnit:
         """Verify a repaired code unit. Behaviour depends on stability config.
@@ -107,7 +108,13 @@ class VerificationManager:
         Args:
             repaired_unit: the variant under verification.
             persist_dir: where to save per-function artefacts.
-            on_function_complete: callback for UI updates after each function.
+            on_function_complete: callback after each function finishes.
+                Signature: ``(name, session, idx, total)``.
+            on_function_start: callback before each function begins (BEFORE
+                the LLM call). Critical for progress visibility on slow local
+                models: without this, the orchestrator's snapshot would stay
+                on the previous function's name for the full duration of the
+                next function's LLM call. Signature: ``(name, idx, total)``.
             round_number: 1-indexed QALLM round number. Used to label stored
                 tests with their origin round.
         """
@@ -118,6 +125,20 @@ class VerificationManager:
         unit_sessions: list[TestGenerationSession] = []
 
         for func_idx, func in enumerate(functions):
+            # Fire the start callback BEFORE any slow work. This is what
+            # lets the UI show "verifying function 3 of 8: predict" while
+            # the LLM call is actually in flight, rather than only after
+            # the call returns.
+            if on_function_start:
+                try:
+                    on_function_start(func.name, func_idx + 1, len(functions))
+                except Exception as e:
+                    # A buggy callback must not abort verification. Log and
+                    # continue.
+                    logger.warning(
+                        "on_function_start callback raised: %s", e,
+                    )
+
             key = TestSuiteStore.make_key(path, unit.cell_index, func.name)
             record = self.store.get_or_create_record(key, func.name)
 

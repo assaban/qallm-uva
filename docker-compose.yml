@@ -24,7 +24,8 @@ services:
       # with-ollama profile). Override in .env if you run Ollama on
       # the host (set OLLAMA_BASE_URL=http://host.docker.internal:11434
       # on macOS/Windows) or anywhere else.
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+#      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
     volumes:
       # Mount outputs and uploads so reports survive container restarts.
       - ./outputs:/home/qallm/app/outputs
@@ -41,15 +42,15 @@ services:
   #   docker compose --profile with-ollama up
   # Pulling models (e.g. gemma3:4b) is the user's responsibility:
   #   docker compose exec ollama ollama pull gemma3:4b
-  ollama:
-    image: ollama/ollama:latest
-    container_name: qallm-ollama
-    profiles: ["with-ollama"]
-    ports:
-      - "${OLLAMA_PORT:-11434}:11434"
-    volumes:
-      - ollama-models:/root/.ollama
-    restart: unless-stopped
-
-volumes:
-  ollama-models:
+#  ollama:
+#    image: ollama/ollama:latest
+#    container_name: qallm-ollama
+#    profiles: ["with-ollama"]
+#    ports:
+#      - "${OLLAMA_PORT:-11434}:11434"
+#    volumes:
+#      - ollama-models:/root/.ollama
+#    restart: unless-stopped
+#
+#volumes:
+#  ollama-models:

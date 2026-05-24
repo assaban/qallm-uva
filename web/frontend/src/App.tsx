@@ -79,12 +79,29 @@ export default function App() {
             </div>
           )}
         </div>
-        <StepRail currentStep={state.step} onStepClick={mode === "manual" ? setStep : () => {}} />
+        {/* Step navigation: locked while an auto run is in flight to
+            prevent the user from disrupting the pipeline. Once the run
+            ends (success OR failure), navigation is re-enabled so the
+            user can review or retry. Without this, an auto-mode run
+            that errors out leaves the user trapped on the failed step. */}
+        <StepRail
+          currentStep={state.step}
+          onStepClick={(mode === "auto" && state.loading) ? () => {} : setStep}
+        />
         {state.error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{state.error}</div>
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div>{state.error}</div>
+            {mode === "auto" && (
+              <div className="mt-2 text-xs text-red-600">
+                Auto mode halted. Use the step rail above to navigate back
+                and review earlier stages, or refresh the page to start over.
+              </div>
+            )}
+          </div>
         )}
         <div className="min-h-[400px]">{screen}</div>
-        {mode === "manual" && (
+        {/* NextBar visible whenever navigation is allowed. */}
+        {!(mode === "auto" && state.loading) && (
           <NextBar
             step={state.step} maxStep={STEPS}
             onPrev={() => setStep(Math.max(1, state.step - 1))}
