@@ -126,7 +126,9 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
       const fullConfig = { ...config, ...advanced };
       const data = await api.uploadFiles(files, fullConfig);
       patch({ sessionId: data.session_id, files: data.files, selectedFiles: data.files, loading: false });
-      onSessionReady(autoMode);
+      // Pass session id + files explicitly: state.sessionId is not yet
+      // updated at this point because React state updates are async.
+      onSessionReady(autoMode, data.session_id, data.files);
     } catch (e: any) {
       patch({ loading: false, error: e.message });
       submitting.current = false;

@@ -138,6 +138,9 @@ async def upload_session(
     """
     # Write uploads to /tmp to avoid triggering uvicorn --reload.
     upload_root = Path(tempfile.mkdtemp(prefix="qallm_upload_"))
+    # upload_root = Path("/tmp/qallm_upload")
+
+    logger.info(f"Upload ${len(archives)} archives to root directory: {upload_root}")
 
     for archive in archives:
         file_path = upload_root / archive.filename
@@ -181,6 +184,13 @@ async def upload_session(
         caps = BudgetCaps.from_kwargs(**cap_kwargs)
 
     try:
+        # The session's UUID doubles as the reporter's run_id. This pins the
+        # output directory to one location for the entire session, no matter
+        # how many times the orchestrator's `run()` is invoked, and is the
+        # right fix against the "multiple datetime folders per session" bug.
+        # A short timestamp prefix is included for human readability when
+        # browsing the outputs/ directory.
+        run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{session_id[:8]}"
         orchestrator = QALLMOrchestrator(
             stage=stage,
             strategy=strategy,
@@ -196,6 +206,7 @@ async def upload_session(
             repair_model_name=repair_model_name,
             testgen_llm_type=testgen_llm_type,
             testgen_model_name=testgen_model_name,
+            run_id=run_id,
         )
         units = orchestrator.ingestion_manager.collect(target)
 

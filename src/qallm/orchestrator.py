@@ -161,6 +161,8 @@ class QALLMOrchestrator:
             repair_model_name: str | None = None,
             testgen_llm_type: str | None = None,
             testgen_model_name: str | None = None,
+            run_id: str | None = None,
+            reporter: QualityReporter | None = None,
     ) -> None:
         """Construct the orchestrator.
 
@@ -174,10 +176,34 @@ class QALLMOrchestrator:
         The judge always uses the default model (it sits between the two
         subsystems and is logically session-wide). This can be revisited
         later if model-specific judging becomes interesting.
+
+        Run identity
+        ------------
+        Each orchestrator owns one :class:`QualityReporter` whose ``run_id``
+        determines the output directory. Three ways to set it, in priority
+        order:
+
+        1. Pass a pre-built ``reporter``. The orchestrator uses it as is.
+           This is the right path for the API: build the reporter at upload
+           time, hand it to the orchestrator, and the same directory is
+           used for the entire session no matter what.
+
+        2. Pass a ``run_id`` string. A new reporter is built under
+           ``outputs/quality_reporter/<run_id>``.
+
+        3. Pass neither. A timestamp ``YYYYMMDD_HHMMSS`` is used. This is
+           a convenience for one-shot scripts; it is NOT safe for long-lived
+           sessions where the same orchestrator might be inadvertently
+           reconstructed (each construction picks a fresh timestamp,
+           producing surprising multiple folders).
         """
         self.ingestion_manager = IngestionManager()
         self.analysis_manager = AnalysisManager()
-        self.reporter = QualityReporter("outputs/quality_reporter", datetime.now().strftime("%Y%m%d_%H%M%S"))
+        if reporter is not None:
+            self.reporter = reporter
+        else:
+            effective_run_id = run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.reporter = QualityReporter("outputs/quality_reporter", effective_run_id)
 
         self.stage = stage if isinstance(stage, LifecycleStage) else LifecycleStage(stage)
         self.strategy = strategy
@@ -268,6 +294,18 @@ class QALLMOrchestrator:
             (accepted) or its abandoned log (rejected).
         """
         logger.info(f"Starting QALLM operation for {source_path}...")
+
+        # Reset state so a second call to run() on the same orchestrator
+        # behaves identically to a first. Each run() owns one full
+        # baseline-plus-rounds traversal; without this, calling run()
+        # twice would start round numbering at N+1 and would not refill
+        # per-unit tracks from a clean slate.
+        self.current_round = 1
+        self.tracks.clear()
+        self.halt_reason = None
+        # Budget state and tracker are intentionally NOT reset: a caller
+        # who reuses the orchestrator should see the cumulative cost. If
+        # truly independent runs are wanted, construct a new orchestrator.
 
         logger.info("Stage 0: Ingesting %s", source_path)
         units = self.ingestion_manager.collect(source_path)

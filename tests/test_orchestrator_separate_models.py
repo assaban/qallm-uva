@@ -40,6 +40,19 @@ def _mock_llm_providers():
         yield
 
 
+@pytest.fixture(autouse=True)
+def _isolate_outputs(tmp_path, monkeypatch):
+    """Chdir each test into a temp dir so the reporter's default
+    ``outputs/quality_reporter/...`` lands inside the temp dir, not in
+    the developer's real ``outputs/`` directory.
+
+    Without this, every test that constructs a QALLMOrchestrator leaks
+    a folder into the project root.
+    """
+    monkeypatch.chdir(tmp_path)
+    yield
+
+
 class TestDefaultModelSharing:
     """If no separate models are specified, all three attributes are the
     same LLM instance (verified by identity, not equality)."""
@@ -195,3 +208,69 @@ class TestStageCoercion:
                 llm_type="openai", model_name="gpt-4o-mini",
                 rounds=1, judge_strategy="strict",
             )
+
+
+class TestRunIdPlumbing:
+    """Regression: the orchestrator must respect a caller-supplied run_id.
+
+    The previous design captured ``datetime.now()`` inside ``__init__``,
+    which meant a re-constructed orchestrator silently produced a new
+    output folder. Callers now pass an explicit ``run_id`` (e.g. the
+    session UUID) to pin the directory across the entire session.
+
+    Tests in this class use ``tmp_path`` so they never write to the
+    real ``outputs/`` directory. The previous version of these tests
+    leaked ``shared_id/`` and ``test_session_42/`` folders into the
+    developer's repo.
+    """
+
+    def test_default_run_id_uses_timestamp(self):
+        # Backwards compat: no run_id given -> timestamp-based.
+        orch = QALLMOrchestrator(
+            llm_type="openai", model_name="gpt-4o-mini",
+            rounds=1, judge_strategy="strict",
+        )
+        # run_id has the YYYYMMDD_HHMMSS shape.
+        assert orch.reporter.run_id.count("_") >= 1
+        assert len(orch.reporter.run_id) >= 13  # at least YYYYMMDD_HHMMSS
+
+    def test_explicit_run_id_used_verbatim(self):
+        orch = QALLMOrchestrator(
+            llm_type="openai", model_name="gpt-4o-mini",
+            rounds=1, judge_strategy="strict",
+            run_id="test_session_42",
+        )
+        assert orch.reporter.run_id == "test_session_42"
+        assert orch.reporter.report_dir.name == "test_session_42"
+
+    def test_two_orchestrators_with_same_run_id_share_directory(self):
+        # The actual bug-fix scenario: even if two orchestrators are
+        # built (e.g. server restart, second upload), supplying the same
+        # run_id pins both to the same on-disk directory.
+        orch1 = QALLMOrchestrator(
+            llm_type="openai", model_name="gpt-4o-mini",
+            rounds=1, judge_strategy="strict",
+            run_id="shared_id",
+        )
+        orch2 = QALLMOrchestrator(
+            llm_type="openai", model_name="gpt-4o-mini",
+            rounds=1, judge_strategy="strict",
+            run_id="shared_id",
+        )
+        assert orch1.reporter.report_dir == orch2.reporter.report_dir
+
+    def test_explicit_reporter_takes_precedence_over_run_id(self):
+        # If a caller passes a pre-built reporter, the orchestrator uses
+        # it as-is and ignores any run_id argument.
+        from qallm.utils.reporter import QualityReporter
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            reporter = QualityReporter(base_dir=td, run_id="injected")
+            orch = QALLMOrchestrator(
+                llm_type="openai", model_name="gpt-4o-mini",
+                rounds=1, judge_strategy="strict",
+                run_id="ignored_when_reporter_supplied",
+                reporter=reporter,
+            )
+            assert orch.reporter is reporter
+            assert orch.reporter.run_id == "injected"

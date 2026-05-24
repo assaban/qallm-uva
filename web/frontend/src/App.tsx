@@ -18,11 +18,15 @@ export default function App() {
   const [mode, setMode] = useState<"manual" | "auto">("manual");
   const autoRunner = useAutoRunner(state, patch, setStep);
 
-  // Called by UploadScreen after successful upload
-  function onSessionReady(autoMode: boolean) {
+  // Called by UploadScreen after successful upload. We accept the
+  // sessionId and files explicitly because React state updates are
+  // asynchronous; the global `state` will not yet reflect the upload
+  // when this is invoked. Reading state.sessionId here would see the
+  // pre-upload value and the auto-runner would bail silently.
+  function onSessionReady(autoMode: boolean, sessionId: string, files: string[]) {
     setMode(autoMode ? "auto" : "manual");
     if (autoMode) {
-      autoRunner.run();
+      autoRunner.run(sessionId, files);
     } else {
       setStep(2);
     }
