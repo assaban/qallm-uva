@@ -138,6 +138,9 @@ async def upload_session(
     """
     # Write uploads to /tmp to avoid triggering uvicorn --reload.
     upload_root = Path(tempfile.mkdtemp(prefix="qallm_upload_"))
+    # upload_root = Path("/tmp/qallm_upload")
+
+    logger.info(f"Upload ${len(archives)} archives to root directory: {upload_root}")
 
     for archive in archives:
         file_path = upload_root / archive.filename

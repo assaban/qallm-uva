@@ -5,6 +5,17 @@ import * as api from "../api";
 /**
  * Auto-runner: sequences analyse → repair → verify → results
  * with screen transitions between each step.
+ *
+ * IMPORTANT: ``run`` accepts ``sessionId`` and ``files`` as explicit
+ * arguments rather than reading them from the captured ``state`` closure.
+ *
+ * The reason is a React stale-closure trap. ``onSessionReady`` invokes
+ * ``run()`` immediately after ``patch({ sessionId })``; because React
+ * state updates are asynchronous, ``state.sessionId`` is still the
+ * pre-upload value at the moment ``run()`` runs. Reading from the
+ * closure would see ``undefined`` and the guard at the top would bail
+ * silently, which is exactly what produced the "auto mode does nothing"
+ * symptom in earlier builds.
  */
 export function useAutoRunner(
   state: SessionState,
@@ -13,12 +24,11 @@ export function useAutoRunner(
 ) {
   const aborted = useRef(false);
 
-  const run = useCallback(async () => {
-    if (!state.sessionId) return;
+  const run = useCallback(async (sessionId: string, files: string[]) => {
+    if (!sessionId) return;
     aborted.current = false;
 
-    const sid = state.sessionId;
-    const files = state.files;
+    const sid = sessionId;
 
     try {
       // ─── Step 2: Analyse ───
@@ -60,7 +70,12 @@ export function useAutoRunner(
       patch({ loading: true });
       await delay(600);
 
-      const verification = await api.runTestGen(sid, "", "", 0); // Uses session defaults
+      // The session config was locked in at upload. The backend now runs
+      // the full v3 loop (orch.run) regardless of the runTestGen args; we
+      // pass empty strings and 0 to make the back-compat shape explicit.
+      // The result includes tracks, judge verdicts, halt reason, budget,
+      // and the legacy `functions` list.
+      const verification = await api.runTestGen(sid, "", "", 0);
       patch({ testGenResult: verification, loading: false });
       if (aborted.current) return;
       await delay(1000);
@@ -71,7 +86,7 @@ export function useAutoRunner(
     } catch (e: any) {
       patch({ loading: false, error: e.message });
     }
-  }, [state.sessionId, state.files, patch, setStep]);
+  }, [patch, setStep]);
 
   const abort = useCallback(() => { aborted.current = true; }, []);
 

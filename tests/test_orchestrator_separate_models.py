@@ -40,6 +40,19 @@ def _mock_llm_providers():
         yield
 
 
+@pytest.fixture(autouse=True)
+def _isolate_outputs(tmp_path, monkeypatch):
+    """Chdir each test into a temp dir so the reporter's default
+    ``outputs/quality_reporter/...`` lands inside the temp dir, not in
+    the developer's real ``outputs/`` directory.
+
+    Without this, every test that constructs a QALLMOrchestrator leaks
+    a folder into the project root.
+    """
+    monkeypatch.chdir(tmp_path)
+    yield
+
+
 class TestDefaultModelSharing:
     """If no separate models are specified, all three attributes are the
     same LLM instance (verified by identity, not equality)."""
@@ -204,6 +217,11 @@ class TestRunIdPlumbing:
     which meant a re-constructed orchestrator silently produced a new
     output folder. Callers now pass an explicit ``run_id`` (e.g. the
     session UUID) to pin the directory across the entire session.
+
+    Tests in this class use ``tmp_path`` so they never write to the
+    real ``outputs/`` directory. The previous version of these tests
+    leaked ``shared_id/`` and ``test_session_42/`` folders into the
+    developer's repo.
     """
 
     def test_default_run_id_uses_timestamp(self):
