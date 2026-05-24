@@ -27,6 +27,13 @@ dependencies = [
     "python-multipart",
 ]
 
+[project.optional-dependencies]
+# Install with: pip install -e ".[experiments]"
+# Needed only for the HumanEvalFix validation experiment (qallm.experiments).
+experiments = [
+    "datasets>=2.18.0",
+]
+
 [project.scripts]
 qallm = "qallm.run_qallm:main"
 

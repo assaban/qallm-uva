@@ -146,7 +146,7 @@ def _unit_id(unit: CodeUnit) -> str:
 class QALLMOrchestrator:
     def __init__(
             self,
-            stage: LifecycleStage = LifecycleStage.IMPLEMENTATION,
+            stage: LifecycleStage | str = LifecycleStage.IMPLEMENTATION,
             strategy: Strategy = "rl",
             llm_type: str = "openai",
             model_name: str | None = None,
@@ -179,7 +179,7 @@ class QALLMOrchestrator:
         self.analysis_manager = AnalysisManager()
         self.reporter = QualityReporter("outputs/quality_reporter", datetime.now().strftime("%Y%m%d_%H%M%S"))
 
-        self.stage = stage
+        self.stage = stage if isinstance(stage, LifecycleStage) else LifecycleStage(stage)
         self.strategy = strategy
         self.oracle = oracle
         self.profile = profile
