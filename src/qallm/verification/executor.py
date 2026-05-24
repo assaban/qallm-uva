@@ -98,9 +98,27 @@ def run_tests(
         source_path = work_dir / source_filename
         source_path.write_text(source_code, encoding="utf-8")
 
-        # P0 fix: copy sibling modules so target imports resolve
+        # Sibling-import resolution. If the target uses ``from foo import ...``
+        # to reach a sibling module or package, those imports must be
+        # satisfiable inside the sandbox. DependencyMapper copies the
+        # relevant tree; if it cannot (no source_origin, missing file,
+        # or unrecognised structure), tests that exercise those imports
+        # will fail with ModuleNotFoundError. We log loudly so the user
+        # can see why.
         if source_origin and source_origin.exists():
-            DependencyMapper.resolve_and_copy(source_origin, work_dir)
+            copied = DependencyMapper.resolve_and_copy(source_origin, work_dir)
+            if copied:
+                logger.info(
+                    "Sandbox dependency resolution: copied %s into %s",
+                    ", ".join(copied), work_dir,
+                )
+        else:
+            logger.warning(
+                "Sandbox dependency resolution skipped: source_origin=%s "
+                "(exists=%s). Tests that import from sibling modules will fail.",
+                source_origin,
+                source_origin.exists() if source_origin else False,
+            )
 
         test_path = work_dir / "test_generated.py"
 

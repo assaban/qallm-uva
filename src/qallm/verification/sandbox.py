@@ -136,13 +136,34 @@ class CodeExtractor:
 
 
 class DependencyMapper:
-    """Resolves project-internal imports by copying sibling modules into the sandbox."""
+    """Resolves project-internal imports by copying sibling modules into the sandbox.
+
+    Strategy:
+      1. Walk up from the target file looking for ``__init__.py`` files.
+         Each one signals a package; the outermost ``__init__.py`` marks
+         the package root.
+      2. If a package root is found, copy the whole package tree into
+         the sandbox. This is the only way ``from research_pipeline.config
+         import X`` style imports resolve.
+      3. If no package root is found (the target file is a bare script),
+         fall back to copying sibling ``.py`` files from the parent
+         directory. This handles flat-layout projects.
+
+    Logs at INFO so a misbehaving run leaves a breadcrumb trail. A silent
+    no-op was the cause of a real ``ModuleNotFoundError`` in NEW-08
+    testing; explicit logging is mandatory for a sandbox that hides
+    state from the user.
+    """
 
     @staticmethod
     def resolve_and_copy(target_path: Path, sandbox_dir: Path) -> list[str]:
         copied = []
         parent = target_path.parent
         if not parent.exists() or not parent.is_dir():
+            logger.warning(
+                "DependencyMapper: parent of %s does not exist; nothing copied.",
+                target_path,
+            )
             return copied
 
         package_root = DependencyMapper._find_package_root(target_path)
@@ -151,7 +172,17 @@ class DependencyMapper:
             if not dest.exists():
                 shutil.copytree(package_root, dest, dirs_exist_ok=True)
                 copied.append(package_root.name)
+                logger.info(
+                    "DependencyMapper: copied package %s -> %s",
+                    package_root, dest,
+                )
+            else:
+                logger.debug(
+                    "DependencyMapper: package %s already at %s; skipped.",
+                    package_root.name, dest,
+                )
         else:
+            sibling_count = 0
             for sibling in parent.glob("*.py"):
                 if sibling == target_path:
                     continue
@@ -159,7 +190,82 @@ class DependencyMapper:
                 if not dest.exists():
                     shutil.copy2(sibling, dest)
                     copied.append(sibling.stem)
+                    sibling_count += 1
+            logger.info(
+                "DependencyMapper: no package detected at %s; "
+                "copied %d sibling .py file(s).",
+                parent, sibling_count,
+            )
+
+        # Secondary pass: scan the target's imports for top-level package
+        # references and copy any matching sibling directories. This catches
+        # two real situations:
+        #   1. The user uploaded a "namespace package" (PEP 420) with no
+        #      __init__.py at the root; _find_package_root returns None
+        #      but the package directory is still present alongside.
+        #   2. The target is a script in a parent directory that imports
+        #      from a child package directory.
+        # We walk a few levels up from the target's parent looking for
+        # directories whose names match imported top-level packages.
+        try:
+            referenced = DependencyMapper._top_level_imports(target_path)
+        except Exception as e:
+            logger.debug("Could not parse imports from %s: %s", target_path, e)
+            referenced = set()
+
+        # Strip out modules we already copied as standalone .py files.
+        already_have_names = {p.stem for p in sandbox_dir.glob("*.py")}
+        already_have_names |= {p.name for p in sandbox_dir.iterdir() if p.is_dir()}
+        for pkg_name in referenced - already_have_names:
+            # Search up to 3 levels above the target for a matching dir.
+            search_dir = parent
+            for _ in range(3):
+                candidate = search_dir / pkg_name
+                if candidate.is_dir():
+                    dest = sandbox_dir / pkg_name
+                    if not dest.exists():
+                        shutil.copytree(candidate, dest, dirs_exist_ok=True)
+                        copied.append(pkg_name)
+                        logger.info(
+                            "DependencyMapper: resolved import '%s' by "
+                            "copying %s -> %s",
+                            pkg_name, candidate, dest,
+                        )
+                    break
+                if search_dir == search_dir.parent:
+                    break
+                search_dir = search_dir.parent
+
+        if not copied:
+            logger.warning(
+                "DependencyMapper: nothing copied from %s. If the target "
+                "imports from sibling modules, tests will fail to import. "
+                "Verify the upload includes the full package directory.",
+                target_path,
+            )
         return copied
+
+    @staticmethod
+    def _top_level_imports(file_path: Path) -> set[str]:
+        """Return the set of top-level module names imported by file_path.
+
+        For ``from research_pipeline.config import X`` we return
+        ``{"research_pipeline"}``. For ``import numpy as np`` we return
+        ``{"numpy"}``. Standard-library and installed-package names will
+        be in this set too; the caller filters by whether the name exists
+        on disk in the upload tree.
+        """
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+        tree = ast.parse(text)
+        names: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    names.add(alias.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom):
+                if node.module and node.level == 0:
+                    names.add(node.module.split(".")[0])
+        return names
 
     @staticmethod
     def _find_package_root(file_path: Path) -> Optional[Path]:
