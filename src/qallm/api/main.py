@@ -331,19 +331,58 @@ async def get_session_config(session_id: str):
 
 @app.post("/api/analyse")
 async def run_analysis(req: dict):
+    """Run static analysis on the session's code units.
+
+    Same endpoint serves both the initial Step 2 ("Analyse") and the
+    Step 4 ("Re-analyse") call after repair. The endpoint picks the
+    *latest* source for each unit: if a repair has run and produced a
+    repaired variant, that's analysed; otherwise the original is.
+
+    This is the right contract because analysis is always "what does
+    the current state of this code look like to a static tool?", and
+    the current state moves forward as repair lands. Without this,
+    re-analyse would silently report the original code's findings,
+    making the methodology claim ("repair improves quality") invisible
+    in the UI.
+    """
     sid = req.get("session_id", "")
     selected_files = req.get("selected_files", [])
-    selected_tools = req.get("selected_tools", [])
 
     state = _get_state(sid)
     orch: QALLMOrchestrator = state["orchestrator"]
 
     all_findings = []
+    repaired_units = state.get("repaired_units", {})
+    used_repaired = 0
+    used_original = 0
     for unit in state["units"]:
-        if unit.original_path.name in selected_files:
-            analysed = orch.analysis_manager.analyse_code_unit(unit)
-            state["analysed_units"][unit.original_path.name] = analysed
-            all_findings.extend(analysed.findings)
+        name = unit.original_path.name
+        if name not in selected_files:
+            continue
+
+        # If a repaired variant of this unit exists from an earlier step,
+        # analyse it instead of the original. Otherwise fall back. We
+        # require ``compiles=True`` so we don't analyse a syntactically
+        # broken repair attempt.
+        repaired = repaired_units.get(name)
+        if (repaired
+                and repaired.repaired_result
+                and repaired.repaired_result.compiles):
+            target_unit = repaired.repaired_code_unit
+            used_repaired += 1
+        else:
+            target_unit = unit
+            used_original += 1
+
+        analysed = orch.analysis_manager.analyse_code_unit(target_unit)
+        state["analysed_units"][name] = analysed
+        all_findings.extend(analysed.findings)
+
+    logger.info(
+        "Analysis run on session %s: %d unit(s) using repaired source, "
+        "%d using original.",
+        sid, used_repaired, used_original,
+    )
 
     summary = {
         "total": len(all_findings),
@@ -627,12 +666,22 @@ async def get_job(job_id: str):
     if sid and sid in sessions:
         orch = sessions[sid].get("orchestrator")
         if orch is not None:
-            try:
-                payload["progress"] = orch.snapshot().to_dict()
-            except Exception as e:
-                # Never let a snapshot error prevent the user from seeing
-                # the basic job status; just omit the progress block.
-                logger.warning("Could not capture progress for job %s: %s", job_id, e)
+            if not hasattr(orch, "snapshot"):
+                # Orchestrator predates the progress API. Don't spam the
+                # logs on every poll; just silently omit the progress block.
+                # If you see this comment in production, your container is
+                # running stale code: rebuild and clear __pycache__.
+                pass
+            else:
+                try:
+                    payload["progress"] = orch.snapshot().to_dict()
+                except Exception as e:
+                    # Real failure (not just a stale build). Log once per
+                    # job so we have a breadcrumb without flooding the log.
+                    logger.warning(
+                        "Could not capture progress for job %s: %s",
+                        job_id, e,
+                    )
     return payload
 
 

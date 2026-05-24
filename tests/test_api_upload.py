@@ -156,3 +156,160 @@ class TestConfigEndpointReadback:
         assert cfg["test_stability"] == "per_round"
         assert cfg["max_cost_usd"] == 1.0
         assert cfg["repair_model_id"] == "anthropic:claude-sonnet-4"
+
+
+class TestReanalyseUsesRepairedSource:
+    """Regression: the /api/analyse endpoint must analyse the repaired
+    source on Step 4 (re-analyse), not re-analyse the original code.
+
+    Without this, repair appears to never improve quality because the
+    re-analyse findings are always identical to the pre-repair findings.
+    """
+
+    def test_first_analyse_uses_original_source(self, client, monkeypatch):
+        # Upload + first analysis: no repair has happened yet, so analyse
+        # operates on the original source (the file's actual content).
+        from unittest.mock import MagicMock, patch as mock_patch
+        from qallm.api.main import sessions
+
+        # Patch the analysis_manager to record which source code it sees.
+        seen_sources = []
+
+        def fake_analyse(unit):
+            seen_sources.append(unit.source_code)
+            result = MagicMock()
+            result.findings = []
+            return result
+
+        upload = _upload_with(client, model="openai:gpt-4o-mini")
+        assert upload.status_code == 200
+        sid = upload.json()["session_id"]
+
+        orch = sessions[sid]["orchestrator"]
+        monkeypatch.setattr(
+            orch.analysis_manager, "analyse_code_unit", fake_analyse,
+        )
+
+        client.post("/api/analyse", json={
+            "session_id": sid,
+            "selected_files": [sessions[sid]["units"][0].original_path.name],
+            "selected_tools": [],
+        })
+
+        assert len(seen_sources) == 1
+        original = sessions[sid]["units"][0].source_code
+        assert seen_sources[0] == original, (
+            "First analyse must see the original source."
+        )
+
+    def test_reanalyse_after_repair_uses_repaired_source(self, client, monkeypatch):
+        # The bug regression: after repair stashes a repaired variant,
+        # a second call to /api/analyse must analyse the repaired source,
+        # not the original.
+        from unittest.mock import MagicMock
+        from qallm.api.main import sessions
+        from qallm.repair.repair_model import RepairedCodeUnit, RepairResult
+        from qallm.analysis.analysis_model import AnalysedCodeUnit
+
+        seen_sources = []
+
+        def fake_analyse(unit):
+            seen_sources.append(unit.source_code)
+            result = MagicMock()
+            result.findings = []
+            return result
+
+        upload = _upload_with(client, model="openai:gpt-4o-mini")
+        sid = upload.json()["session_id"]
+        orch = sessions[sid]["orchestrator"]
+        monkeypatch.setattr(
+            orch.analysis_manager, "analyse_code_unit", fake_analyse,
+        )
+
+        name = sessions[sid]["units"][0].original_path.name
+        original_unit = sessions[sid]["units"][0]
+        original_source = original_unit.source_code
+
+        # Stash a fake repaired variant directly into session state, as
+        # /api/repair would do.
+        repaired_source = "# repaired\n" + original_source + "\n# end repair\n"
+        repair_result = RepairResult(
+            file_path=str(original_unit.original_path),
+            repaired_source=repaired_source,
+            explanation="fake repair for test",
+            compiles=True,
+        )
+        analysed = AnalysedCodeUnit(code_unit=original_unit)
+        repaired_unit = RepairedCodeUnit(
+            analysis_result=analysed,
+            repaired_result=repair_result,
+        )
+        sessions[sid]["repaired_units"][name] = repaired_unit
+
+        # Now call /api/analyse a second time: this is "re-analyse."
+        client.post("/api/analyse", json={
+            "session_id": sid,
+            "selected_files": [name],
+            "selected_tools": [],
+        })
+
+        assert len(seen_sources) == 1
+        assert seen_sources[0] == repaired_source, (
+            "Re-analyse must see the repaired source, not the original."
+        )
+        assert seen_sources[0] != original_source, (
+            "Sanity: the repaired source should be different from the "
+            "original for this test to be meaningful."
+        )
+
+    def test_failed_repair_falls_back_to_original_source(self, client, monkeypatch):
+        # If repair produced a non-compiling output, we don't trust it;
+        # analyse falls back to the original.
+        from unittest.mock import MagicMock
+        from qallm.api.main import sessions
+        from qallm.repair.repair_model import RepairedCodeUnit, RepairResult
+        from qallm.analysis.analysis_model import AnalysedCodeUnit
+
+        seen_sources = []
+
+        def fake_analyse(unit):
+            seen_sources.append(unit.source_code)
+            result = MagicMock()
+            result.findings = []
+            return result
+
+        upload = _upload_with(client, model="openai:gpt-4o-mini")
+        sid = upload.json()["session_id"]
+        orch = sessions[sid]["orchestrator"]
+        monkeypatch.setattr(
+            orch.analysis_manager, "analyse_code_unit", fake_analyse,
+        )
+
+        name = sessions[sid]["units"][0].original_path.name
+        original_unit = sessions[sid]["units"][0]
+        original_source = original_unit.source_code
+
+        # Stash a *broken* repair: compiles=False.
+        repair_result = RepairResult(
+            file_path=str(original_unit.original_path),
+            repaired_source="!!!! syntax error",
+            explanation="broken repair",
+            compiles=False,
+        )
+        analysed = AnalysedCodeUnit(code_unit=original_unit)
+        repaired_unit = RepairedCodeUnit(
+            analysis_result=analysed,
+            repaired_result=repair_result,
+        )
+        sessions[sid]["repaired_units"][name] = repaired_unit
+
+        client.post("/api/analyse", json={
+            "session_id": sid,
+            "selected_files": [name],
+            "selected_tools": [],
+        })
+
+        assert seen_sources[0] == original_source, (
+            "When the repaired source doesn't compile, analyse must fall "
+            "back to the original to avoid analysing broken code."
+        )

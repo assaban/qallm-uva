@@ -170,8 +170,16 @@ export interface JobView<T = unknown> {
 }
 
 export interface PollOptions {
-  intervalMs?: number;  // default 500
-  timeoutMs?: number;   // default 10 minutes
+  intervalMs?: number;       // default 500
+  // Hard ceiling on total wait time, regardless of progress. Default 60
+  // minutes. Set high enough to accommodate slow local LLMs on
+  // multi-function, multi-round runs.
+  timeoutMs?: number;
+  // Soft ceiling: if no progress (snapshot fields don't change) for this
+  // long, treat the job as stuck and give up. Default 5 minutes. This
+  // catches "the worker is genuinely hung" without giving up on jobs
+  // that are slow but still working.
+  inactivityMs?: number;
   signal?: AbortSignal;
   // Called with each intermediate view. Useful for surfacing live
   // progress while the job is running.
@@ -182,13 +190,23 @@ export async function getJob<T = unknown>(jobId: string): Promise<JobView<T>> {
   return req<JobView<T>>(`/api/jobs/${jobId}`);
 }
 
+/** Build a stable signature of the progress fields we expect to change. */
+function progressSignature(view: JobView): string {
+  const p = view.progress;
+  if (!p) return view.status;
+  return `${p.phase}|${p.current_round}|${p.current_stage}|${p.current_unit_id}|${p.rounds_accepted}|${p.rounds_abandoned}|${p.tokens_used}`;
+}
+
 export async function pollJobUntilDone<T = unknown>(
   jobId: string,
   opts: PollOptions = {},
 ): Promise<JobView<T>> {
   const interval = opts.intervalMs ?? 500;
-  const timeout = opts.timeoutMs ?? 10 * 60 * 1000;
-  const deadline = Date.now() + timeout;
+  const timeout = opts.timeoutMs ?? 60 * 60 * 1000;  // 60 minutes hard cap
+  const inactivity = opts.inactivityMs ?? 5 * 60 * 1000;  // 5 minutes
+  const startedAt = Date.now();
+  let lastProgressAt = Date.now();
+  let lastSignature = "";
 
   while (true) {
     if (opts.signal?.aborted) {
@@ -196,12 +214,33 @@ export async function pollJobUntilDone<T = unknown>(
     }
     const view = await getJob<T>(jobId);
     opts.onProgress?.(view);  // surface every snapshot
+
     if (view.status === "done") return view;
     if (view.status === "error") {
       throw new Error(view.error || "Job failed without an error message");
     }
-    if (Date.now() > deadline) {
-      throw new Error(`Job ${jobId} did not finish within ${timeout}ms`);
+
+    // Reset the inactivity timer whenever progress moves. If the
+    // orchestrator is making progress (a new unit, a new round, a new
+    // accepted variant, more tokens spent), we are willing to wait.
+    const sig = progressSignature(view);
+    if (sig !== lastSignature) {
+      lastSignature = sig;
+      lastProgressAt = Date.now();
+    }
+
+    const now = Date.now();
+    if (now - startedAt > timeout) {
+      throw new Error(
+        `Job ${jobId} hit the hard timeout of ${Math.round(timeout / 60000)} minutes. ` +
+        `Last observed phase: ${view.progress?.phase ?? "unknown"}.`,
+      );
+    }
+    if (now - lastProgressAt > inactivity) {
+      throw new Error(
+        `Job ${jobId} made no progress for ${Math.round(inactivity / 60000)} minutes. ` +
+        `Last observed: ${view.progress?.current_stage ?? view.status} on ${view.progress?.current_unit_id ?? "n/a"}.`,
+      );
     }
     await new Promise(r => setTimeout(r, interval));
   }
