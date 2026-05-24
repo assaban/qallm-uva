@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import type { AnalysisRound, AnalysisSummary, Finding, RepairResult, VerificationResult, VersionInfo } from "../types";
+import type { JobProgress } from "../api";
 
 export interface SessionState {
   sessionId: string | null;
@@ -17,6 +18,10 @@ export interface SessionState {
   versions: VersionInfo[];
   loading: boolean;
   error: string | null;
+  // Live progress from the running verification job. Updated by both
+  // the auto-runner (which polls on the user's behalf) and TestGenScreen
+  // (when the user clicks Run manually). Cleared between runs.
+  progress: JobProgress | null;
 }
 
 const INIT: SessionState = {
@@ -35,6 +40,7 @@ const INIT: SessionState = {
   versions: [],
   loading: false,
   error: null,
+  progress: null,
 };
 
 export function useSession() {

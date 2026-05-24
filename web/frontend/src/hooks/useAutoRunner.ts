@@ -67,7 +67,7 @@ export function useAutoRunner(
 
       // ─── Step 5: Generate Tests ───
       setStep(5);
-      patch({ loading: true });
+      patch({ loading: true, progress: null });
       await delay(600);
 
       // The session config was locked in at upload. The backend now runs
@@ -75,7 +75,13 @@ export function useAutoRunner(
       // pass empty strings and 0 to make the back-compat shape explicit.
       // The result includes tracks, judge verdicts, halt reason, budget,
       // and the legacy `functions` list.
-      const verification = await api.runTestGen(sid, "", "", 0);
+      //
+      // Live progress is forwarded into the session state so TestGenScreen
+      // can render it. The orchestrator runs in a worker thread on the
+      // server; each poll captures a snapshot of its in-progress state.
+      const verification = await api.runTestGen(sid, "", "", 0, view => {
+        if (view.progress) patch({ progress: view.progress });
+      });
       patch({ testGenResult: verification, loading: false });
       if (aborted.current) return;
       await delay(1000);

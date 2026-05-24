@@ -138,9 +138,6 @@ async def upload_session(
     """
     # Write uploads to /tmp to avoid triggering uvicorn --reload.
     upload_root = Path(tempfile.mkdtemp(prefix="qallm_upload_"))
-    # upload_root = Path("/tmp/qallm_upload")
-
-    logger.info(f"Upload ${len(archives)} archives to root directory: {upload_root}")
 
     for archive in archives:
         file_path = upload_root / archive.filename
@@ -601,12 +598,42 @@ async def run_verification(req: dict):
 
 @app.get("/api/jobs/{job_id}")
 async def get_job(job_id: str):
-    """Return the current status (and result, if done) of a background job."""
+    """Return the current status of a background job, plus live progress.
+
+    Beyond the bare job-store fields (status, timestamps, result, error),
+    this enriches the response with a ``progress`` block sourced from the
+    orchestrator's :meth:`snapshot` method when the job is for a session
+    whose orchestrator is currently running.
+
+    The progress block is the right place for the UI to render a live
+    status: phase, current round / total rounds, current stage (analyse
+    / repair / verify / judge), the unit currently being processed,
+    cumulative accepted and abandoned variant counts, and budget consumed.
+
+    Designed for *display*, not control. Fields are descriptive and
+    coarse-grained on purpose: we don't try to compute a percentage,
+    because LLM call durations and judge-driven early-halt make any
+    percentage estimate misleading.
+    """
     store = get_store()
     job = await store.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-    return job.to_dict()
+    payload = job.to_dict()
+
+    # Attach a progress snapshot when we can. The job carries a session id;
+    # the session holds the orchestrator that is doing the work.
+    sid = payload.get("session_id")
+    if sid and sid in sessions:
+        orch = sessions[sid].get("orchestrator")
+        if orch is not None:
+            try:
+                payload["progress"] = orch.snapshot().to_dict()
+            except Exception as e:
+                # Never let a snapshot error prevent the user from seeing
+                # the basic job status; just omit the progress block.
+                logger.warning("Could not capture progress for job %s: %s", job_id, e)
+    return payload
 
 
 @app.get("/api/session/{session_id}/jobs")
