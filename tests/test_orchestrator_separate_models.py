@@ -148,3 +148,50 @@ class TestSummaryReportsBothModels:
         )
         assert "anthropic:claude-haiku" in summary["repair_model"]
         assert "ollama:gemma3:4b" in summary["testgen_model"]
+
+
+class TestStageCoercion:
+    """Regression: the API sends stage as a plain string ("implementation").
+
+    The orchestrator must coerce it to a LifecycleStage before stashing
+    so later code (e.g. summary building) that calls ``self.stage.value``
+    doesn't crash with AttributeError on 'str'.
+    """
+
+    def test_stage_string_is_coerced_to_enum(self):
+        from qallm.analysis.normalizer import LifecycleStage
+        orch = QALLMOrchestrator(
+            stage="implementation",
+            llm_type="openai", model_name="gpt-4o-mini",
+            rounds=1, judge_strategy="strict",
+        )
+        assert isinstance(orch.stage, LifecycleStage)
+        assert orch.stage is LifecycleStage.IMPLEMENTATION
+
+    def test_stage_enum_is_kept_as_is(self):
+        from qallm.analysis.normalizer import LifecycleStage
+        orch = QALLMOrchestrator(
+            stage=LifecycleStage.PUBLICATION,
+            llm_type="openai", model_name="gpt-4o-mini",
+            rounds=1, judge_strategy="strict",
+        )
+        assert orch.stage is LifecycleStage.PUBLICATION
+
+    def test_build_summary_works_after_string_stage(self):
+        """The original crash: build_summary called .value on a string."""
+        orch = QALLMOrchestrator(
+            stage="implementation",
+            llm_type="openai", model_name="gpt-4o-mini",
+            rounds=1, judge_strategy="strict",
+        )
+        # If stage coercion failed, this raises AttributeError on .value.
+        summary = orch._build_summary(source_path="x.py", units=[], sessions_data=[])
+        assert summary["lifecycle_stage"] == "implementation"
+
+    def test_unknown_stage_string_raises_clearly(self):
+        with pytest.raises(ValueError):
+            QALLMOrchestrator(
+                stage="not_a_real_stage",
+                llm_type="openai", model_name="gpt-4o-mini",
+                rounds=1, judge_strategy="strict",
+            )
