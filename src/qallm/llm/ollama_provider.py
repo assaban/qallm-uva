@@ -42,9 +42,24 @@ class OllamaModel(LLMModel):
             return LLMResponse(content="", provider="ollama", model=self._model_id,
                                error=f"Token budget exhausted ({tracker.budget} tokens used)")
 
+        # Per-request timeout. The Ollama Python client defaults to no
+        # timeout, which means a slow or stuck local server can block the
+        # worker thread indefinitely. We bound the wait so a stuck call
+        # fails cleanly rather than freezing the pipeline.
+        #
+        # 240s is generous for local gemma3:4b on a Mac CPU: a typical
+        # test-generation completion is ~2k output tokens at 20-50 tok/s,
+        # i.e. 40-100s. Genuine hangs (Ollama unresponsive, model not
+        # loaded) trip well before this; legitimate slow calls finish in
+        # time.
+        timeout_seconds = float(getattr(settings, "OLLAMA_TIMEOUT_SECONDS", 240.0))
+
         try:
             import ollama
-            client = ollama.Client(host=settings.OLLAMA_BASE_URL)
+            client = ollama.Client(
+                host=settings.OLLAMA_BASE_URL,
+                timeout=timeout_seconds,
+            )
             response = client.chat(
                 model=self._model_id,
                 messages=[
@@ -63,7 +78,11 @@ class OllamaModel(LLMModel):
                 provider="ollama",
             )
         except Exception as e:
-            logger.error(f"Ollama ({settings.OLLAMA_BASE_URL}) API error [%s]: %s", self._model_id, e)
+            # Includes httpx.ReadTimeout when the timeout above trips.
+            # The error is surfaced through LLMResponse.error and bubbles
+            # up to the orchestrator as "test generation failed", which
+            # is much better than a thread frozen forever.
+            logger.error("Ollama API error [%s]: %s", self._model_id, e)
             resp = LLMResponse(content="", provider="ollama", model=self._model_id, error=str(e))
 
         if tracker:

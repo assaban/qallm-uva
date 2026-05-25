@@ -16,6 +16,12 @@ class Settings:
 
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "gemma3:4b")
+    # Per-request timeout for Ollama chat completions, in seconds. The
+    # Ollama client library has no built-in timeout, so a slow or stuck
+    # local server will block the worker thread indefinitely. 240s is
+    # generous for typical local-model completions and tight enough to
+    # catch genuine hangs.
+    OLLAMA_TIMEOUT_SECONDS: float = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "240"))
 
     # Budget caps. All are floors, not ceilings: code-level ceilings in
     # `qallm.cost` override these if they are too large. The intent is
