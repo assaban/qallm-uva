@@ -15,6 +15,7 @@ After each function completes, artifacts are saved immediately to disk.
 import dataclasses
 import json
 import logging
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Callable, Optional
@@ -148,6 +149,8 @@ class VerificationManager:
         unit_sessions: list[TestGenerationSession] = []
 
         for func_idx, func in enumerate(functions):
+            func_start = time.perf_counter()
+
             # Fire the start callback BEFORE any slow work. This is what
             # lets the UI show "verifying function 3 of 8: predict" while
             # the LLM call is actually in flight, rather than only after
@@ -196,8 +199,25 @@ class VerificationManager:
             generated = None
 
             if generate:
+                # Stage timing: LLM call is typically the slowest single
+                # operation in verify. On local Ollama with gemma3:4b a
+                # test-generation call can take 60-120s; on cloud LLMs
+                # typically 5-30s. Logging duration lets us distinguish
+                # "LLM is slow today" from "sandbox is hung."
+                gen_start = time.perf_counter()
                 generated = self.generator.generate(
                     func, module_name=module_name, existing_session=session
+                )
+                gen_elapsed = time.perf_counter() - gen_start
+                logger.info(
+                    "  [%s] test-gen: %.2fs (provider=%s, model=%s, tokens=in:%d/out:%d, valid=%s%s)",
+                    func.name, gen_elapsed,
+                    generated.provider or "unknown",
+                    generated.model or "unknown",
+                    generated.input_tokens or 0,
+                    generated.output_tokens or 0,
+                    generated.is_valid,
+                    f", error={generated.generation_error}" if generated.generation_error else "",
                 )
                 # Record only valid tests in the store under FROZEN modes;
                 # under PER_ROUND we still record so artefacts are tracked.
@@ -244,8 +264,24 @@ class VerificationManager:
 
             # ----- execute -----
             if test_code_to_run:
+                # Stage timing: pytest subprocess has fixed Python-startup
+                # overhead (~1-2s) plus test runtime. A run of 5-10 simple
+                # generated tests typically completes in 3-15s. Significantly
+                # longer suggests a slow test (network call, fork bomb,
+                # actual hang) or oversized test suite.
+                exec_start = time.perf_counter()
                 execution = run_tests(
                     source, test_code_to_run, f"{module_name}.py", path
+                )
+                exec_elapsed = time.perf_counter() - exec_start
+                logger.info(
+                    "  [%s] test-exec: %.2fs (passed=%d, failed=%d, errors=%d, coverage=%.1f%%%s)",
+                    func.name, exec_elapsed,
+                    getattr(execution, "passed", 0),
+                    getattr(execution, "failed", 0),
+                    getattr(execution, "errors", 0),
+                    execution.coverage_percent or 0.0,
+                    f", error={execution.execution_error}" if execution.execution_error else "",
                 )
             else:
                 error_msg = (
@@ -254,6 +290,7 @@ class VerificationManager:
                     else "Skipped: no tests available to run"
                 )
                 execution = ExecutionResult(execution_error=error_msg)
+                logger.info("  [%s] test-exec: skipped (%s)", func.name, error_msg)
 
             reward = compute_reward(execution, session.final_coverage)
 
@@ -296,6 +333,16 @@ class VerificationManager:
                 execution.coverage_percent or 0.0,
                 execution.bugs_found if execution else 0,
                 generated_for_record.is_valid,
+            )
+
+            # Per-function total: helps the user spot outliers across
+            # functions in the same unit. If function A takes 5s and
+            # function B takes 60s, the discrepancy is now visible
+            # rather than hidden in a single unit-wide total.
+            func_elapsed = time.perf_counter() - func_start
+            logger.info(
+                "  [%s] total: %.2fs (round %d)",
+                func.name, func_elapsed, round_number,
             )
 
             # Incremental persistence: save immediately after each function
