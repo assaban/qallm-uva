@@ -121,7 +121,30 @@ class VerificationManager:
         unit = repaired_unit.repaired_code_unit
         source, path = unit.source_code, unit.original_path
 
+        # Extract functions from the *repaired* source: this is what we
+        # actually run tests against.
         functions = extract_functions_from_source(source, str(path))
+
+        # Filter to functions that existed in the original code. A round-N
+        # variant may introduce new helpers added by the LLM during repair;
+        # verifying those is tautological (LLM tests its own additions)
+        # and wastes budget. We test only what the user originally wrote.
+        original_source = repaired_unit.original_code_unit.source_code
+        original_function_names = {
+            f.name for f in extract_functions_from_source(
+                original_source, str(path),
+            )
+        }
+        skipped_new = [f.name for f in functions
+                       if f.name not in original_function_names]
+        functions = [f for f in functions
+                     if f.name in original_function_names]
+        if skipped_new:
+            logger.info(
+                "Skipping %d function(s) added during repair (not in original): %s",
+                len(skipped_new), skipped_new,
+            )
+
         unit_sessions: list[TestGenerationSession] = []
 
         for func_idx, func in enumerate(functions):
