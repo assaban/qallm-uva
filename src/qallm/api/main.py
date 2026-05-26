@@ -33,6 +33,27 @@ from qallm.orchestrator import QALLMOrchestrator, LLM_PROVIDERS
 
 logger = logging.getLogger(__name__)
 
+# Configure root logging for the API process. Without this, Python's
+# default WARNING level silences every logger.info() call across the
+# orchestrator, verification manager, repair manager, and LLM providers,
+# making the running pipeline completely opaque to operators.
+#
+# This is the root cause of "Last observed: verify on ... but no
+# diagnostic logs": the work was happening, but the logs were filtered.
+#
+# Honour LOG_LEVEL from the environment so production deployments can
+# tune verbosity. Default to INFO which is what every orchestrator and
+# verification log uses.
+_log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=_log_level,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+# Uvicorn replaces handlers when it boots, so we also force-set the
+# root logger level after basicConfig to survive uvicorn's reconfiguration.
+logging.getLogger().setLevel(_log_level)
+
 app = FastAPI(title="QALLM Research Pipeline", version="0.2.0")
 
 app.add_middleware(
