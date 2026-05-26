@@ -54,6 +54,30 @@ logging.basicConfig(
 # root logger level after basicConfig to survive uvicorn's reconfiguration.
 logging.getLogger().setLevel(_log_level)
 
+
+# Silence uvicorn's access log for high-frequency polling endpoints.
+# The frontend polls /api/jobs/{id} every 500ms during long-running
+# verification jobs; without this filter, those polls flood the log
+# and bury the orchestrator's actual diagnostic output.
+#
+# We keep access logs for everything else (uploads, analyse, repair,
+# verification submission, etc.) because those are the requests that
+# actually need an audit trail.
+class _NoPollingAccessLog(logging.Filter):
+    """Drop uvicorn access lines that match high-frequency polling paths."""
+
+    _NOISY_PATHS = ("/api/jobs/", "/api/health")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # The uvicorn access record's args carry the request line. We
+        # check both the message and the args defensively.
+        msg = record.getMessage()
+        return not any(p in msg for p in self._NOISY_PATHS)
+
+
+logging.getLogger("uvicorn.access").addFilter(_NoPollingAccessLog())
+
+
 app = FastAPI(title="QALLM Research Pipeline", version="0.2.0")
 
 app.add_middleware(

@@ -88,6 +88,24 @@ export default function App() {
           currentStep={state.step}
           onStepClick={(mode === "auto" && state.loading) ? () => {} : setStep}
         />
+        {/* Preview-mode banner: steps 2-4 (Analyse, Repair, Re-analyse)
+            show a "preview" of what static analysis and one repair pass
+            look like. The actual QALLM pipeline that produces the
+            reported results runs in Step 5 (Generate Tests) and includes
+            its own baseline + N rounds of analyse → repair → verify →
+            judge. This banner explains the relationship so users don't
+            wonder why Step 5 re-runs everything. */}
+        {state.step >= 2 && state.step <= 4 && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+            <span className="font-semibold">Preview stages.</span>{" "}
+            Steps 2 to 4 show what static analysis and one LLM repair pass
+            produce. The full QALLM pipeline (with multiple RL-guided rounds,
+            test execution, and judge accept/abandon decisions) runs in
+            Step 5 and uses its own independent baseline. Use these
+            preview steps to inspect intermediate state and confirm your
+            uploaded code parses correctly.
+          </div>
+        )}
         {state.error && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             <div>{state.error}</div>

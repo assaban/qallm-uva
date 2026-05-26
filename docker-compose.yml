@@ -38,10 +38,10 @@ services:
       retries: 3
       start_period: 20s
 
-  # Optional local LLM. Skipped by default. Activate with:
-  #   docker compose --profile with-ollama up
-  # Pulling models (e.g. gemma3:4b) is the user's responsibility:
-  #   docker compose exec ollama ollama pull gemma3:4b
+#   Optional local LLM. Skipped by default. Activate with:
+#     docker compose --profile with-ollama up
+#   Pulling models (e.g. gemma3:4b) is the user's responsibility:
+#     docker compose exec ollama ollama pull gemma3:4b
 #  ollama:
 #    image: ollama/ollama:latest
 #    container_name: qallm-ollama
