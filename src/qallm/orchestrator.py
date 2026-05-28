@@ -657,6 +657,13 @@ class QALLMOrchestrator:
             "model": "hypothesis" if self.strategy == "hypothesis" else self.llm.name(),
             "repair_model": self.repair_llm.name(),
             "testgen_model": self.testgen_llm.name(),
+            # Quality profile metadata: which profile was applied and its
+            # Quality profile metadata. The QualityProfile dataclass has a
+            # to_dict() method that serialises profile_id, lifecycle_stage,
+            # description, and the full dimension tree (each dimension with
+            # its indicators). Trusting that method keeps the summary in
+            # sync with the profile definition without us inventing fields.
+            "profile": self.profile.to_dict(),
             "units_analyzed": len(units),
             "functions_verified": len(sessions_data),
             "rounds_accepted_total": total_accepted,

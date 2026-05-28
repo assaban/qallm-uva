@@ -248,6 +248,45 @@ export default function ResultsScreen({ state }: { state: SessionState }) {
             <div><b>Test-gen model:</b> <span className="font-mono">{result.testgen_model || result.model}</span></div>
           </div>
         )}
+        {/* Quality profile: which framework's dimensions and indicators
+            the judge used to compute accept/abandon decisions. Shown so
+            users can see which methodology the run was judged under and
+            in what priority order. */}
+        {result.profile && (
+          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex flex-wrap items-baseline gap-3">
+              <span className="text-xs font-semibold uppercase text-slate-500">
+                Quality profile
+              </span>
+              <span className="font-mono text-sm font-semibold text-slate-800">
+                {result.profile.profile_id}
+              </span>
+              {result.profile.lifecycle_stage && (
+                <span className="rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700">
+                  {result.profile.lifecycle_stage}
+                </span>
+              )}
+              {result.profile.description && (
+                <span className="text-xs text-slate-600">
+                  {result.profile.description}
+                </span>
+              )}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {result.profile.dimensions.map((d, i) => (
+                <span
+                  key={d.dimension}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs"
+                  title={`${d.indicators.length} indicator(s)`}
+                >
+                  <span className="font-mono text-[10px] text-slate-400">{i + 1}.</span>
+                  <span className="font-medium text-slate-700">{d.dimension}</span>
+                  <span className="text-[10px] text-slate-500">({d.indicators.length})</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Per-unit tracks (the v3 lineage / abandoned view) */}

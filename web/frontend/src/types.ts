@@ -105,6 +105,17 @@ export interface BudgetSummary {
   caps?: Record<string, number>;
 }
 
+export interface ProfileSummary {
+  profile_id: string;
+  lifecycle_stage?: string;
+  description?: string;
+  dimensions: Array<{
+    dimension: string;
+    indicators: Array<{ name: string; description?: string; threshold?: number; comparator?: string }>;
+    repair_prompt_id?: string;
+  }>;
+}
+
 export interface VerificationResult {
   session_id: string;
   model: string;
@@ -125,6 +136,8 @@ export interface VerificationResult {
   test_persistence?: Record<string, string>;
   token_usage?: Record<string, number>;
   report_dir?: string;
+  // Quality profile the judge used during the run.
+  profile?: ProfileSummary;
 }
 
 export interface VersionInfo {
