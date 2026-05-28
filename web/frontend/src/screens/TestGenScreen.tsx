@@ -199,7 +199,9 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
                 <span className="text-sm font-semibold capitalize text-slate-800">
                   {liveProgress.phase === "rounds"
                     ? `Round ${liveProgress.current_round} of ${liveProgress.total_rounds}`
-                    : liveProgress.phase}
+                    : liveProgress.phase === "baseline"
+                      ? "Round 0 (baseline)"
+                      : liveProgress.phase}
                 </span>
                 {liveProgress.current_stage && (
                   <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-medium capitalize text-indigo-700">

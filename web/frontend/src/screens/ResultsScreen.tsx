@@ -82,16 +82,31 @@ function UnitTrackPanel({ unitId, track }: { unitId: string; track: UnitTrackVie
             <tbody>
               {track.lineage.map((entry: LineageEntryView) => (
                 <tr key={`l-${entry.round_number}`} className="border-t border-slate-100">
-                  <td className="py-1.5 pr-2 font-medium">{entry.round_number}</td>
+                  <td className="py-1.5 pr-2 font-medium">
+                    {entry.round_number === 0 ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span>0</span>
+                        <span className="rounded bg-indigo-100 px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-700">
+                          baseline
+                        </span>
+                      </span>
+                    ) : (
+                      entry.round_number
+                    )}
+                  </td>
                   <td className="py-1.5 pr-2">
                     {entry.judge_verdict ? (
                       <OutcomeBadge outcome={entry.judge_verdict.outcome} />
                     ) : (
-                      <span className="text-xs italic text-slate-500">accepted (round 1)</span>
+                      <span className="text-xs italic text-slate-500">
+                        ground truth
+                      </span>
                     )}
                   </td>
                   <td className="py-1.5 text-slate-600">
-                    {entry.judge_verdict?.explanation || "unconditional"}
+                    {entry.judge_verdict?.explanation || (
+                      "Original code, verified before any repair."
+                    )}
                   </td>
                 </tr>
               ))}

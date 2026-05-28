@@ -158,23 +158,22 @@ Round 0 is the baseline. It has two purposes:
 * **Reference point** for every subsequent round's improvement judgement. Without it, "did this round improve" has nothing to compare to.
 * **Verification-gap evidence**. Round 0 is precisely the input that static-only tools have access to. If the EVERSE profile says the baseline passes everything *static*, but verification reveals bugs at runtime, that is the verification gap made concrete for this specific code unit.
 
-### 4.1 Current behaviour (`v1, as shipped in NEW-06`)
+### 4.1 Current behaviour: analyse + verify
 
-Round 0 in the shipped orchestrator is *static analysis only*. It does not run repair, does not run verification, does not produce a `ProfileVerdict`. The artefact saved on disk is the raw static analysis of the original code, stored under `round_00_baseline/`.
+Round 0 runs static analysis AND verification on the original code. It does *not* run repair. The orchestrator constructs a synthetic `RepairedCodeUnit` whose repaired source equals the original source, then calls `verification_manager.verify(..., round_number=0)`. The result is a full `ProfileVerdict` recorded as the first entry on each unit's lineage.
 
-Consequence: round 1 has no parent verdict to compare against, so round 1 is **unconditionally accepted** as the first entry in the lineage. The judge is not called for round 1. Round 2 onwards calls the judge with round 1 (or the last accepted variant) as the parent.
+Consequence: every repair round (round 1 onwards) is judged against a real parent. Round 1 is no longer special-cased as "unconditionally accepted"; it is judged against the round 0 baseline. The verification-gap claim is now measurable directly: of the units that pass static analysis at round 0, how many had a runtime defect detectable by the round 0 test suite?
 
-### 4.2 Open question: should round 0 also run verification?
+The test-stability store treats round 0 as the test-generation round under FROZEN+REPLAY_ONLY (the default), so round 1 onwards replays the round 0 tests. This means the budget impact is roughly one verification pass per unit on top of the previous behaviour, not double.
 
-We considered two options when implementing NEW-06:
+### 4.2 Historical: the static-only baseline (deprecated)
 
-**(a) Round 0 is static-only** (shipped). Round 1 is unconditionally accepted. Pro: cheapest; preserves the methodological framing that the static-only baseline is what the developer started with. Con: round 1 never gets judged, so we cannot answer "did round 1 actually improve over the original" with a structured verdict.
+The first shipped behaviour ran *static analysis only* at round 0 and unconditionally accepted round 1 as the first lineage entry. That created two problems flagged during midterm preparation:
 
-**(b) Round 0 also runs verification** (deferred). Round 0 produces a full `ProfileVerdict` with all five EVERSE dimensions populated. Round 1 is judged against it normally. Pro: every round including the first is judged with the same machinery; we can answer "did repair help, or did the original already pass?". Con: roughly 20% token-budget increase per session (adds one verification pass for round 0); the verification-gap claim shifts subtly from "static vs execution" to "the round-0 test suite vs the round-N test suite", which needs to be framed carefully in the thesis methodology chapter.
+1. The verification-gap claim could only be measured against the first repair, not the original code. "X% of code that passes static analysis contains runtime defects" cannot be defended if you never ran tests against the original.
+2. Round 1's unconditional acceptance meant a regression in round 1 against the original was indistinguishable from a true improvement. The judge was bypassed on the first repair.
 
-This question is filed as an open methodology decision. It will be revisited after the pilot experiments on Li's dataset; if option (a) produces obviously suspect outcomes (e.g. round 1 accepts variants that the eye says are clearly worse than the original), we switch to (b). Until then, (a) is the working configuration.
-
-The orchestrator architecture supports both: extending the run loop to call `verification_manager.verify(original_unit)` for the baseline before the main loop is a roughly 15-line change.
+This was filed as an open methodology question and tracked here as `(a) static-only` vs `(b) analyse + verify`. Option (b) is now adopted; option (a) is no longer in the codebase. See `docs/methodology-decisions.md` for the dated record.
 
 ## 4.5 Test stability across the lineage
 

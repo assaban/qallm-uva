@@ -9,22 +9,35 @@ Loop shape
 
 .. code-block:: text
 
-    Round 0 (Baseline):    Static analysis only; no repair, no verify.
-                           Used as the round-0 marker for reports.
+    Round 0 (Baseline):    Analyse + verify the original code unit.
+                           No repair. Produces a ProfileVerdict that
+                           becomes the first lineage entry. This is the
+                           ground truth against which round 1 is judged.
     Round 1..N:
       for each code unit:
         1. Analyse current variant (or unit if round 1).
         2. Repair based on analysis.
         3. Verify (generate or replay tests; record session).
         4. Build a ProfileVerdict for the variant.
-        5. Judge variant vs parent (the last accepted variant for this unit,
-           or None on round 1).
+        5. Judge variant vs parent (the last accepted variant for this
+           unit; for round 1 the parent is the round 0 baseline).
         6. If IMPROVEMENT or NO_CHANGE: variant becomes parent of next round.
            If REGRESSION: variant is logged as abandoned; parent stays.
 
-A unit's "lineage" is the chain of accepted variants. A unit's "abandoned"
-list grows with each rejected variant. Round 1 is always accepted (no
-parent to compare against).
+A unit's "lineage" is the chain of accepted variants, starting with the
+round 0 baseline. A unit's "abandoned" list grows with each rejected
+variant. Every round including round 1 is judged against its parent;
+round 0 itself has no judge verdict (no parent to compare against).
+
+Methodology rationale
+---------------------
+Running verification on the original code at round 0 makes the
+"verification gap" claim measurable: of the units that pass static
+analysis, how many had a runtime defect detectable by execution-based
+testing? Without round 0 verification, that question can only be
+answered against the *first repair* of the code, not the original. See
+docs/workflow-design.md section 4 and docs/methodology-decisions.md
+for the full rationale.
 """
 
 from __future__ import annotations
@@ -59,6 +72,7 @@ from qallm.verification.test_persistence import TestStabilityConfig
 from qallm.verification.verification_manager import VerificationManager
 from qallm.analysis.analysis_manager import AnalysisManager
 from qallm.repair.repair_manager import RepairManager
+from qallm.repair.repair_model import RepairedCodeUnit, RepairResult
 from qallm.repair.agents.llm_repair_agent import LLMRepairAgent
 
 logger = logging.getLogger(__name__)
@@ -79,7 +93,7 @@ class LineageEntry:
     round_number: int
     code_unit: CodeUnit
     verdict: ProfileVerdict
-    judge_verdict: Optional[JudgeVerdict] = None  # None for round 1
+    judge_verdict: Optional[JudgeVerdict] = None  # None for round 0 baseline only
 
     def to_dict(self) -> dict:
         return {
@@ -353,12 +367,16 @@ class QALLMOrchestrator:
     def run(self, source_path: str) -> dict:
         """Execute the full QALLM pipeline on a source path.
 
-        Algorithm (per v3 sections 3 and 5):
-          Baseline (Round 0): Static analysis on original code; stored as
-            a separate artefact for reports. No repair, no verify, no judge.
-          Round N (1..max): For each code unit, repair-analyse-verify-judge
+        Algorithm (per v3 sections 3 and 5, post baseline-verification change):
+          Baseline (Round 0): For each code unit, analyse + verify the
+            *original* source code. No repair. Produces a ProfileVerdict
+            that becomes the first lineage entry. This is the ground
+            truth against which round 1 is judged.
+          Round N (1..max): For each code unit, analyse-repair-verify-judge
             decides whether the round's variant joins the unit's lineage
-            (accepted) or its abandoned log (rejected).
+            (accepted) or its abandoned log (rejected). Judged against
+            the parent (round 0 baseline for round 1; last accepted
+            variant for round N >= 2).
         """
         logger.info(f"Starting QALLM operation for {source_path}...")
 
@@ -367,7 +385,9 @@ class QALLMOrchestrator:
         # baseline-plus-rounds traversal; without this, calling run()
         # twice would start round numbering at N+1 and would not refill
         # per-unit tracks from a clean slate.
-        self.current_round = 1
+        # NOTE: current_round starts at 0 (baseline). After baseline
+        # completes it becomes 1 and the repair loop starts.
+        self.current_round = 0
         self.tracks.clear()
         self.halt_reason = None
         # Reset progress fields too so the UI does not see stale state
@@ -389,16 +409,23 @@ class QALLMOrchestrator:
         for unit in units:
             self.tracks[_unit_id(unit)] = UnitTrack(unit_id=_unit_id(unit))
 
-        logger.info("Baseline (Round 0): Static analysis on original code")
+        # ────── Round 0: baseline analyse + verify ──────
+        # The baseline is the ground truth. Round 1 is judged against
+        # the ProfileVerdict produced here. No repair is performed.
+        logger.info("Round 0 (baseline): analyse + verify the original code")
         for unit in units:
-            analysed = self.analysis_manager.analyse_code_unit(unit)
-            self.reporter.save_baseline(analysed)
-        logger.info("Baseline complete. Stored as round_00_baseline.")
+            self._run_baseline_for_unit(unit)
+        logger.info("Baseline complete. Round 0 stored on each unit's lineage.")
+        # Baseline does NOT consume a budget round; max_rounds bounds
+        # the number of *repair* rounds, not the baseline.
         self.current_phase = "rounds"
+        self.current_round = 1
 
-        # QALLM rounds: Repair → Analyse → Verify → Judge → Accept/Abandon.
+        # QALLM rounds: Analyse → Repair → Verify → Judge → Accept/Abandon.
         # Each unit independently advances its lineage or stalls on its
-        # last accepted variant.
+        # last accepted variant. Inputs for round 1 are the originals (the
+        # round-0 baselines), then each subsequent round consumes the last
+        # accepted variant.
         next_inputs: dict[str, CodeUnit] = {
             _unit_id(u): u for u in units
         }
@@ -469,6 +496,102 @@ class QALLMOrchestrator:
             halt_reason=self.halt_reason.value if self.halt_reason else None,
         )
 
+    def _run_baseline_for_unit(self, unit: CodeUnit) -> None:
+        """Run round 0 (baseline) for a single code unit.
+
+        Round 0 analyses + verifies the original code; it does NOT call
+        repair. A synthetic ``RepairedCodeUnit`` is constructed where the
+        repaired source equals the original source so that ``verify`` can
+        run unchanged. The resulting ProfileVerdict becomes the first
+        entry in the unit's lineage, and is the parent against which
+        round 1 will be judged.
+
+        This is the change introduced for the "baseline verification"
+        methodology decision: see docs/methodology-decisions.md.
+        """
+        unit_id = _unit_id(unit)
+        track = self.tracks[unit_id]
+        self.current_unit_id = unit_id
+
+        # Step 1: static analysis on the original code. This is the same
+        # call the analysis_manager makes during a normal round.
+        self.current_stage = "analyse"
+        analysed = self.analysis_manager.analyse_code_unit(unit)
+
+        # Step 2: build a synthetic RepairedCodeUnit. The verify method
+        # signature expects a RepairedCodeUnit (it uses
+        # ``original_code_unit`` to filter "functions added by repair"
+        # out of the test surface). For the baseline there is no repair,
+        # so we wrap the analysed code with itself: repaired_source ==
+        # original source, compiles == True, no diff. The construction
+        # mirrors what repair_manager would have produced for an
+        # identity transformation.
+        identity_result = RepairResult(
+            file_path=str(unit.original_path) if unit.original_path else "",
+            repaired_source=unit.source_code,
+            explanation="baseline: no repair applied (round 0)",
+            compiles=True,
+            unified_diff="",
+        )
+        baseline_repaired = RepairedCodeUnit(analysed, identity_result)
+
+        # Step 3: verify the original. round_number=0 lets the test
+        # stability store recognise this as the baseline round; under
+        # FROZEN+REPLAY_ONLY (the default) this is exactly the round
+        # in which tests are generated. Round 1+ then replays.
+        self.current_stage = "verify"
+
+        def _on_function_start(name: str, idx: int, total: int) -> None:
+            self.current_function = name
+            self.function_index = idx
+            self.function_total = total
+
+        tested_unit = self.verification_manager.verify(
+            baseline_repaired,
+            persist_dir=None,
+            on_function_start=_on_function_start,
+            round_number=0,
+        )
+        # Clear function-level fields so the next stage doesn't show
+        # stale "verifying foo" while we're in judge.
+        self.current_function = None
+        self.function_index = 0
+        self.function_total = 0
+
+        # Step 4: build the ProfileVerdict from baseline evidence.
+        self.current_stage = "judge"
+        baseline_verdict = self._evaluate_profile_for(unit, tested_unit)
+
+        # Step 5: record the baseline as the first lineage entry. There
+        # is no judge verdict because there is no parent; that is the
+        # only round in the entire run where judge_verdict is None.
+        track.lineage.append(LineageEntry(
+            round_number=0,
+            code_unit=unit,
+            verdict=baseline_verdict,
+            judge_verdict=None,
+        ))
+
+        # Step 6: persist the baseline artefacts on disk. We route
+        # through save_round_artefacts (the same call used for repair
+        # rounds) so that disk layout is uniform: every round including
+        # the baseline lives under lineage/round_NN/{unit_id}/ with the
+        # same six files. The legacy save_baseline path is no longer
+        # used by run(); kept on the reporter for backward compatibility
+        # with callers that constructed reports outside the orchestrator.
+        self.reporter.save_round_artefacts(
+            round_number=0,
+            unit_id=unit_id,
+            code_unit=unit,
+            analysed=analysed,
+            tested=tested_unit,
+            profile_verdict=baseline_verdict,
+            judge_verdict_dict=None,
+            accepted=True,
+        )
+
+        logger.info("  %s: baseline (round 0) recorded.", unit_id)
+
     def _run_round(
         self, inputs: dict[str, CodeUnit]
     ) -> dict[str, CodeUnit]:
@@ -538,52 +661,46 @@ class QALLMOrchestrator:
             )
 
             # Step 5 + 6: Judge and accept/abandon.
+            # Post baseline-verification: every repair round (>= 1) has
+            # a parent on the lineage because round 0 was recorded by
+            # _run_baseline_for_unit. There is no longer an
+            # "unconditionally accepted first round" case.
             parent = track.current_parent
-            if parent is None:
-                # Round 1: no parent yet. Unconditional acceptance.
-                judge_verdict = None
+            assert parent is not None, (
+                f"Unit {unit_id}: no parent on lineage at round "
+                f"{self.current_round}. Did baseline (round 0) run?"
+            )
+
+            judge_verdict = self.judge.decide(
+                parent.verdict, variant_verdict,
+                raw_evidence=self._raw_evidence_for(tested_unit),
+            )
+            if judge_verdict.outcome is JudgeOutcome.REGRESSION:
+                accepted = False
+                track.abandoned.append(AbandonedEntry(
+                    round_number=self.current_round,
+                    code_unit=variant_unit,
+                    verdict=variant_verdict,
+                    judge_verdict=judge_verdict,
+                ))
+                next_inputs[unit_id] = parent.code_unit
+                logger.info(
+                    "  %s: round %d REJECTED (%s); reverting to parent.",
+                    unit_id, self.current_round, judge_verdict.outcome.value,
+                )
+            else:
                 accepted = True
                 track.lineage.append(LineageEntry(
                     round_number=self.current_round,
                     code_unit=variant_unit,
                     verdict=variant_verdict,
-                    judge_verdict=None,
+                    judge_verdict=judge_verdict,
                 ))
                 next_inputs[unit_id] = variant_unit
                 logger.info(
-                    "  %s: round 1 accepted unconditionally", unit_id,
+                    "  %s: round %d ACCEPTED (%s).",
+                    unit_id, self.current_round, judge_verdict.outcome.value,
                 )
-            else:
-                judge_verdict = self.judge.decide(
-                    parent.verdict, variant_verdict,
-                    raw_evidence=self._raw_evidence_for(tested_unit),
-                )
-                if judge_verdict.outcome is JudgeOutcome.REGRESSION:
-                    accepted = False
-                    track.abandoned.append(AbandonedEntry(
-                        round_number=self.current_round,
-                        code_unit=variant_unit,
-                        verdict=variant_verdict,
-                        judge_verdict=judge_verdict,
-                    ))
-                    next_inputs[unit_id] = parent.code_unit
-                    logger.info(
-                        "  %s: round %d REJECTED (%s); reverting to parent.",
-                        unit_id, self.current_round, judge_verdict.outcome.value,
-                    )
-                else:
-                    accepted = True
-                    track.lineage.append(LineageEntry(
-                        round_number=self.current_round,
-                        code_unit=variant_unit,
-                        verdict=variant_verdict,
-                        judge_verdict=judge_verdict,
-                    ))
-                    next_inputs[unit_id] = variant_unit
-                    logger.info(
-                        "  %s: round %d ACCEPTED (%s).",
-                        unit_id, self.current_round, judge_verdict.outcome.value,
-                    )
 
             # Step 7: persist the variant's full provenance bundle. The
             # accepted flag routes into lineage/ or abandoned/.
@@ -594,9 +711,7 @@ class QALLMOrchestrator:
                 analysed=analysed,
                 tested=tested_unit,
                 profile_verdict=variant_verdict,
-                judge_verdict_dict=(
-                    judge_verdict.to_dict() if judge_verdict is not None else None
-                ),
+                judge_verdict_dict=judge_verdict.to_dict(),
                 accepted=accepted,
             )
 
