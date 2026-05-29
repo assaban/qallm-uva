@@ -112,6 +112,8 @@ class QualityReporter:
         profile_verdict: ProfileVerdict,
         judge_verdict_dict: Optional[dict],
         accepted: bool,
+        improvement_dict: Optional[dict] = None,
+        transcript_records: Optional[list] = None,
     ) -> Path:
         """Write the full provenance bundle for one variant.
 
@@ -168,6 +170,24 @@ class QualityReporter:
             json.dumps(judge_verdict_dict, indent=2, default=_json_serialise),
             encoding="utf-8",
         )
+
+        # 5b. improvement.json: per-indicator parent-vs-variant deltas, the
+        # audit trail for "did quality improve this round". Optional so
+        # older callers/tests that don't compute it still work.
+        if improvement_dict is not None:
+            (round_dir / "improvement.json").write_text(
+                json.dumps(improvement_dict, indent=2, default=_json_serialise),
+                encoding="utf-8",
+            )
+
+        # 5c. transcript.json: every LLM prompt/response made for this unit
+        # this round (repair + test generation). The provenance that lets a
+        # reviewer see exactly what was asked and what came back.
+        if transcript_records is not None:
+            (round_dir / "transcript.json").write_text(
+                json.dumps(transcript_records, indent=2, default=_json_serialise),
+                encoding="utf-8",
+            )
 
         # 6. tests/  one file per function session, latest valid test only
         tests_dir = round_dir / "tests"
