@@ -10,28 +10,15 @@ from __future__ import annotations
 import json
 import logging
 import os
-import shutil
-import tempfile
-import uuid
-import zipfile
-from datetime import datetime
-from pathlib import Path
-from typing import List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter
 
 from qallm.api.core import (
-    MODEL_CATALOG,
-    check_model_available,
     get_state,
-    model_label,
-    parse_model_id,
     sessions,
 )
 from qallm.config import settings
-from qallm.jobs import JobConflictError, JobStatus, get_store
-from qallm.orchestrator import QALLMOrchestrator, LLM_PROVIDERS
+from qallm.orchestrator import QALLMOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +75,6 @@ async def get_improvement(session_id: str):
     This is the data behind "can we see, per round and per method, which
     findings were tracked and improved, and what we asked the model".
     """
-    import os
 
     state = get_state(session_id)
     report_dir = state.get("report_dir")

@@ -7,31 +7,17 @@ file boundary moved.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-import shutil
-import tempfile
-import uuid
-import zipfile
-from datetime import datetime
-from pathlib import Path
-from typing import List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter
 
 from qallm.api.core import (
     MODEL_CATALOG,
     check_model_available,
     get_state,
-    model_label,
-    parse_model_id,
-    sessions,
 )
-from qallm.config import settings
-from qallm.jobs import JobConflictError, JobStatus, get_store
-from qallm.orchestrator import QALLMOrchestrator, LLM_PROVIDERS
+from qallm.orchestrator import LLM_PROVIDERS
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +59,6 @@ async def get_sample_data():
     through the normal upload flow, so it runs the same path as a real
     upload.
     """
-    import os
 
     import qallm
     sample_dir = os.path.join(os.path.dirname(qallm.__file__), "sample_data")
