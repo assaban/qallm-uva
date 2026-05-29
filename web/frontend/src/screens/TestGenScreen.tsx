@@ -108,8 +108,8 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold">RL-Guided Test Generation</h2>
-          <p className="mt-1 text-sm text-slate-500">Generate tests, execute in sandbox, score with reward function, improve across rounds.</p>
+          <h2 className="text-xl font-semibold">Improvement Rounds</h2>
+          <p className="mt-1 text-sm text-slate-500">Baseline, then repair, verify, and judge across budget-capped rounds. Generate tests, execute in the sandbox, score with the reward, improve each round.</p>
 
           {/* Locked session config */}
           <div className="mt-4 grid grid-cols-3 gap-3">

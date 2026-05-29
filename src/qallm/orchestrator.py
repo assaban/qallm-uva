@@ -77,7 +77,11 @@ from qallm.repair.agents.llm_repair_agent import LLMRepairAgent
 
 logger = logging.getLogger(__name__)
 
-Strategy = Literal["rl", "oneshot", "hypothesis"]
+Strategy = Literal["feedback", "rl", "oneshot", "hypothesis"]
+# ``feedback`` is the canonical name for the iterative-feedback verifier
+# (the proposed method). ``rl`` is retained as a back-compat alias and is
+# normalised to ``feedback`` semantics at assignment; both select the same
+# multi-round, execution-feedback verification path.
 
 LLM_PROVIDERS = {
     "ollama": OllamaModel,
@@ -271,7 +275,10 @@ class QALLMOrchestrator:
             self.reporter = QualityReporter("outputs/quality_reporter", effective_run_id)
 
         self.stage = stage if isinstance(stage, LifecycleStage) else LifecycleStage(stage)
-        self.strategy = strategy
+        # Canonicalise the verifier name. ``rl`` is a legacy alias for the
+        # iterative-feedback verifier; store ``feedback`` so reports and the
+        # session schema use the current vocabulary. Behaviour is identical.
+        self.strategy = "feedback" if strategy == "rl" else strategy
         self.oracle = oracle
         self.profile = profile
 

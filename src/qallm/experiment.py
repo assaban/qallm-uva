@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 
 from qallm.analysis.analysis_manager import AnalysisManager
-from qallm.analysis.normalizer import LifecycleNormalizer, LifecycleStage
+from qallm.analysis.normalizer import LifecycleStage
 from qallm.config import settings
 from qallm.ingestion.ingestion_manager import IngestionManager
 from qallm.llm.base import TokenTracker

@@ -317,8 +317,8 @@ export default function ResultsScreen({ state }: { state: SessionState }) {
       {/* Learning curve + coverage */}
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold">The RL loop improves across rounds</h2>
-          <p className="mt-1 text-sm text-slate-500">Cumulative reward per function. A rising line means the loop is learning.</p>
+          <h2 className="text-xl font-semibold">Verification improves across rounds</h2>
+          <p className="mt-1 text-sm text-slate-500">Cumulative reward per function. A rising line means the iterative feedback is finding more.</p>
           <div className="mt-4 h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={curveData}>
@@ -371,7 +371,7 @@ export default function ResultsScreen({ state }: { state: SessionState }) {
             <p>LLM repair reduces them with actionable patches.</p>
             <p>Generated tests catch bugs static analysis misses.</p>
             <p>The judge accepts or abandons each round's variant per EVERSE dimensions.</p>
-            <p className="font-medium text-white">The RL loop with judged accept/abandon decisions is the v3 thesis contribution.</p>
+            <p className="font-medium text-white">The budget-capped improvement loop, with judged accept/abandon decisions against a quality model, is the core contribution.</p>
           </div>
         </div>
         <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
