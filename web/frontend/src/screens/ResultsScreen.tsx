@@ -21,6 +21,7 @@ import {
   Clock, DollarSign, Layers, Scale,
 } from "lucide-react";
 import type { SessionState } from "../hooks/useSession";
+import ImprovementView from "./ImprovementView";
 import type {
   VerificationFunction, RoundResult, UnitTrackView,
   LineageEntryView, AbandonedEntryView,
@@ -385,6 +386,8 @@ export default function ResultsScreen({ state }: { state: SessionState }) {
           )}
         </div>
       </div>
+
+      {state.sessionId && <ImprovementView sessionId={state.sessionId} />}
     </div>
   );
 }

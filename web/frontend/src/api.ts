@@ -301,3 +301,107 @@ export interface DownloadedFile { name: string; content: string; }
 export async function downloadTestFiles(sid: string): Promise<DownloadedFile[]> {
   return (await req<{ files: DownloadedFile[] }>(`/api/session/${sid}/download/tests`)).files;
 }
+// ─── Observability: per-round improvement audit + LLM transcript ───
+export interface IndicatorDelta {
+  name: string;
+  dimension: string;
+  comparator: string;
+  threshold: number;
+  parent_measured: number | null;
+  variant_measured: number | null;
+  parent_status: string | null;
+  variant_status: string | null;
+  measured_delta: number | null;
+  status_transition: string;
+  direction: "improved" | "regressed" | "unchanged" | "appeared" | "disappeared";
+}
+
+export interface DimensionDelta {
+  dimension: string;
+  parent_status: string | null;
+  variant_status: string | null;
+  net: string;
+  indicators: IndicatorDelta[];
+}
+
+export interface ImprovementReport {
+  round_number: number;
+  unit_id: string;
+  accepted: boolean;
+  parent_round: number | null;
+  overall_parent_status: string | null;
+  overall_variant_status: string | null;
+  judge_outcome: string | null;
+  judge_rationale: string | null;
+  counts: Record<string, number>;
+  headline: string;
+  dimensions: DimensionDelta[];
+}
+
+export interface LLMCall {
+  seq: number;
+  context: Record<string, unknown>;
+  system_prompt: string;
+  user_prompt: string;
+  response_content: string;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  latency_ms: number;
+  model: string;
+  provider: string;
+  error: string | null;
+  timestamp: number;
+}
+
+export interface ImprovementUnit {
+  unit_id: string;
+  bucket: "lineage" | "abandoned";
+  accepted: boolean;
+  is_baseline: boolean;
+  improvement: ImprovementReport | null;
+  profile: Record<string, unknown> | null;
+  judge: Record<string, unknown> | null;
+  llm_calls: LLMCall[];
+}
+
+export interface ImprovementRound {
+  round: number;
+  units: ImprovementUnit[];
+}
+
+export interface ImprovementResponse {
+  available: boolean;
+  rounds: ImprovementRound[];
+  reason?: string;
+}
+
+export async function getImprovement(sid: string): Promise<ImprovementResponse> {
+  return req<ImprovementResponse>(`/api/session/${sid}/improvement`);
+}
+
+// ─── Quality model profiles (selector) ───
+export interface QualityProfileInfo {
+  id: string;
+  name: string;
+  description: string;
+  framework: string;
+  dimensions: { name: string; indicators: string[] }[];
+  available: boolean;
+}
+
+export async function getQualityProfiles(): Promise<{ profiles: QualityProfileInfo[]; default: string }> {
+  return req<{ profiles: QualityProfileInfo[]; default: string }>("/api/quality-profiles");
+}
+
+// ─── Sample data (portal demo) ───
+export interface SampleFile {
+  name: string;
+  description: string;
+  content: string;
+  lines: number;
+}
+
+export async function getSampleData(): Promise<{ samples: SampleFile[] }> {
+  return req<{ samples: SampleFile[] }>("/api/sample-data");
+}

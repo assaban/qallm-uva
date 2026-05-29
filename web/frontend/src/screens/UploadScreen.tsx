@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import {
   Upload, Settings2, Cpu, FlaskConical, Layers, Play, MousePointerClick,
-  ChevronDown, ChevronRight, Scale, Wrench, TestTube2, Gauge,
+  ChevronDown, ChevronRight, Scale, Wrench, TestTube2, Gauge, ShieldCheck,
 } from "lucide-react";
 import * as api from "../api";
 
@@ -91,6 +91,8 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
   const [autoMode, setAutoMode] = useState(false);
   const [models, setModels] = useState<ModelEntry[]>([]);
   const [strategies, setStrategies] = useState<string[]>([]);
+  const [profiles, setProfiles] = useState<api.QualityProfileInfo[]>([]);
+  const [profileId, setProfileId] = useState<string>("implementation_default");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileNames, setFileNames] = useState<string[]>([]);
@@ -107,16 +109,25 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
     api.getVerificationStrategies().then(p => {
       setStrategies(p.configured || []);
     }).catch(() => {});
+
+    api.getQualityProfiles().then(p => {
+      setProfiles(p.profiles || []);
+      if (p.default) setProfileId(p.default);
+    }).catch(() => {});
   }, []);
+
+  const selectedProfile = profiles.find(p => p.id === profileId);
 
   function handleFileChange() {
     const files = fileRef.current?.files;
     if (files) setFileNames(Array.from(files).map(f => f.name));
   }
 
-  async function handleStart() {
-    const files = fileRef.current?.files;
-    if (!files?.length || !config.model_name || submitting.current) return;
+  async function handleStart(explicitFiles?: File[]) {
+    const fileList = explicitFiles && explicitFiles.length
+      ? explicitFiles
+      : (fileRef.current?.files ? Array.from(fileRef.current.files) : []);
+    if (!fileList.length || !config.model_name || submitting.current) return;
     submitting.current = true;
 
     patch({ loading: true, error: null });
@@ -124,7 +135,9 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
       // Merge base and advanced. The api layer drops undefined fields so
       // the server uses its own defaults for anything we don't specify.
       const fullConfig = { ...config, ...advanced };
-      const data = await api.uploadFiles(files, fullConfig);
+      // uploadFiles accepts a FileList; an array of File works the same for
+      // FormData.append, so we pass it through unchanged.
+      const data = await api.uploadFiles(fileList as unknown as FileList, fullConfig);
       patch({ sessionId: data.session_id, files: data.files, selectedFiles: data.files, loading: false });
       // Pass session id + files explicitly: state.sessionId is not yet
       // updated at this point because React state updates are async.
@@ -132,6 +145,21 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
     } catch (e: any) {
       patch({ loading: false, error: e.message });
       submitting.current = false;
+    }
+  }
+
+  async function loadSampleAndStart() {
+    if (!config.model_name || submitting.current) return;
+    patch({ loading: true, error: null });
+    try {
+      const { samples } = await api.getSampleData();
+      if (!samples.length) throw new Error("No sample data available on the server.");
+      const s = samples[0];
+      const file = new File([s.content], s.name, { type: "text/x-python" });
+      setFileNames([s.name]);
+      await handleStart([file]);
+    } catch (e: any) {
+      patch({ loading: false, error: e.message });
     }
   }
 
@@ -147,6 +175,39 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
       {/* Left: configuration */}
       <div className="rounded-2xl border bg-white p-6 shadow-sm space-y-5">
         <h2 className="text-xl font-semibold">Research Pipeline Setup</h2>
+
+        {/* Quality model selection: the standard the pipeline judges
+            against. Shown first because it defines every downstream
+            metric and threshold. */}
+        <div className="space-y-1.5">
+          <label className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase"><ShieldCheck className="h-3.5 w-3.5" /> Quality model</label>
+          <select
+            value={profileId}
+            onChange={e => setProfileId(e.target.value)}
+            className="w-full rounded-xl border p-2.5 text-sm"
+          >
+            {profiles.map(p => (
+              <option key={p.id} value={p.id} disabled={!p.available}>
+                {p.name}{!p.available ? " (planned)" : ""}
+              </option>
+            ))}
+          </select>
+          {selectedProfile && (
+            <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+              <p className="mb-2">{selectedProfile.description}</p>
+              {selectedProfile.dimensions.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedProfile.dimensions.map(d => (
+                    <span key={d.name} title={d.indicators.join(", ")}
+                      className="rounded-md bg-white px-2 py-1 font-medium text-slate-700 ring-1 ring-slate-200">
+                      {d.name} <span className="text-slate-400">({d.indicators.length})</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Model selection */}
         <div className="space-y-1.5">
@@ -333,6 +394,17 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
               {fileNames.map((n, i) => <div key={i}>{n}</div>)}
             </div>
           )}
+          <button
+            onClick={loadSampleAndStart}
+            disabled={state.loading || !config.model_name}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-300 bg-indigo-50/50 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+          >
+            <FlaskConical className="h-3.5 w-3.5" />
+            No code handy? Load the sample buggy module and run
+          </button>
+          <p className="text-[11px] text-slate-400">
+            The sample has functions that pass static analysis but contain runtime logic bugs, so you can see what execution-based verification catches.
+          </p>
         </div>
 
         {/* Execution mode toggle */}
@@ -362,7 +434,7 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
           </div>
         </div>
 
-        <button onClick={handleStart} disabled={state.loading || !config.model_name || fileNames.length === 0}
+        <button onClick={() => handleStart()} disabled={state.loading || !config.model_name || fileNames.length === 0}
           className="w-full rounded-xl bg-slate-900 py-3 font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:opacity-50">
           {state.loading ? "Initializing..." : autoMode ? "Run Full Pipeline" : "Start Pipeline (Manual)"}
         </button>
