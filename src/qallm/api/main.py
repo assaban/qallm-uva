@@ -359,6 +359,107 @@ async def get_models():
     return {"models": result}
 
 
+@app.get("/api/sample-data")
+async def get_sample_data():
+    """Return bundled sample code so users can try the pipeline instantly.
+
+    Each sample is a small module of research-style functions that pass
+    static analysis but contain runtime logic bugs, demonstrating the
+    verification gap. The frontend submits the chosen sample's content
+    through the normal upload flow, so it runs the same path as a real
+    upload.
+    """
+    import os
+
+    sample_dir = os.path.join(os.path.dirname(__file__), "..", "sample_data")
+    sample_dir = os.path.normpath(sample_dir)
+    samples = []
+    descriptions = {
+        "buggy_research_code.py": (
+            "Five functions that look clean to Bandit and Radon but each "
+            "hides a runtime logic bug (off-by-one, aliasing, wrong "
+            "normalisation, a guard that misses zero, a reversed sort). "
+            "Ideal for showing what execution-based verification catches "
+            "that static analysis misses."
+        ),
+    }
+    try:
+        for name in sorted(os.listdir(sample_dir)):
+            if not name.endswith(".py") or name == "__init__.py":
+                continue
+            path = os.path.join(sample_dir, name)
+            with open(path, encoding="utf-8") as fh:
+                content = fh.read()
+            samples.append({
+                "name": name,
+                "description": descriptions.get(name, ""),
+                "content": content,
+                "lines": content.count("\n") + 1,
+            })
+    except OSError:
+        pass
+    return {"samples": samples}
+
+
+@app.get("/api/quality-profiles")
+async def get_quality_profiles():
+    """List selectable quality models (profiles) with explanations.
+
+    Powers the pipeline-start selector. Each profile maps to a quality
+    framework; QALLM evaluates the named indicators per dimension. Only
+    profiles actually implemented are marked available; planned framework
+    profiles are listed so the roadmap is visible in the UI.
+    """
+    from qallm.profiles import _BUILT_IN
+
+    FRAMEWORK = {
+        "implementation_default": "EVERSE Research Software Quality",
+    }
+    FRIENDLY = {
+        "implementation_default": "EVERSE (implementation stage)",
+    }
+    EXPLAIN = {
+        "implementation_default": (
+            "The EVERSE Research Software Quality framework, the v1 "
+            "demonstrator. Evaluates Maintainability, Security, Reliability, "
+            "Reproducibility, and FAIRness using static tools plus QALLM's "
+            "execution-based verification. Thresholds are tuned for the "
+            "implementation stage of the software lifecycle."
+        ),
+    }
+
+    profiles = []
+    for pid, profile in _BUILT_IN.items():
+        profiles.append({
+            "id": pid,
+            "name": FRIENDLY.get(pid, pid),
+            "framework": FRAMEWORK.get(pid, "Custom"),
+            "description": EXPLAIN.get(pid, profile.description),
+            "available": True,
+            "dimensions": [
+                {"name": d.dimension.value,
+                 "indicators": [i.name for i in d.indicators]}
+                for d in profile.dimensions
+            ],
+        })
+
+    # Roadmap entries: declared so the selector shows where QALLM is going,
+    # but not selectable until implemented.
+    roadmap = [
+        {"id": "iso25010", "name": "ISO/IEC 25010", "framework": "ISO/IEC 25010",
+         "description": "Software product quality model. Planned as an "
+                        "alternative profile; not yet implemented.",
+         "available": False, "dimensions": []},
+        {"id": "fair4rs", "name": "FAIR4RS", "framework": "FAIR for Research Software",
+         "description": "FAIR principles specialised for research software. "
+                        "Planned; FAIRness indicators already exist and would "
+                        "anchor this profile.",
+         "available": False, "dimensions": []},
+    ]
+
+    return {"profiles": profiles + roadmap, "default": "implementation_default"}
+
+
 @app.get("/api/analysis/tools")
 async def get_analysis_tools():
     return {"tools": ["bandit", "radon", "ruff", "trufflehog"]}
@@ -621,6 +722,11 @@ def _run_verification_work(sid: str) -> dict:
     # Cache for the stats endpoint to read later.
     state["verification_sessions"] = summary.get("sessions", [])
     state["last_summary"] = summary
+    # Cache the full LLM transcript (prompts + responses, role-tagged) and
+    # the report dir so the observability endpoint can serve per-round
+    # improvement deltas and the prompts for the UI.
+    state["transcript"] = orch.transcript.to_list()
+    state["report_dir"] = str(orch.reporter.report_dir)
 
     # The UI expects a `functions` list with per-function rollup numbers
     # (legacy shape). Build it from the sessions in the summary.
@@ -779,6 +885,72 @@ async def get_stats(session_id: str):
         },
         "cost": orch.tracker.to_dict(),
     }
+
+
+@app.get("/api/session/{session_id}/improvement")
+async def get_improvement(session_id: str):
+    """Per-round, per-unit improvement audit for the observability view.
+
+    Reads the artefacts the orchestrator wrote during the run (improvement
+    deltas, profile verdicts, transcripts) from the report directory, and
+    returns them in a UI-friendly shape: a list of rounds, each with the
+    units processed, the per-indicator deltas, the accept/abandon outcome,
+    and the LLM calls (prompts + responses) made for that unit that round.
+
+    This is the data behind "can we see, per round and per method, which
+    findings were tracked and improved, and what we asked the model".
+    """
+    import os
+
+    state = _get_state(session_id)
+    report_dir = state.get("report_dir")
+    if not report_dir or not os.path.isdir(report_dir):
+        return {"available": False, "rounds": [],
+                "reason": "No run artefacts yet. Run the pipeline first."}
+
+    def _read_json(path: str):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                return json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    rounds: dict[int, dict] = {}
+    for bucket in ("lineage", "abandoned"):
+        bucket_dir = os.path.join(report_dir, bucket)
+        if not os.path.isdir(bucket_dir):
+            continue
+        for round_name in sorted(os.listdir(bucket_dir)):
+            round_path = os.path.join(bucket_dir, round_name)
+            if not os.path.isdir(round_path):
+                continue
+            try:
+                round_no = int(round_name.replace("round_", ""))
+            except ValueError:
+                continue
+            for unit_seg in sorted(os.listdir(round_path)):
+                unit_dir = os.path.join(round_path, unit_seg)
+                if not os.path.isdir(unit_dir):
+                    continue
+                improvement = _read_json(os.path.join(unit_dir, "improvement.json"))
+                profile = _read_json(os.path.join(unit_dir, "profile.json"))
+                judge = _read_json(os.path.join(unit_dir, "judge.json"))
+                transcript = _read_json(os.path.join(unit_dir, "transcript.json")) or []
+                unit_entry = {
+                    "unit_id": unit_seg,
+                    "bucket": bucket,
+                    "accepted": bucket == "lineage" and round_no > 0,
+                    "is_baseline": round_no == 0,
+                    "improvement": improvement,
+                    "profile": profile,
+                    "judge": judge,
+                    "llm_calls": transcript,
+                }
+                r = rounds.setdefault(round_no, {"round": round_no, "units": []})
+                r["units"].append(unit_entry)
+
+    ordered = [rounds[k] for k in sorted(rounds)]
+    return {"available": True, "rounds": ordered}
 
 
 @app.get("/api/session/{session_id}/download/tests")
