@@ -294,6 +294,44 @@ def _bandit_high(source: str, context: dict[str, Any]) -> float | None:
         return None
 
 
+def _bandit_cwe_classes(source: str, context: dict[str, Any]) -> float | None:
+    """Number of distinct CWE classes flagged by Bandit on the source.
+
+    Complements ``bandit.high`` (which counts findings by severity) with a
+    breadth signal: how many *different* weakness classes (by CWE id) the
+    static scan surfaced. A repaired variant that closes a whole CWE class
+    scores better here even if the raw finding count is unchanged. Returns
+    ``None`` (SKIP) when Bandit cannot run or produces no parseable output,
+    and ``0.0`` when it ran cleanly with no CWE-tagged findings.
+    """
+    if not source.strip():
+        return None
+    try:
+        result = subprocess.run(
+            ["bandit", "-r", "-f", "json", "-q", "-"],
+            input=source,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+    if not result.stdout.strip():
+        return None
+    try:
+        data = json.loads(result.stdout)
+        results = data.get("results", [])
+        cwe_ids = set()
+        for r in results:
+            cwe = r.get("issue_cwe") or {}
+            cwe_id = cwe.get("id") if isinstance(cwe, dict) else None
+            if cwe_id is not None:
+                cwe_ids.add(cwe_id)
+        return float(len(cwe_ids))
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
 _MANIFEST_NAMES = ("requirements.txt", "environment.yml", "pyproject.toml")
 
 
@@ -370,6 +408,7 @@ def _register_builtins() -> None:
     register("radon.mi", _radon_mi)
     register("radon.cc", _radon_cc)
     register("bandit.high", _bandit_high)
+    register("bandit.cwe_classes", _bandit_cwe_classes)
     register("qallm.repro.manifest", _repro_manifest)
     register("qallm.repro.determinism", _repro_determinism)
     register("qallm.verification.pass_rate", _verification_pass_rate)
