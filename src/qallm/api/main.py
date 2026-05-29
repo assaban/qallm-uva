@@ -340,7 +340,7 @@ async def get_providers():
 
 @app.get("/api/verification/strategies")
 async def get_strategies():
-    return {"configured": ["rl", "oneshot", "hypothesis"]}
+    return {"configured": ["feedback", "oneshot", "hypothesis"]}
 
 
 @app.get("/api/verification/models")

@@ -1,6 +1,10 @@
-# QALLM: Execution-Based Quality Assessment for Research Software
+# QALLM: LLM-Driven Quality Improvement for Research Software
 
-QALLM is a research instrument that audits Python notebooks and scripts along the dimensions of the [EVERSE Research Software Quality framework](https://everse.software/RSQKit/quality_dimensions). Where static tools in the [EVERSE TechRadar](https://everse.software/TechRadar/) can confirm style, complexity, and known security smells, they cannot decide whether a function is actually correct at runtime. QALLM closes that gap. For each function under study, an LLM-driven reinforcement loop generates tests, runs them in a sandbox, and uses pass/fail feedback to refine the next round. The product is an evidence-backed quality report grounded in the EVERSE dimensions.
+QALLM is a research instrument that measures *and improves* the quality of Python notebooks and scripts against a preset quality standard. It runs a bounded, budget-capped loop: establish a baseline against a selected quality model (the default is an [EVERSE Research Software Quality framework](https://everse.software/RSQKit/quality_dimensions) profile), then repair the code with an LLM and re-verify, round after round, with a judge accepting or abandoning each variant. The product is a lineage of accepted improvements plus an evidence-backed quality report.
+
+Static tools in the [EVERSE TechRadar](https://everse.software/TechRadar/) can confirm style, complexity, and known security smells, but they cannot decide whether a function is actually correct at runtime, nor can they improve it. QALLM closes both gaps. Execution-based verification (the LLM generates tests, runs them in a sandbox, and uses pass/fail feedback) answers the correctness question and supplies the signal the repair loop optimises against.
+
+In one line: **baseline (round 0) → repair → re-verify → judge → accept or abandon, repeated under a budget, against a quality model you choose.** The LLM acts in two roles, test generator and code repairer; it is used through its API with quantitative feedback, not trained.
 
 QALLM is developed as a master thesis at the University of Amsterdam (MNS group, Dr. Zhiming Zhao; daily supervision by Dr. Nafis Tanveer Islam) in alignment with the EVERSE programme and the role and lifecycle aware quality framework introduced by Volentir et al. (QRS 2025).
 
@@ -21,18 +25,19 @@ flowchart LR
     Decision -->|With QALLM| Evidence[Answered with<br/>runtime evidence]
 ```
 
-Pilot results across 31 functions, 5 files, and three models (gpt-4o-mini, gpt-5-mini, gemma3:4b) showed a 91.3 percent false confidence rate when relying on static signals alone: code that passed every static check but contained a logic bug surfaced by the verification loop. The RL strategy found significantly more bugs than the one-shot and Hypothesis baselines (all pairwise Wilcoxon tests at p < 0.005).
+Pilot results across 31 functions, 5 files, and three models (gpt-4o-mini, gpt-5-mini, gemma3:4b) showed a 91.3 percent false confidence rate when relying on static signals alone: code that passed every static check but contained a logic bug surfaced only once it was executed. That finding motivates execution-based verification inside the loop. The verification-strategy ablation supports the design choice: the iterative-feedback verifier found significantly more bugs than the one-shot and Hypothesis baselines (all pairwise Wilcoxon tests at p < 0.005).
 
 ## EVERSE alignment
 
-QALLM treats the four EVERSE dimensions below as first-class. The remaining dimensions (FAIRness, Usability, Performance Efficiency, Compatibility) are discussed in the thesis but not implemented as automated indicators in v1.
+QALLM evaluates the five EVERSE dimensions below through the default `IMPLEMENTATION_DEFAULT` profile. The remaining dimensions (Usability, Performance Efficiency, Compatibility) are discussed in the thesis but not yet implemented as automated indicators.
 
 | EVERSE dimension       | QALLM indicator                                 | Source of evidence                       |
 | ---------------------- | ----------------------------------------------- | ---------------------------------------- |
 | Maintainability        | Maintainability Index, Cyclomatic Complexity    | Radon                                    |
-| Security               | Static security findings                        | Bandit                                   |
-| Reliability            | Test pass rate, bugs caught, coverage delta     | QALLM verification loop (LLM + sandbox)  |
+| Security               | High-severity static findings                   | Bandit                                   |
+| Reliability            | Test pass rate, bugs caught                      | QALLM verification loop (LLM + sandbox)  |
 | Reproducibility        | Environment manifest, deterministic execution   | QALLM sandbox + manifest probe           |
+| FAIRness               | Licence, citation, README, docstring coverage   | Project-shape probes (`qallm.fairness`)  |
 
 The mapping is materialised in [`src/qallm/profiles.py`](src/qallm/profiles.py) as a `QualityProfile` selecting indicators per dimension for a given lifecycle stage (initialization, implementation, publication, as defined by the EOSC software lifecycle).
 
@@ -57,10 +62,10 @@ flowchart TD
         Units --> Strategy{Strategy}
         Strategy -->|hypothesis| Hyp[Property-based<br/>baseline]
         Strategy -->|oneshot| One[LLM, 1 round]
-        Strategy -->|rl| RL[LLM, N rounds<br/>with feedback]
+        Strategy -->|feedback| FB[LLM, N rounds<br/>with execution feedback]
         Hyp --> Sessions[Verification sessions]
         One --> Sessions
-        RL --> Sessions
+        FB --> Sessions
     end
 
     subgraph S4["Stage 4: Quality Reporting"]
@@ -72,9 +77,9 @@ flowchart TD
 
 Stages map 1:1 to the package layout: [`qallm.ingestion`](src/qallm/ingestion), [`qallm.analysis`](src/qallm/analysis), [`qallm.verification`](src/qallm/verification), [`qallm.utils`](src/qallm/utils), with [`qallm.orchestrator`](src/qallm/orchestrator.py) as the conductor and [`qallm.profiles`](src/qallm/profiles.py) holding the EVERSE mapping.
 
-## The RL verification loop
+## Verification inside the loop
 
-The verification loop is the contribution that closes the gap. For each function, the loop generates tests, runs them in a sandbox, scores the round, and feeds the failure signal back into the next prompt until the budget is exhausted or coverage and bug-finding stabilise.
+The improvement loop is the contribution (see the pipeline below). Verification is the stage inside each round that decides whether a repair actually helped: for each function it generates tests, runs them in a sandbox, scores the round, and feeds the failure signal back into the next prompt until the budget is exhausted or bug-finding stabilises. That signal is what the repair step optimises against, so the quality of verification bounds the quality of the whole loop.
 
 ```mermaid
 sequenceDiagram
@@ -87,8 +92,8 @@ sequenceDiagram
 
     Orch->>Gen: function source + prompt for round n
     Gen-->>Orch: candidate test module
-    Orch->>Box: stage source + test module
-    Box->>Exec: pytest --cov, timeout-bounded
+    Orch->>Sandbox: stage source + test module
+    Sandbox->>Exec: pytest --cov, timeout-bounded
     Exec-->>Orch: pass or fail, coverage, traceback
     Orch->>Reward: round result + history
     Reward-->>Orch: score, feedback for round n+1
@@ -99,13 +104,15 @@ sequenceDiagram
     end
 ```
 
-Three strategies share this skeleton:
+### Verification strategy: an ablation, not a competing pipeline
 
-* **`hypothesis`**: property-based baseline, no LLM. Used as the reference floor in the empirical comparison.
-* **`oneshot`**: LLM, exactly one round, no feedback. Used as the ablation between zero-feedback and full RL.
-* **`rl`**: LLM, N rounds with feedback (default N = 5). The proposed method.
+A design question sits inside this stage: is the iterative-feedback test generator worth its cost, compared with cheaper alternatives? To answer it empirically, the verification stage can run in one of three strategies, all writing the same session schema so the comparison stays routine (Wilcoxon signed-rank, Cliff's delta):
 
-Strategy is a single CLI flag (`--strategy hypothesis|oneshot|rl`). All three write the same session schema, which keeps the statistical comparison (Wilcoxon signed-rank, Cliff's delta) routine.
+* **`hypothesis`**: property-based generation, no LLM. The reference floor.
+* **`oneshot`**: LLM, exactly one round, no feedback. Isolates the value of the feedback.
+* **`feedback`** (default): LLM, N rounds with execution feedback (default N = 5). The proposed verifier.
+
+This is an ablation *within* the verification stage, not three rival products. The thesis contribution is the improvement loop; the strategy flag exists to justify which verifier the loop should use. Selectable as a single flag (`--strategy hypothesis|oneshot|feedback`). The legacy value `rl` is accepted as an alias for `feedback` for back-compat.
 
 ## Quality profiles
 
@@ -191,7 +198,7 @@ docker compose up --build
 Open <http://localhost:8000> in a browser. The CLI is also available inside the container:
 
 ```bash
-docker compose exec api qallm --source /home/qallm/app/uploads/your_notebook.ipynb --strategy rl
+docker compose exec api qallm --source /home/qallm/app/uploads/your_notebook.ipynb --strategy feedback
 ```
 
 Outputs land in `./outputs` on the host (mounted into the container).
@@ -225,8 +232,8 @@ qallm --source notebooks/analysis.ipynb --strategy hypothesis
 # One-shot LLM verification
 qallm --source notebooks/analysis.ipynb --strategy oneshot --llm openai
 
-# Full RL verification, 5 rounds
-qallm --source notebooks/analysis.ipynb --strategy rl --rounds 5 --llm openai
+# Full iterative-feedback verification, 5 rounds
+qallm --source notebooks/analysis.ipynb --strategy feedback --rounds 5 --llm openai
 ```
 
 Inputs may be a single `.py` or `.ipynb` file, a directory, a `.zip` archive, or a GitHub URL.
@@ -258,7 +265,7 @@ For a shared deployment (e.g. a UvA-managed VM), the Compose stack above is the 
 src/qallm/
   ingestion/          Stage 1: notebook, script, ZIP, git
   analysis/           Stage 2: Radon, Bandit, lifecycle normaliser
-  verification/       Stage 3: RL loop, sandbox, executor, prompts
+  verification/       Stage 3: iterative-feedback loop, sandbox, executor, prompts
   utils/              Reporters, signatures
   llm/                OpenAI, Anthropic, Ollama adapters
   web/                FastAPI + React (in development)
@@ -290,7 +297,7 @@ In development:
 
 Out of scope for v1:
 
-* FAIRness and community indicators (discussed in thesis, not measured automatically).
+* Usability, Performance, and Compatibility indicators (discussed in thesis, not measured automatically).
 * Languages other than Python.
 * Cross-project lineage and identity attribution.
 

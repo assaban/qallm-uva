@@ -11,7 +11,8 @@ import ReanalyseScreen from "./screens/ReanalyseScreen";
 import TestGenScreen from "./screens/TestGenScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 
-const STEPS = 6;
+const STEPS_MANUAL = 6;
+const STEPS_AUTO = 4;
 
 export default function App() {
   const { state, patch, setStep } = useSession();
@@ -32,19 +33,42 @@ export default function App() {
     }
   }
 
+  // Screen routing is mode-aware. Auto mode runs the real pipeline in
+  // four phases (Upload, Baseline, Improvement rounds, Report) and maps
+  // step 3 to the live rounds view and step 4 to the report. Manual mode
+  // keeps the six-stage inspectable breakdown.
   const screen = (() => {
+    if (mode === "auto") {
+      switch (state.step) {
+        case 1: return <UploadScreen state={state} patch={patch} onSessionReady={onSessionReady} />;
+        case 2: return <AnalyseScreen state={state} patch={patch} autoMode />;
+        case 3: return <TestGenScreen state={state} patch={patch} autoMode />;
+        case 4: return <ResultsScreen state={state} />;
+        default: return null;
+      }
+    }
     switch (state.step) {
       case 1: return <UploadScreen state={state} patch={patch} onSessionReady={onSessionReady} />;
-      case 2: return <AnalyseScreen state={state} patch={patch} autoMode={mode === "auto"} />;
-      case 3: return <RepairScreen state={state} patch={patch} autoMode={mode === "auto"} />;
+      case 2: return <AnalyseScreen state={state} patch={patch} autoMode={false} />;
+      case 3: return <RepairScreen state={state} patch={patch} autoMode={false} />;
       case 4: return <ReanalyseScreen state={state} patch={patch} />;
-      case 5: return <TestGenScreen state={state} patch={patch} autoMode={mode === "auto"} />;
+      case 5: return <TestGenScreen state={state} patch={patch} autoMode={false} />;
       case 6: return <ResultsScreen state={state} />;
       default: return null;
     }
   })();
 
+  const maxStep = mode === "auto" ? STEPS_AUTO : STEPS_MANUAL;
+
   const canNext = (() => {
+    if (mode === "auto") {
+      switch (state.step) {
+        case 1: return !!state.sessionId;
+        case 2: return state.findings.length > 0 || state.summary !== null;
+        case 3: return state.testGenResult !== null;
+        default: return false;
+      }
+    }
     switch (state.step) {
       case 1: return !!state.sessionId;
       case 2: return state.findings.length > 0 || state.summary !== null;
@@ -70,7 +94,7 @@ export default function App() {
               )}
             </div>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">Quality Assessment of AI-Generated Code</h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-500">Static analysis, LLM repair, and RL-guided test generation in one pipeline.</p>
+            <p className="mt-1 max-w-2xl text-sm text-slate-500">Baseline, then LLM repair and execution-based verification across budget-capped rounds, judged against a quality model.</p>
           </div>
           {state.sessionId && (
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs text-slate-500 shadow-sm">
@@ -86,24 +110,24 @@ export default function App() {
             that errors out leaves the user trapped on the failed step. */}
         <StepRail
           currentStep={state.step}
+          mode={mode}
           onStepClick={(mode === "auto" && state.loading) ? () => {} : setStep}
         />
-        {/* Preview-mode banner: steps 2-4 (Analyse, Repair, Re-analyse)
-            show a "preview" of what static analysis and one repair pass
-            look like. The actual QALLM pipeline that produces the
-            reported results runs in Step 5 (Generate Tests) and includes
-            its own baseline + N rounds of analyse → repair → verify →
-            judge. This banner explains the relationship so users don't
-            wonder why Step 5 re-runs everything. */}
-        {state.step >= 2 && state.step <= 4 && (
+        {/* Manual-mode preview banner. In manual mode, steps 2 to 4 let
+            the user inspect a static-analysis baseline and a single LLM
+            repair pass. These are a teaching preview: the full pipeline,
+            with all rounds and judge accept/abandon decisions, runs in the
+            "Run pipeline" step. Auto mode has no such preview, it runs the
+            real loop directly, so this banner is manual-only. */}
+        {mode === "manual" && state.step >= 2 && state.step <= 4 && (
           <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
             <span className="font-semibold">Preview stages.</span>{" "}
-            Steps 2 to 4 show what static analysis and one LLM repair pass
-            produce. The full QALLM pipeline (with multiple RL-guided rounds,
-            test execution, and judge accept/abandon decisions) runs in
-            Step 5 and uses its own independent baseline. Use these
-            preview steps to inspect intermediate state and confirm your
-            uploaded code parses correctly.
+            Steps 2 to 4 let you inspect a static-analysis baseline and a
+            single LLM repair pass, so you can confirm your code parses and
+            see what one repair looks like. The full QALLM pipeline (all
+            rounds of repair, verification, and judge accept/abandon) runs
+            in the "Run pipeline" step against its own baseline. To run the
+            real pipeline directly, start a new session in Auto mode.
           </div>
         )}
         {state.error && (
@@ -121,9 +145,9 @@ export default function App() {
         {/* NextBar visible whenever navigation is allowed. */}
         {!(mode === "auto" && state.loading) && (
           <NextBar
-            step={state.step} maxStep={STEPS}
+            step={state.step} maxStep={maxStep}
             onPrev={() => setStep(Math.max(1, state.step - 1))}
-            onNext={() => canNext && setStep(Math.min(STEPS, state.step + 1))}
+            onNext={() => canNext && setStep(Math.min(maxStep, state.step + 1))}
             nextDisabled={!canNext}
           />
         )}

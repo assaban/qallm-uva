@@ -8,17 +8,17 @@ import * as api from "../api";
 interface ModelEntry { id: string; label: string; provider: string; available: boolean; }
 
 const STRATEGY_INFO: Record<string, { title: string; desc: string }> = {
-  rl: {
-    title: "RL-guided (iterative feedback)",
-    desc: "The LLM generates tests, executes them, scores the results with a reward function, then uses the feedback to generate better tests in subsequent rounds. This is the proposed method and the core thesis contribution.",
+  feedback: {
+    title: "Iterative feedback (proposed method)",
+    desc: "The LLM generates tests, executes them, scores the results with a quantitative reward, then uses that feedback to generate better tests over successive rounds. Iterative prompting with execution feedback through the model's API, not a trained model. This is the verification strategy used inside the improvement loop.",
   },
   oneshot: {
     title: "One-shot (single generation)",
-    desc: "The LLM generates tests once without feedback. This ablation isolates the LLM's contribution from the RL loop's contribution. Used as Strategy (b) in the three-strategy comparison.",
+    desc: "The LLM generates tests once, with no feedback. This ablation isolates the value of the feedback loop. Strategy (b) in the strategy comparison.",
   },
   hypothesis: {
     title: "Hypothesis (property-based, no LLM)",
-    desc: "Generates random typed inputs using the Hypothesis library with automatic shrinking. No LLM is involved. This is the non-trivial control group, Strategy (a) in the thesis.",
+    desc: "Generates random typed inputs with the Hypothesis library and automatic shrinking. No LLM involved. The non-trivial control, Strategy (a) in the strategy comparison.",
   },
 };
 
@@ -65,7 +65,7 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
   // Base config (always shown).
   const [config, setConfig] = useState({
     stage: "implementation",
-    strategy: "rl",
+    strategy: "feedback",
     oracle: "crash",
     rounds: 5,
     model_name: "",
@@ -136,7 +136,10 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
   }
 
   const selectedModel = models.find(m => m.id === config.model_name);
-  const selectedStrategy = STRATEGY_INFO[config.strategy];
+  // ``rl`` is a back-compat alias for ``feedback``; map it so an older
+  // backend that still advertises ``rl`` resolves to the same info card.
+  const strategyKey = config.strategy === "rl" ? "feedback" : config.strategy;
+  const selectedStrategy = STRATEGY_INFO[strategyKey];
   const selectedOracle = ORACLE_INFO[config.oracle];
 
   return (
@@ -168,7 +171,7 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
           <div className="space-y-1.5">
             <label className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase"><Layers className="h-3.5 w-3.5" /> Strategy</label>
             <select value={config.strategy} onChange={e => setConfig({ ...config, strategy: e.target.value })} className="w-full rounded-xl border p-2.5 text-sm">
-              {strategies.map(s => <option key={s} value={s}>{STRATEGY_INFO[s]?.title || s}</option>)}
+              {strategies.map(s => <option key={s} value={s}>{STRATEGY_INFO[s === "rl" ? "feedback" : s]?.title || s}</option>)}
             </select>
           </div>
           <div className="space-y-1.5">

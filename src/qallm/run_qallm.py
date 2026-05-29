@@ -3,7 +3,7 @@
 Usage:
     qallm <source> --strategy hypothesis
     qallm <source> --strategy oneshot --llm openai --model gpt-4o-mini
-    qallm <source> --strategy rl --llm openai --model gpt-4o-mini --rounds 5
+    qallm <source> --strategy feedback --llm openai --model gpt-4o-mini --rounds 5
 """
 
 import argparse
@@ -16,11 +16,13 @@ from qallm.orchestrator import QALLMOrchestrator
 def main():
     parser = argparse.ArgumentParser(description="QALLM: Quality Assessment via LLMs")
     parser.add_argument("source", help="Path to .py, .ipynb, directory, .zip, or GitHub URL")
-    parser.add_argument("--strategy", default="rl", choices=["rl", "oneshot", "hypothesis"],
-                        help="Test generation strategy (default: rl)")
+    parser.add_argument("--strategy", default="feedback",
+                        choices=["feedback", "rl", "oneshot", "hypothesis"],
+                        help="Verification strategy ablation (default: feedback; "
+                             "'rl' is a back-compat alias for 'feedback')")
     parser.add_argument("--llm", default="openai", choices=["openai", "anthropic", "ollama"])
     parser.add_argument("--model", default=None, help="Specific model name (e.g. gpt-4o-mini)")
-    parser.add_argument("--rounds", type=int, default=5, help="RL feedback rounds (default: 5)")
+    parser.add_argument("--rounds", type=int, default=5, help="Iterative feedback rounds (default: 5)")
     parser.add_argument("--oracle", default="crash", choices=["crash", "property", "metamorphic"])
     parser.add_argument("--stage", default="implementation",
                         choices=["initialization", "implementation", "publication"])
