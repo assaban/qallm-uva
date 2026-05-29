@@ -36,7 +36,10 @@ def test_quality_profiles_marks_roadmap_unavailable():
     body = r.json()
     roadmap = [p for p in body["profiles"] if not p["available"]]
     ids = {p["id"] for p in roadmap}
-    assert "iso25010" in ids and "fair4rs" in ids
+    assert "iso25010" in ids
+    # fair4rs graduated from roadmap to a real, available profile, so it
+    # must NOT appear among the unavailable entries any more.
+    assert "fair4rs" not in ids
 
 
 def test_improvement_endpoint_handles_no_run():
@@ -47,3 +50,12 @@ def test_improvement_endpoint_handles_no_run():
     # Either 404 (no such session) or 200 with available False is acceptable;
     # both are graceful. Assert it does not 500.
     assert r.status_code in (200, 404)
+
+
+def test_quality_profiles_includes_two_available_real_profiles():
+    r = client.get("/api/quality-profiles")
+    body = r.json()
+    available = {p["id"] for p in body["profiles"] if p["available"]}
+    # EVERSE and FAIR4RS are both real, runnable profiles now.
+    assert "implementation_default" in available
+    assert "fair4rs_publication" in available

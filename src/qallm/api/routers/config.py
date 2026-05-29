@@ -103,9 +103,11 @@ async def get_quality_profiles():
 
     FRAMEWORK = {
         "implementation_default": "EVERSE Research Software Quality",
+        "fair4rs_publication": "FAIR for Research Software (FAIR4RS)",
     }
     FRIENDLY = {
         "implementation_default": "EVERSE (implementation stage)",
+        "fair4rs_publication": "FAIR4RS (publication stage)",
     }
     EXPLAIN = {
         "implementation_default": (
@@ -133,16 +135,12 @@ async def get_quality_profiles():
         })
 
     # Roadmap entries: declared so the selector shows where QALLM is going,
-    # but not selectable until implemented.
+    # but not selectable until implemented. (FAIR4RS is now a real,
+    # available profile, so it has moved out of this list.)
     roadmap = [
         {"id": "iso25010", "name": "ISO/IEC 25010", "framework": "ISO/IEC 25010",
          "description": "Software product quality model. Planned as an "
                         "alternative profile; not yet implemented.",
-         "available": False, "dimensions": []},
-        {"id": "fair4rs", "name": "FAIR4RS", "framework": "FAIR for Research Software",
-         "description": "FAIR principles specialised for research software. "
-                        "Planned; FAIRness indicators already exist and would "
-                        "anchor this profile.",
          "available": False, "dimensions": []},
     ]
 

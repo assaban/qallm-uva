@@ -331,8 +331,117 @@ IMPLEMENTATION_DEFAULT: QualityProfile = QualityProfile(
 )
 
 
+# ─── FAIR4RS profile (publication stage) ────────────────────────────
+# A second real profile, to validate that the selector and the profile
+# machinery generalise beyond one framework. FAIR4RS (FAIR principles for
+# Research Software: Findable, Accessible, Interoperable, Reusable)
+# emphasises sharing and reuse, so this profile targets the PUBLICATION
+# lifecycle stage and leans on indicators QALLM already implements: the
+# FAIRness probes (licence, citation, README, docstrings) and the
+# Reproducibility probes (environment manifest, deterministic execution),
+# which together speak to Accessibility and Reusability. Reliability is
+# retained because reusable software must also be correct. Every indicator
+# below uses a registered evaluator, so this profile actually runs; it is
+# not a stub.
+FAIR4RS_PUBLICATION: QualityProfile = QualityProfile(
+    profile_id="fair4rs_publication",
+    lifecycle_stage=LifecycleStage.PUBLICATION,
+    description=(
+        "FAIR4RS profile for research software at the publication and "
+        "sharing stage. Emphasises Findability, Accessibility, and "
+        "Reusability via FAIRness probes (licence, citation, README, "
+        "docstrings) and Reproducibility probes (environment manifest, "
+        "deterministic execution), with Reliability retained because "
+        "reusable software must also be correct."
+    ),
+    dimensions=(
+        DimensionSpec(
+            dimension=QualityDimension.FAIRNESS,
+            repair_prompt_id="fairness_repair_v1",
+            indicators=(
+                QualityIndicator(
+                    name="has_licence",
+                    evaluator="qallm.fairness.licence",
+                    threshold=1.0,
+                    comparator=Comparator.GE,
+                    description="1 if a recognised licence file is present.",
+                ),
+                QualityIndicator(
+                    name="has_citation",
+                    evaluator="qallm.fairness.citation",
+                    threshold=1.0,
+                    comparator=Comparator.GE,
+                    description="1 if CITATION.cff/.bib is present.",
+                ),
+                QualityIndicator(
+                    name="has_readme",
+                    evaluator="qallm.fairness.readme",
+                    threshold=1.0,
+                    comparator=Comparator.GE,
+                    description="1 if a non-trivial, sectioned README exists.",
+                ),
+                QualityIndicator(
+                    name="docstring_coverage",
+                    evaluator="qallm.fairness.docstring_coverage",
+                    threshold=0.7,
+                    comparator=Comparator.GE,
+                    description=(
+                        "Fraction of public APIs with a docstring. Stricter "
+                        "(0.7) than the implementation profile because "
+                        "published software documents its public surface."
+                    ),
+                ),
+            ),
+        ),
+        DimensionSpec(
+            dimension=QualityDimension.REPRODUCIBILITY,
+            repair_prompt_id="reproducibility_repair_v1",
+            indicators=(
+                QualityIndicator(
+                    name="has_env_manifest",
+                    evaluator="qallm.repro.manifest",
+                    threshold=1.0,
+                    comparator=Comparator.GE,
+                    description=(
+                        "1 if an environment manifest (requirements.txt, "
+                        "environment.yml, pyproject.toml) is present."
+                    ),
+                ),
+                QualityIndicator(
+                    name="deterministic_execution",
+                    evaluator="qallm.repro.determinism",
+                    threshold=1.0,
+                    comparator=Comparator.GE,
+                    description=(
+                        "1 if repeated execution of the generated tests "
+                        "yields the same result."
+                    ),
+                ),
+            ),
+        ),
+        DimensionSpec(
+            dimension=QualityDimension.RELIABILITY,
+            repair_prompt_id="reliability_repair_v1",
+            indicators=(
+                QualityIndicator(
+                    name="test_pass_rate",
+                    evaluator="qallm.verification.pass_rate",
+                    threshold=0.9,
+                    comparator=Comparator.GE,
+                    description=(
+                        "Fraction of generated tests passing at the end of "
+                        "the verification session."
+                    ),
+                ),
+            ),
+        ),
+    ),
+)
+
+
 _BUILT_IN: dict[str, QualityProfile] = {
     IMPLEMENTATION_DEFAULT.profile_id: IMPLEMENTATION_DEFAULT,
+    FAIR4RS_PUBLICATION.profile_id: FAIR4RS_PUBLICATION,
 }
 
 
@@ -371,6 +480,7 @@ def default_profile_for(stage: LifecycleStage) -> QualityProfile:
 __all__ = [
     "Comparator",
     "DimensionSpec",
+    "FAIR4RS_PUBLICATION",
     "IMPLEMENTATION_DEFAULT",
     "LifecycleStage",
     "QualityDimension",
