@@ -16,6 +16,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from qallm.api import main as api_main
+from qallm.api.routers import verification as api_verification
 from qallm.jobs import _reset_store_for_tests
 
 
@@ -71,7 +72,7 @@ async def test_post_verification_run_returns_job_id_for_known_session(
     client, fake_session, monkeypatch
 ):
     monkeypatch.setattr(
-        api_main,
+        api_verification,
         "_run_verification_work",
         lambda sid: {"total_bugs": 0, "total_functions": 0, "functions": []},
     )
@@ -106,7 +107,7 @@ async def test_full_lifecycle_submit_poll_done(
         "functions": [{"function": "f1"}, {"function": "f2"}],
     }
     monkeypatch.setattr(
-        api_main, "_run_verification_work", lambda sid: expected_result
+        api_verification, "_run_verification_work", lambda sid: expected_result
     )
 
     submit = await client.post(
@@ -125,7 +126,7 @@ async def test_full_lifecycle_submit_poll_error(
     def boom(sid):
         raise RuntimeError("deliberate")
 
-    monkeypatch.setattr(api_main, "_run_verification_work", boom)
+    monkeypatch.setattr(api_verification, "_run_verification_work", boom)
 
     submit = await client.post(
         "/api/verification/run", json={"session_id": fake_session}
@@ -147,7 +148,7 @@ async def test_second_submission_for_active_session_returns_409(
         time.sleep(0.3)
         return {"total_bugs": 0, "total_functions": 0, "functions": []}
 
-    monkeypatch.setattr(api_main, "_run_verification_work", slow)
+    monkeypatch.setattr(api_verification, "_run_verification_work", slow)
 
     first = await client.post(
         "/api/verification/run", json={"session_id": fake_session}
@@ -168,7 +169,7 @@ async def test_list_session_jobs_returns_jobs_for_session(
     client, fake_session, monkeypatch
 ):
     monkeypatch.setattr(
-        api_main,
+        api_verification,
         "_run_verification_work",
         lambda sid: {"total_bugs": 0, "total_functions": 0, "functions": []},
     )

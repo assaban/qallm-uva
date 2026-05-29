@@ -77,6 +77,12 @@ def main():
         help="Estimated USD cost cap for the session (default: 5.00, ceiling: 25.00).",
     )
     parser.add_argument("--verbose", "-v", action="store_true")
+    parser.add_argument(
+        "--show-transcript", action="store_true",
+        help="After the run, also list every LLM call (round, role, "
+             "function, tokens, cost, latency). The improvement audit is "
+             "always shown.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -112,7 +118,7 @@ def main():
     summary = orchestrator.run(args.source)
 
     print(f"\n{'='*60}")
-    print(f"QALLM Analysis Complete")
+    print("QALLM Analysis Complete")
     print(f"{'='*60}")
     print(f"Source:   {summary['source']}")
     print(f"Strategy: {summary['strategy']}")
@@ -131,6 +137,19 @@ def main():
         curve = s.get("learning_curve", [])
         curve_str = f", curve={[round(x, 2) for x in curve]}" if curve else ""
         print(f"  {s['function_name']}: coverage={cov_str}, bugs={s['final_bugs']}{curve_str}")
+
+    # Observability: the per-round improvement audit (always) and, with
+    # --show-transcript, every LLM call. Mirrors the web UI's audit view.
+    from qallm.cli_observability import build_observability_report
+
+    report_dir = str(orchestrator.reporter.report_dir) if orchestrator.reporter else ""
+    transcript_records = orchestrator.transcript.to_list()
+    print()
+    print(build_observability_report(
+        transcript_records,
+        report_dir,
+        show_transcript=args.show_transcript,
+    ))
 
 if __name__ == "__main__":
     main()
