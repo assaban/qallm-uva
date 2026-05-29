@@ -158,6 +158,28 @@ def test_bandit_high_returns_count_for_safe_source(simple_clean_source):
     assert value == 0.0
 
 
+@pytest.mark.skipif(not _bandit_available(), reason="bandit not installed")
+def test_bandit_cwe_classes_zero_for_clean_source(simple_clean_source):
+    assert resolve("bandit.cwe_classes")(simple_clean_source, {}) == 0.0
+
+
+@pytest.mark.skipif(not _bandit_available(), reason="bandit not installed")
+def test_bandit_cwe_classes_counts_distinct_weaknesses():
+    insecure = (
+        "import subprocess\n"
+        "def run(cmd):\n"
+        "    return subprocess.call(cmd, shell=True)\n"
+        "def load(s):\n"
+        "    return eval(s)\n"
+    )
+    value = resolve("bandit.cwe_classes")(insecure, {})
+    assert value is not None and value >= 1.0
+
+
+def test_bandit_cwe_classes_skips_empty_source():
+    assert resolve("bandit.cwe_classes")("   ", {}) is None
+
+
 def test_repro_manifest_finds_requirements_txt(temp_project_with_manifest):
     fn = resolve("qallm.repro.manifest")
     value = fn("", {"project_root": str(temp_project_with_manifest)})

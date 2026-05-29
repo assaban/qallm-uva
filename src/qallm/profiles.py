@@ -171,9 +171,10 @@ class QualityProfile:
 # Built-in profiles
 # ---------------------------------------------------------------------------
 
-# Thresholds for IMPLEMENTATION stage are aligned with the existing
-# ``qallm.analysis.normalizer.LifecycleNormalizer`` thresholds (MI >= 60,
-# CC <= 10). Reliability thresholds are taken from the pilot defaults.
+# Thresholds for the IMPLEMENTATION stage (MI >= 60, CC <= 10) are the
+# project's long-standing maintainability defaults, carried over from the
+# original lifecycle normaliser. Reliability thresholds are taken from the
+# pilot defaults.
 
 IMPLEMENTATION_DEFAULT: QualityProfile = QualityProfile(
     profile_id="implementation_default",
@@ -215,6 +216,14 @@ IMPLEMENTATION_DEFAULT: QualityProfile = QualityProfile(
                     threshold=0.0,
                     comparator=Comparator.LE,
                     description="Count of high-severity Bandit findings.",
+                ),
+                QualityIndicator(
+                    name="bandit_cwe_classes",
+                    evaluator="bandit.cwe_classes",
+                    threshold=0.0,
+                    comparator=Comparator.LE,
+                    description="Number of distinct CWE weakness classes "
+                    "flagged by Bandit (breadth of security issues).",
                 ),
             ),
         ),
