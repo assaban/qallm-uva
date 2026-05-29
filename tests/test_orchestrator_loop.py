@@ -214,15 +214,19 @@ def _wire_collaborators(
         return _stub_judge_verdict(outcome)
     orch.judge.decide.side_effect = _next_judge
 
-    # Wrap _run_round to reset unit_idx and advance repair_round_idx
-    # between rounds. Baseline (round 0) is run by _run_baseline_for_unit
-    # one unit at a time, not by _run_round; baseline_idx tracks that.
+    # Wrap _run_round to reset unit_idx between rounds and advance
+    # repair_round_idx between *repair* rounds. The baseline (round 0) now
+    # flows through _run_round too (the unified _process_unit path), so we
+    # must not treat it as a repair round: reset unit_idx for every round,
+    # but only advance repair_round_idx once we are past the baseline.
     real_run_round = orch._run_round
 
     def _wrapped_run_round(inputs):
         state["unit_idx"] = 0
+        is_baseline = orch.current_round == 0
         out = real_run_round(inputs)
-        state["repair_round_idx"] += 1
+        if not is_baseline:
+            state["repair_round_idx"] += 1
         return out
     orch._run_round = _wrapped_run_round
 

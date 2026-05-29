@@ -7,13 +7,12 @@ the non-trivial control group for the three-strategy comparison.
 
 from __future__ import annotations
 
-import ast
 import logging
 from pathlib import Path
 
 from qallm.verification.executor import run_tests
 from qallm.verification.extractor import extract_functions_from_source
-from qallm.verification.models import FunctionInfo, ExecutionResult
+from qallm.verification.models import FunctionInfo
 
 logger = logging.getLogger(__name__)
 

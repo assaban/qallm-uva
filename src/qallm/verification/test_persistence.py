@@ -34,7 +34,6 @@ for the session.
 
 from __future__ import annotations
 
-import dataclasses
 import json
 import logging
 from dataclasses import asdict, dataclass, field

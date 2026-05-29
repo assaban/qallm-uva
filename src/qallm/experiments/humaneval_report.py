@@ -8,7 +8,6 @@ be readable as a standalone document.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 
 from qallm.experiments.humaneval_metrics import (
     AggregateResult,

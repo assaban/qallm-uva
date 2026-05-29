@@ -24,7 +24,6 @@ Design choices
 from __future__ import annotations
 
 import html
-import json
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +33,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
     lines: list[str] = []
 
     # Header
-    lines.append(f"# QALLM session report")
+    lines.append("# QALLM session report")
     lines.append("")
     lines.append(f"**Source**: `{summary.get('source', 'unknown')}`")
     lines.append(f"**Strategy**: {summary.get('strategy', '?')}  ")
@@ -145,7 +144,7 @@ def render_html(summary: dict[str, Any]) -> str:
 
     parts: list[str] = []
     parts.append(_HTML_HEAD.format(title=title))
-    parts.append(f"<h1>QALLM session report</h1>")
+    parts.append("<h1>QALLM session report</h1>")
     parts.append(f"<p class='meta'><b>Source:</b> <code>{title}</code></p>")
     parts.append(
         f"<p class='meta'>"

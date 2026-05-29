@@ -8,7 +8,6 @@ Flow per file:
   5. Return RepairResult with compile status
 """
 
-import ast
 import re
 
 from qallm.llm.base import LLMModel, TokenTracker

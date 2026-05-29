@@ -15,12 +15,9 @@ import argparse
 import csv
 import json
 import logging
-import time
 from datetime import datetime
 from pathlib import Path
 
-from qallm.analysis.analysis_manager import AnalysisManager
-from qallm.analysis.normalizer import LifecycleStage
 from qallm.config import settings
 from qallm.ingestion.ingestion_manager import IngestionManager
 from qallm.llm.base import TokenTracker
@@ -28,7 +25,6 @@ from qallm.llm.openai_provider import OpenAIModel
 from qallm.llm.anthropic_provider import AnthropicModel
 from qallm.llm.ollama_provider import OllamaModel
 from qallm.verification.extractor import extract_functions_from_source
-from qallm.verification.executor import run_tests
 from qallm.verification.loop import TestGenerationLoop
 from qallm.verification.models import OracleType
 

@@ -26,7 +26,6 @@ from typing import Any, Optional, Protocol
 from qallm.evaluation import ProfileVerdict
 from qallm.judge.comparator import compare_verdicts
 from qallm.judge.models import (
-    DimensionDelta,
     IndicatorChange,
     JudgeOutcome,
     JudgeVerdict,

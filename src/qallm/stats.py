@@ -13,7 +13,6 @@ import argparse
 import csv
 import logging
 from collections import defaultdict
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +233,7 @@ def analyze_rq2(csv_path: str) -> None:
         print(f"\n  Testable functions:    {len(testable)}")
         print(f"  Functions with bugs:   {len(with_bugs)}")
         print(f"  False confidence rate: {fcr:.1%}")
-        print(f"  (Proportion of testable code where execution found defects)")
+        print("  (Proportion of testable code where execution found defects)")
     else:
         print("  No testable functions found.")
 
