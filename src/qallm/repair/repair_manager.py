@@ -62,7 +62,7 @@ class RepairManager:
 
         repaired_code_unit = RepairedCodeUnit(analysed_code_unit, repair_result)
 
-        logger.info(f"Repair completed:")
+        logger.info("Repair completed:")
 
         # Log whether the repair compiles or not.
         if not repaired_code_unit.repaired_result.compiles:

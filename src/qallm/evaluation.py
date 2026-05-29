@@ -40,7 +40,6 @@ EVERSE Research Software Quality Dimensions:
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
@@ -48,7 +47,6 @@ from pathlib import Path
 from typing import Any, Callable
 
 from qallm.profiles import (
-    Comparator,
     DimensionSpec,
     QualityDimension,
     QualityIndicator,

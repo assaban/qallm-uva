@@ -32,13 +32,12 @@ import json
 import logging
 import time
 import traceback
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 from qallm.experiments.humaneval_dataset import HumanEvalProblem, load_humanevalfix
 from qallm.experiments.humaneval_metrics import (
-    AggregateResult,
     ProblemResult,
     aggregate,
     bug_was_detected,
