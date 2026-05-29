@@ -137,3 +137,33 @@ class LLMModel(ABC):
     @abstractmethod
     def chat(self, system: str, user: str, tracker: TokenTracker | None = None) -> LLMResponse:
         """Send a chat completion request and return the response."""
+
+    def _capture(
+        self,
+        system: str,
+        user: str,
+        resp: "LLMResponse",
+        latency_ms: float,
+    ) -> None:
+        """Record this call to the active transcript recorder, if any.
+
+        Centralised here so every provider captures identically. A no-op
+        when no recorder is active (the common case for production runs
+        that did not opt in), costing one attribute lookup.
+        """
+        from qallm.llm.transcript import record_call
+
+        record_call(
+            system=system,
+            user=user,
+            content=resp.content,
+            input_tokens=resp.input_tokens or 0,
+            output_tokens=resp.output_tokens or 0,
+            cost_usd=calculate_cost_usd(
+                resp.model, resp.input_tokens, resp.output_tokens
+            ),
+            latency_ms=latency_ms,
+            model=resp.model,
+            provider=resp.provider,
+            error=resp.error,
+        )

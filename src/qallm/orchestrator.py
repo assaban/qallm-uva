@@ -55,6 +55,7 @@ from qallm.ingestion.ingestion_manager import IngestionManager
 from qallm.common.model import CodeUnit
 from qallm.cost import BudgetCaps, BudgetState, HaltReason
 from qallm.evaluation import ProfileVerdict, evaluate_profile
+from qallm.improvement import build_improvement_report
 from qallm.judge import (
     JudgeOutcome,
     JudgeStrategy,
@@ -65,6 +66,12 @@ from qallm.llm.anthropic_provider import AnthropicModel
 from qallm.llm.base import LLMModel, TokenTracker
 from qallm.llm.ollama_provider import OllamaModel
 from qallm.llm.openai_provider import OpenAIModel
+from qallm.llm.transcript import (
+    TranscriptRecorder,
+    active_recorder,
+    reset_context,
+    set_context,
+)
 from qallm.profiles import IMPLEMENTATION_DEFAULT, QualityProfile
 from qallm.utils.reporter import QualityReporter
 from qallm.verification.models import OracleType, TestedCodeUnit
@@ -268,6 +275,9 @@ class QALLMOrchestrator:
         """
         self.ingestion_manager = IngestionManager()
         self.analysis_manager = AnalysisManager()
+        # Captures every LLM prompt/response during run() for audit. The
+        # reporter persists it per round; the API exposes it to the UI.
+        self.transcript = TranscriptRecorder()
         if reporter is not None:
             self.reporter = reporter
         else:
@@ -387,6 +397,13 @@ class QALLMOrchestrator:
         """
         logger.info(f"Starting QALLM operation for {source_path}...")
 
+        # Activate prompt/response capture for the duration of this run.
+        # reset_context clears any stale thread-local context from a prior
+        # run on the same worker thread.
+        reset_context()
+        self._recorder_cm = active_recorder(self.transcript)
+        self._recorder_cm.__enter__()
+
         # Reset state so a second call to run() on the same orchestrator
         # behaves identically to a first. Each run() owns one full
         # baseline-plus-rounds traversal; without this, calling run()
@@ -468,6 +485,10 @@ class QALLMOrchestrator:
         session_data = self.verification_manager.get_session_data()
         summary = self._build_summary(source_path, units, session_data)
         self.current_phase = "done"
+        # Close the transcript recorder for this run.
+        if getattr(self, "_recorder_cm", None) is not None:
+            self._recorder_cm.__exit__(None, None, None)
+            self._recorder_cm = None
         return summary
 
     def snapshot(self) -> OrchestratorProgress:
@@ -623,17 +644,22 @@ class QALLMOrchestrator:
         for unit_id, unit in inputs.items():
             track = self.tracks[unit_id]
             self.current_unit_id = unit_id
+            set_context(round_number=self.current_round, unit_id=unit_id,
+                        function=None, oracle=None)
 
             # Step 1: Analyse current variant.
             self.current_stage = "analyse"
+            set_context(stage="analyse", role=None)
             analysed = self.analysis_manager.analyse_code_unit(unit)
 
             # Step 2: Repair.
             self.current_stage = "repair"
+            set_context(stage="repair", role="repair")
             repaired = self.repair_manager.repair_code_unit(analysed)
 
             # Step 3: Verify.
             self.current_stage = "verify"
+            set_context(stage="verify", role="testgen", oracle=self.oracle)
 
             def _on_function_start(name: str, idx: int, total: int) -> None:
                 """Update orchestrator progress when verify enters each function.
@@ -646,6 +672,7 @@ class QALLMOrchestrator:
                 self.current_function = name
                 self.function_index = idx
                 self.function_total = total
+                set_context(function=name)
 
             tested_unit = self.verification_manager.verify(
                 repaired,
@@ -662,6 +689,7 @@ class QALLMOrchestrator:
 
             # Step 4: Build a ProfileVerdict for the variant.
             self.current_stage = "judge"
+            set_context(stage="judge", role="judge", function=None, oracle=None)
             variant_unit = tested_unit.repaired_unit.repaired_code_unit
             variant_verdict = self._evaluate_profile_for(
                 variant_unit, tested_unit
@@ -711,6 +739,16 @@ class QALLMOrchestrator:
 
             # Step 7: persist the variant's full provenance bundle. The
             # accepted flag routes into lineage/ or abandoned/.
+            improvement = build_improvement_report(
+                round_number=self.current_round,
+                unit_id=unit_id,
+                accepted=accepted,
+                parent_verdict=parent.verdict.to_dict(),
+                variant_verdict=variant_verdict.to_dict(),
+                parent_round=parent.round_number,
+                judge_verdict=judge_verdict.to_dict(),
+            )
+            logger.info("  %s: %s", unit_id, improvement.headline())
             self.reporter.save_round_artefacts(
                 round_number=self.current_round,
                 unit_id=unit_id,
@@ -720,6 +758,11 @@ class QALLMOrchestrator:
                 profile_verdict=variant_verdict,
                 judge_verdict_dict=judge_verdict.to_dict(),
                 accepted=accepted,
+                improvement_dict=improvement.to_dict(),
+                transcript_records=[
+                    r.to_dict() for r in self.transcript.for_round(self.current_round)
+                    if r.context.get("unit_id") == unit_id
+                ],
             )
 
         logger.info(
