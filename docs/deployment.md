@@ -1,6 +1,6 @@
 # Deploying QALLM: separating frontend from API
 
-This document describes the QALLM deployment topology, including how to separate the React frontend from the FastAPI backend if needed.
+This document is the source of truth for deploying QALLM. It complements the README (which gives a quickstart for running QALLM locally and with Docker) by covering production topology: how to separate the React frontend from the FastAPI backend, configure CORS and TLS, and the operational considerations that follow. For what QALLM *does* once running, see [`workflow-design.md`](workflow-design.md).
 
 ## The current default: integrated deployment
 
