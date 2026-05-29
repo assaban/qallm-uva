@@ -315,26 +315,23 @@ class QALLMOrchestrator:
         for unit in units:
             self.tracks[_unit_id(unit)] = UnitTrack(unit_id=_unit_id(unit))
 
-        # ────── Round 0: baseline analyse + verify ──────
-        # The baseline is the ground truth. Round 1 is judged against
-        # the ProfileVerdict produced here. No repair is performed.
-        logger.info("Round 0 (baseline): analyse + verify the original code")
-        for unit in units:
-            self._run_baseline_for_unit(unit)
+        # One unified loop. Round 0 is the baseline (analyse + verify the
+        # original, no repair, always accepted, no budget round consumed).
+        # Rounds 1..max are repair rounds (analyse-repair-verify-judge).
+        # _run_round -> _process_unit handles the round-0-vs-N differences;
+        # there is no separate baseline method.
+        next_inputs: dict[str, CodeUnit] = {_unit_id(u): u for u in units}
+
+        # Round 0: baseline. Does not consume a budget round; max_rounds
+        # bounds the number of repair rounds only.
+        self.current_phase = "baseline"
+        self.current_round = 0
+        next_inputs = self._run_round(next_inputs)
         logger.info("Baseline complete. Round 0 stored on each unit's lineage.")
-        # Baseline does NOT consume a budget round; max_rounds bounds
-        # the number of *repair* rounds, not the baseline.
+
+        # Rounds 1..max: repair loop.
         self.current_phase = "rounds"
         self.current_round = 1
-
-        # QALLM rounds: Analyse → Repair → Verify → Judge → Accept/Abandon.
-        # Each unit independently advances its lineage or stalls on its
-        # last accepted variant. Inputs for round 1 are the originals (the
-        # round-0 baselines), then each subsequent round consumes the last
-        # accepted variant.
-        next_inputs: dict[str, CodeUnit] = {
-            _unit_id(u): u for u in units
-        }
         while True:
             self.budget_state.mark_round_start()
             next_inputs = self._run_round(next_inputs)
@@ -406,36 +403,16 @@ class QALLMOrchestrator:
             halt_reason=self.halt_reason.value if self.halt_reason else None,
         )
 
-    def _run_baseline_for_unit(self, unit: CodeUnit) -> None:
-        """Run round 0 (baseline) for a single code unit.
+    def _identity_repair(self, analysed) -> RepairedCodeUnit:
+        """A no-op 'repair' whose output equals the input.
 
-        Round 0 analyses + verifies the original code; it does NOT call
-        repair. A synthetic ``RepairedCodeUnit`` is constructed where the
-        repaired source equals the original source so that ``verify`` can
-        run unchanged. The resulting ProfileVerdict becomes the first
-        entry in the unit's lineage, and is the parent against which
-        round 1 will be judged.
-
-        This is the change introduced for the "baseline verification"
-        methodology decision: see docs/methodology-decisions.md.
+        Round 0 (baseline) verifies the *original* code, so there is no
+        repair to perform. ``verify`` still expects a RepairedCodeUnit (it
+        uses ``original_code_unit`` to filter functions the repair added
+        out of the test surface), so we wrap the analysed code with itself:
+        repaired_source == original, compiles == True, empty diff.
         """
-        unit_id = _unit_id(unit)
-        track = self.tracks[unit_id]
-        self.current_unit_id = unit_id
-
-        # Step 1: static analysis on the original code. This is the same
-        # call the analysis_manager makes during a normal round.
-        self.current_stage = "analyse"
-        analysed = self.analysis_manager.analyse_code_unit(unit)
-
-        # Step 2: build a synthetic RepairedCodeUnit. The verify method
-        # signature expects a RepairedCodeUnit (it uses
-        # ``original_code_unit`` to filter "functions added by repair"
-        # out of the test surface). For the baseline there is no repair,
-        # so we wrap the analysed code with itself: repaired_source ==
-        # original source, compiles == True, no diff. The construction
-        # mirrors what repair_manager would have produced for an
-        # identity transformation.
+        unit = analysed.code_unit
         identity_result = RepairResult(
             file_path=str(unit.original_path) if unit.original_path else "",
             repaired_source=unit.source_code,
@@ -443,151 +420,102 @@ class QALLMOrchestrator:
             compiles=True,
             unified_diff="",
         )
-        baseline_repaired = RepairedCodeUnit(analysed, identity_result)
+        return RepairedCodeUnit(analysed, identity_result)
 
-        # Step 3: verify the original. round_number=0 lets the test
-        # stability store recognise this as the baseline round; under
-        # FROZEN+REPLAY_ONLY (the default) this is exactly the round
-        # in which tests are generated. Round 1+ then replays.
+    def _process_unit(
+        self, unit_id: str, unit: CodeUnit, track: UnitTrack
+    ) -> CodeUnit:
+        """Process one code unit for the current round, return its next input.
+
+        This is the single path for *every* round, including the baseline.
+        The only differences between round 0 and rounds >= 1 are three
+        small branches, all keyed on ``self.current_round == 0``:
+
+          * Repair: round 0 uses an identity (no LLM call); rounds >= 1
+            call the repair manager.
+          * Judge: round 0 has no parent so there is no judge verdict and
+            the result is unconditionally accepted; rounds >= 1 judge the
+            variant against the parent and accept or abandon.
+          * Improvement report: round 0 has nothing to compare against, so
+            it is skipped; rounds >= 1 record parent-vs-variant deltas.
+
+        Collapsing the former ``_run_baseline_for_unit`` into this method
+        removes the analyse/verify/evaluate/persist duplication: baseline
+        is simply "a round where repair is a no-op and the result is always
+        accepted".
+        """
+        is_baseline = self.current_round == 0
+        self.current_unit_id = unit_id
+        set_context(round_number=self.current_round, unit_id=unit_id,
+                    function=None, oracle=None)
+
+        # Step 1: static analysis.
+        self.current_stage = "analyse"
+        set_context(stage="analyse", role=None)
+        analysed = self.analysis_manager.analyse_code_unit(unit)
+
+        # Step 2: repair (identity for the baseline, real otherwise).
+        self.current_stage = "repair"
+        if is_baseline:
+            repaired = self._identity_repair(analysed)
+        else:
+            set_context(stage="repair", role="repair")
+            repaired = self.repair_manager.repair_code_unit(analysed)
+
+        # Step 3: verify. round_number=0 tells the stability store this is
+        # the baseline round (where tests are generated under the default
+        # FROZEN+REPLAY_ONLY policy; later rounds replay).
         self.current_stage = "verify"
+        set_context(stage="verify", role="testgen", oracle=self.oracle)
 
         def _on_function_start(name: str, idx: int, total: int) -> None:
+            # On slow local LLMs an 8-function unit can spend 10+ minutes
+            # in verify; this keeps the snapshot's current_function live so
+            # the UI inactivity timer does not trip.
             self.current_function = name
             self.function_index = idx
             self.function_total = total
+            set_context(function=name)
 
         tested_unit = self.verification_manager.verify(
-            baseline_repaired,
-            persist_dir=None,
+            repaired,
+            persist_dir=None,  # reporter owns disk layout (NEW-07)
             on_function_start=_on_function_start,
-            round_number=0,
+            round_number=self.current_round,
         )
-        # Clear function-level fields so the next stage doesn't show
-        # stale "verifying foo" while we're in judge.
         self.current_function = None
         self.function_index = 0
         self.function_total = 0
 
-        # Step 4: build the ProfileVerdict from baseline evidence.
+        # Step 4: build the variant's ProfileVerdict.
         self.current_stage = "judge"
-        baseline_verdict = self._evaluate_profile_for(unit, tested_unit)
+        set_context(stage="judge", role="judge", function=None, oracle=None)
+        variant_unit = tested_unit.repaired_unit.repaired_code_unit
+        variant_verdict = self._evaluate_profile_for(variant_unit, tested_unit)
 
-        # Step 5: record the baseline as the first lineage entry. There
-        # is no judge verdict because there is no parent; that is the
-        # only round in the entire run where judge_verdict is None.
-        track.lineage.append(LineageEntry(
-            round_number=0,
-            code_unit=unit,
-            verdict=baseline_verdict,
-            judge_verdict=None,
-        ))
+        # Step 5: judge + accept/abandon (baseline is always accepted).
+        parent = track.current_parent
+        judge_verdict = None
+        improvement = None
 
-        # Step 6: persist the baseline artefacts on disk. We route
-        # through save_round_artefacts (the same call used for repair
-        # rounds) so that disk layout is uniform: every round including
-        # the baseline lives under lineage/round_NN/{unit_id}/ with the
-        # same six files. The legacy save_baseline path is no longer
-        # used by run(); kept on the reporter for backward compatibility
-        # with callers that constructed reports outside the orchestrator.
-        self.reporter.save_round_artefacts(
-            round_number=0,
-            unit_id=unit_id,
-            code_unit=unit,
-            analysed=analysed,
-            tested=tested_unit,
-            profile_verdict=baseline_verdict,
-            judge_verdict_dict=None,
-            accepted=True,
-        )
-
-        logger.info("  %s: baseline (round 0) recorded.", unit_id)
-
-    def _run_round(
-        self, inputs: dict[str, CodeUnit]
-    ) -> dict[str, CodeUnit]:
-        """Run one QALLM round across all units.
-
-        Args:
-            inputs: Mapping unit_id -> CodeUnit to process this round.
-              Typically each unit's last accepted variant (or its original
-              source on round 1).
-
-        Returns:
-            Mapping unit_id -> CodeUnit for the next round. Accepted units
-            return their new variant; rejected units return their unchanged
-            parent.
-        """
-        logger.info(
-            "Round (%d of %d) started, %d unit(s)...",
-            self.current_round, self.rounds, len(inputs),
-        )
-        next_inputs: dict[str, CodeUnit] = {}
-
-        for unit_id, unit in inputs.items():
-            track = self.tracks[unit_id]
-            self.current_unit_id = unit_id
-            set_context(round_number=self.current_round, unit_id=unit_id,
-                        function=None, oracle=None)
-
-            # Step 1: Analyse current variant.
-            self.current_stage = "analyse"
-            set_context(stage="analyse", role=None)
-            analysed = self.analysis_manager.analyse_code_unit(unit)
-
-            # Step 2: Repair.
-            self.current_stage = "repair"
-            set_context(stage="repair", role="repair")
-            repaired = self.repair_manager.repair_code_unit(analysed)
-
-            # Step 3: Verify.
-            self.current_stage = "verify"
-            set_context(stage="verify", role="testgen", oracle=self.oracle)
-
-            def _on_function_start(name: str, idx: int, total: int) -> None:
-                """Update orchestrator progress when verify enters each function.
-
-                On slow local LLMs (gemma3:4b ~30-90s per call), an 8-function
-                unit can spend 10+ minutes in verify. Without this callback
-                the snapshot would show stale "current_function" for that
-                entire window and the UI's inactivity timer could trip.
-                """
-                self.current_function = name
-                self.function_index = idx
-                self.function_total = total
-                set_context(function=name)
-
-            tested_unit = self.verification_manager.verify(
-                repaired,
-                persist_dir=None,  # reporter owns disk layout under NEW-07
-                on_function_start=_on_function_start,
-                round_number=self.current_round,
+        if is_baseline:
+            assert parent is None, (
+                f"Unit {unit_id}: baseline ran but lineage was not empty."
             )
-
-            # Verify finished: clear function-level fields so the next stage
-            # doesn't show stale "verifying foo" while we're in judge.
-            self.current_function = None
-            self.function_index = 0
-            self.function_total = 0
-
-            # Step 4: Build a ProfileVerdict for the variant.
-            self.current_stage = "judge"
-            set_context(stage="judge", role="judge", function=None, oracle=None)
-            variant_unit = tested_unit.repaired_unit.repaired_code_unit
-            variant_verdict = self._evaluate_profile_for(
-                variant_unit, tested_unit
-            )
-
-            # Step 5 + 6: Judge and accept/abandon.
-            # Post baseline-verification: every repair round (>= 1) has
-            # a parent on the lineage because round 0 was recorded by
-            # _run_baseline_for_unit. There is no longer an
-            # "unconditionally accepted first round" case.
-            parent = track.current_parent
+            accepted = True
+            track.lineage.append(LineageEntry(
+                round_number=0,
+                code_unit=unit,
+                verdict=variant_verdict,
+                judge_verdict=None,
+            ))
+            next_input = variant_unit
+            logger.info("  %s: baseline (round 0) recorded.", unit_id)
+        else:
             assert parent is not None, (
-                f"Unit {unit_id}: no parent on lineage at round "
-                f"{self.current_round}. Did baseline (round 0) run?"
+                f"Unit {unit_id}: no parent at round {self.current_round}. "
+                f"Did baseline (round 0) run?"
             )
-
             judge_verdict = self.judge.decide(
                 parent.verdict, variant_verdict,
                 raw_evidence=self._raw_evidence_for(tested_unit),
@@ -600,7 +528,7 @@ class QALLMOrchestrator:
                     verdict=variant_verdict,
                     judge_verdict=judge_verdict,
                 ))
-                next_inputs[unit_id] = parent.code_unit
+                next_input = parent.code_unit
                 logger.info(
                     "  %s: round %d REJECTED (%s); reverting to parent.",
                     unit_id, self.current_round, judge_verdict.outcome.value,
@@ -613,14 +541,12 @@ class QALLMOrchestrator:
                     verdict=variant_verdict,
                     judge_verdict=judge_verdict,
                 ))
-                next_inputs[unit_id] = variant_unit
+                next_input = variant_unit
                 logger.info(
                     "  %s: round %d ACCEPTED (%s).",
                     unit_id, self.current_round, judge_verdict.outcome.value,
                 )
 
-            # Step 7: persist the variant's full provenance bundle. The
-            # accepted flag routes into lineage/ or abandoned/.
             improvement = build_improvement_report(
                 round_number=self.current_round,
                 unit_id=unit_id,
@@ -631,26 +557,52 @@ class QALLMOrchestrator:
                 judge_verdict=judge_verdict.to_dict(),
             )
             logger.info("  %s: %s", unit_id, improvement.headline())
-            self.reporter.save_round_artefacts(
-                round_number=self.current_round,
-                unit_id=unit_id,
-                code_unit=variant_unit,
-                analysed=analysed,
-                tested=tested_unit,
-                profile_verdict=variant_verdict,
-                judge_verdict_dict=judge_verdict.to_dict(),
-                accepted=accepted,
-                improvement_dict=improvement.to_dict(),
-                transcript_records=[
-                    r.to_dict() for r in self.transcript.for_round(self.current_round)
-                    if r.context.get("unit_id") == unit_id
-                ],
-            )
 
-        logger.info(
-            "Round (%d of %d) completed.",
-            self.current_round, self.rounds,
+        # Step 6: persist the round bundle. Same disk layout for every
+        # round including the baseline: lineage|abandoned/round_NN/{unit}/.
+        self.reporter.save_round_artefacts(
+            round_number=self.current_round,
+            unit_id=unit_id,
+            code_unit=variant_unit if not is_baseline else unit,
+            analysed=analysed,
+            tested=tested_unit,
+            profile_verdict=variant_verdict,
+            judge_verdict_dict=judge_verdict.to_dict() if judge_verdict else None,
+            accepted=accepted,
+            improvement_dict=improvement.to_dict() if improvement else None,
+            transcript_records=[
+                r.to_dict() for r in self.transcript.for_round(self.current_round)
+                if r.context.get("unit_id") == unit_id
+            ],
         )
+        return next_input
+
+    def _run_round(
+        self, inputs: dict[str, CodeUnit]
+    ) -> dict[str, CodeUnit]:
+        """Run one round (baseline or repair) across all units.
+
+        Round 0 is the baseline; rounds >= 1 are repair rounds. Per-unit
+        work is identical in shape and lives in ``_process_unit``; this
+        method just iterates and collects the next round's inputs.
+
+        Args:
+            inputs: unit_id -> CodeUnit to process this round. The last
+              accepted variant per unit (the originals on round 0/1).
+
+        Returns:
+            unit_id -> CodeUnit for the next round.
+        """
+        label = "baseline" if self.current_round == 0 else "repair"
+        logger.info(
+            "Round %d (%s) started, %d unit(s)...",
+            self.current_round, label, len(inputs),
+        )
+        next_inputs: dict[str, CodeUnit] = {}
+        for unit_id, unit in inputs.items():
+            track = self.tracks[unit_id]
+            next_inputs[unit_id] = self._process_unit(unit_id, unit, track)
+        logger.info("Round %d (%s) completed.", self.current_round, label)
         return next_inputs
 
     def _evaluate_profile_for(
