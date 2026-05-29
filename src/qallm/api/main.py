@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -806,6 +807,29 @@ async def health():
         "anthropic": bool(settings.ANTHROPIC_API_KEY),
         "sessions": len(sessions),
     }
+
+
+# ─── Favicon ────────────────────────────────────────────────────────
+# Browsers request /favicon.ico unconditionally. When the frontend dist
+# is mounted (deployed image) StaticFiles serves /favicon.svg, but the
+# legacy /favicon.ico path and API-only mode (no dist) would still 404.
+# This explicit route resolves both: it returns the bundled SVG favicon
+# if present, or 204 No Content so the browser stops asking. It is
+# declared before the catch-all static mount so it always wins.
+@app.get("/favicon.ico", include_in_schema=False)
+@app.get("/favicon.svg", include_in_schema=False)
+def favicon():
+    # Checked at request time, so referencing the module-level
+    # _FRONTEND_DIST (defined below) and the source-tree fallback is safe.
+    candidates = [
+        _FRONTEND_DIST / "favicon.svg",
+        Path(__file__).resolve().parents[2].parent
+        / "web" / "frontend" / "public" / "favicon.svg",
+    ]
+    for path in candidates:
+        if path.is_file():
+            return FileResponse(str(path), media_type="image/svg+xml")
+    return Response(status_code=204)
 
 
 # ─── Frontend static files ──────────────────────────────────────────

@@ -41,6 +41,8 @@ QALLM evaluates the five EVERSE dimensions below through the default `IMPLEMENTA
 
 The mapping is materialised in [`src/qallm/profiles.py`](src/qallm/profiles.py) as a `QualityProfile` selecting indicators per dimension for a given lifecycle stage (initialization, implementation, publication, as defined by the EOSC software lifecycle).
 
+This table is a summary. The authoritative discussion of why EVERSE is the v1 demonstrator, how it relates to ISO/IEC 25010, FAIR4RS, and SonarQube, and how to add other framework profiles, lives in [`docs/workflow-design.md`](docs/workflow-design.md) section 13. If this table and that document ever disagree, the document is correct.
+
 ## The four-stage pipeline
 
 ```mermaid
@@ -257,26 +259,46 @@ Open <http://localhost:5173>. Vite proxies `/api/*` to the FastAPI process autom
 
 ### Deployment to a shared server
 
-For a shared deployment (e.g. a UvA-managed VM), the Compose stack above is the unit of deployment. The recommended setup adds a reverse proxy in front for HTTPS; that's covered in a follow-up to this README. For now, see `.env.example` for the variables you need to provide.
+The Docker Compose stack above is the unit of deployment, and serving the frontend and API from one process (the default) is the simplest production setup. For a hardened deployment, splitting the frontend from the API behind a reverse proxy with HTTPS, CORS, and TLS, plus the operational considerations (in-memory sessions, upload handling, where API cost is incurred), is documented in full in [`docs/deployment.md`](docs/deployment.md), which is the source of truth for deployment. See `.env.example` for the variables you provide in either setup.
 
 ## Repository layout
 
 ```
 src/qallm/
   ingestion/          Stage 1: notebook, script, ZIP, git
-  analysis/           Stage 2: Radon, Bandit, lifecycle normaliser
+  analysis/           Stage 2: Radon, Bandit, Ruff, normalisation
   verification/       Stage 3: iterative-feedback loop, sandbox, executor, prompts
+  repair/             LLM code repair between rounds
+  judge/              Accept/abandon verdict per round
   utils/              Reporters, signatures
   llm/                OpenAI, Anthropic, Ollama adapters
-  web/                FastAPI + React (in development)
+  api/                FastAPI app (serves the React UI from web/dist)
+  experiments/        HumanEval validation harness
   profiles.py         EVERSE quality profiles
+  evaluation.py       Indicator registry and verdicts
+  fairness.py         FAIRness indicators
+  jobs.py             Background job store for the web UI
   orchestrator.py     The conductor
   experiment.py       Batch experiment runner
   stats.py            Wilcoxon + Cliff's delta
   run_qallm.py        CLI entry point
+web/frontend/         React + Vite web UI
 tests/                Unit and integration tests
 docs/                 Design notes, thesis materials
 ```
+
+## Documentation map
+
+To keep one source of truth, each document owns a domain. When they overlap, the owner is authoritative.
+
+| Topic | Owner | This README |
+| --- | --- | --- |
+| What QALLM is, quickstart, CLI | This README | full |
+| What QALLM *does* (the loop, judge, budget, outputs, methodology) | [`docs/workflow-design.md`](docs/workflow-design.md) | one-paragraph summary, links out |
+| Quality frameworks (EVERSE, ISO/IEC 25010, FAIR4RS, SonarQube) | [`docs/workflow-design.md`](docs/workflow-design.md) section 13 | summary table, links out |
+| Production deployment (split FE/API, CORS, TLS, ops) | [`docs/deployment.md`](docs/deployment.md) | quickstart only, links out |
+| Auto-mode web UI behaviour | [`docs/web-ui-automode.md`](docs/web-ui-automode.md) | none |
+| Issue backlog state | [`docs/backlog-audit-2026-05.md`](docs/backlog-audit-2026-05.md) | none |
 
 ## Status
 
