@@ -23,6 +23,23 @@ class Settings:
     # catch genuine hangs.
     OLLAMA_TIMEOUT_SECONDS: float = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "240"))
 
+    # SonarQube (optional). When SONARQUBE_URL and SONARQUBE_TOKEN are both
+    # set, the SonarQubeAnalyzer runs and contributes higher-fidelity
+    # reliability/security/maintainability ratings; otherwise it is a
+    # no-op and the pipeline falls back to Radon/Bandit. Defaults target a
+    # self-hosted Server (docker run sonarqube on :9000). Point the URL at
+    # https://sonarcloud.io and set the organization to use SonarCloud
+    # instead, no code change.
+    SONARQUBE_URL: str | None = os.getenv("SONARQUBE_URL")
+    SONARQUBE_TOKEN: str | None = os.getenv("SONARQUBE_TOKEN")
+    SONARQUBE_ORGANIZATION: str | None = os.getenv("SONARQUBE_ORGANIZATION")
+    # The sonar-scanner CLI binary; override if not on PATH.
+    SONARQUBE_SCANNER: str = os.getenv("SONARQUBE_SCANNER", "sonar-scanner")
+    # Seconds to wait for the scanner + the server's analysis to complete.
+    SONARQUBE_TIMEOUT_SECONDS: float = float(
+        os.getenv("SONARQUBE_TIMEOUT_SECONDS", "180")
+    )
+
     # Budget caps. All are floors, not ceilings: code-level ceilings in
     # `qallm.cost` override these if they are too large. The intent is
     # that a typo in this file or an .env cannot blow the budget.

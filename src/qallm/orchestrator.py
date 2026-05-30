@@ -605,6 +605,29 @@ class QALLMOrchestrator:
         logger.info("Round %d (%s) completed.", self.current_round, label)
         return next_inputs
 
+    def _sonar_measures_for(self, unit: CodeUnit) -> dict | None:
+        """Run SonarQube on a unit and return its measures, or None.
+
+        SonarQube measures (the ISO/IEC 25010 ratings) cannot be recomputed
+        cheaply inside an evaluator the way Bandit/Radon can, because they
+        need a server round-trip. So when SonarQube is configured we run it
+        here, on the *variant* being judged, and hand the measures to the
+        profile via context. When it is not configured this is a no-op
+        returning None, and the iso25010_base profile falls back to its
+        Radon/Bandit indicators.
+        """
+        from qallm.analysis.sonarqube_analyzer import SonarQubeAnalyzer
+
+        if not SonarQubeAnalyzer.is_configured():
+            return None
+        try:
+            raw = SonarQubeAnalyzer().analyze(unit)
+            payload = json.loads(raw.stdout) if raw.stdout else {}
+            measures = payload.get("measures") or {}
+            return measures or None
+        except Exception:  # noqa: BLE001 - never break evaluation on sonar
+            return None
+
     def _evaluate_profile_for(
         self, unit: CodeUnit, tested: TestedCodeUnit
     ) -> ProfileVerdict:
@@ -612,7 +635,9 @@ class QALLMOrchestrator:
 
         Pulls project_root from the unit's path (the parent directory) and
         verification_sessions from the tested unit so reliability and
-        FAIRness indicators have real numbers to consume.
+        FAIRness indicators have real numbers to consume. When a SonarQube
+        server is configured, the unit's ISO/IEC 25010 ratings are added
+        under ``sonar_measures`` so 25010 indicators can prefer them.
         """
         project_root = (
             str(unit.original_path.parent)
@@ -623,6 +648,9 @@ class QALLMOrchestrator:
             "project_root": project_root,
             "verification_sessions": list(tested.sessions),
         }
+        sonar_measures = self._sonar_measures_for(unit)
+        if sonar_measures is not None:
+            context["sonar_measures"] = sonar_measures
         return evaluate_profile(self.profile, unit.source_code, context=context)
 
     def _raw_evidence_for(self, tested: TestedCodeUnit) -> dict:

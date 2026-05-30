@@ -354,6 +354,25 @@ export interface LLMCall {
   timestamp: number;
 }
 
+export interface BugTest {
+  name: string;
+  status: "passed" | "failed" | "error" | "skipped";
+  message: string | null;
+}
+
+export interface FunctionBugDetail {
+  function: string;
+  passed: number;
+  failed: number;
+  errors: number;
+  skipped: number;
+  total: number;
+  coverage_percent: number | null;
+  execution_error: string | null;
+  bug_tests: BugTest[];
+  all_tests: BugTest[];
+}
+
 export interface ImprovementUnit {
   unit_id: string;
   bucket: "lineage" | "abandoned";
@@ -363,6 +382,7 @@ export interface ImprovementUnit {
   profile: Record<string, unknown> | null;
   judge: Record<string, unknown> | null;
   llm_calls: LLMCall[];
+  bug_detail: FunctionBugDetail[];
 }
 
 export interface ImprovementRound {

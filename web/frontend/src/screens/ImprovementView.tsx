@@ -115,8 +115,67 @@ function Field({ label, body, highlight }: { label: string; body: string; highli
   );
 }
 
+function BugDetailView({ functions }: { functions: import("../api").FunctionBugDetail[] }) {
+  if (!functions.length) {
+    return <div className="px-1 py-2 text-xs text-slate-400">No verification results recorded for this round.</div>;
+  }
+  return (
+    <div className="space-y-3">
+      {functions.map((fn) => {
+        const cov = fn.coverage_percent === null ? "n/a" : `${fn.coverage_percent.toFixed(0)}%`;
+        return (
+          <div key={fn.function} className="rounded-lg border border-slate-100">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
+              <span className="font-mono text-sm font-medium text-slate-700">{fn.function}()</span>
+              <span className="flex shrink-0 items-center gap-2 text-xs">
+                <span className="text-slate-400">{cov} cov</span>
+                {fn.passed > 0 && <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-semibold text-emerald-700">{fn.passed} pass</span>}
+                {fn.failed > 0 && <span className="rounded bg-rose-50 px-1.5 py-0.5 font-semibold text-rose-700">{fn.failed} bug{fn.failed > 1 ? "s" : ""}</span>}
+                {fn.errors > 0 && <span className="rounded bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-700">{fn.errors} err</span>}
+              </span>
+            </div>
+            <div className="divide-y divide-slate-50">
+              {fn.all_tests.length === 0 && (
+                <div className="px-3 py-2 text-xs text-slate-400">No tests executed.</div>
+              )}
+              {fn.all_tests.map((t, i) => {
+                const isBug = t.status === "failed";
+                const isErr = t.status === "error";
+                const dot = isBug ? "bg-rose-500" : isErr ? "bg-amber-500" : t.status === "passed" ? "bg-emerald-500" : "bg-slate-300";
+                return (
+                  <div key={i} className="px-3 py-2">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
+                      <span className="font-mono text-slate-700">{t.name}</span>
+                      <span className={`ml-auto shrink-0 font-semibold ${isBug ? "text-rose-600" : isErr ? "text-amber-600" : t.status === "passed" ? "text-emerald-600" : "text-slate-400"}`}>
+                        {t.status === "failed" ? "BUG" : t.status.toUpperCase()}
+                      </span>
+                    </div>
+                    {(isBug || isErr) && t.message && (
+                      <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-slate-900 px-2 py-1.5 font-mono text-[11px] leading-relaxed text-slate-100">
+                        {t.message}
+                      </pre>
+                    )}
+                  </div>
+                );
+              })}
+              {fn.execution_error && (
+                <div className="px-3 py-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-600">Execution error</div>
+                  <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-amber-50 px-2 py-1.5 font-mono text-[11px] text-amber-800">{fn.execution_error}</pre>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function UnitCard({ unit }: { unit: ImprovementUnit }) {
-  const [tab, setTab] = useState<"deltas" | "transcript">("deltas");
+  const totalBugs = unit.bug_detail.reduce((n, f) => n + f.failed, 0);
+  const [tab, setTab] = useState<"bugs" | "deltas" | "transcript">("bugs");
   const imp = unit.improvement;
   const accepted = unit.accepted;
 
@@ -143,11 +202,14 @@ function UnitCard({ unit }: { unit: ImprovementUnit }) {
       )}
 
       <div className="mb-3 flex gap-2 text-xs">
+        <button onClick={() => setTab("bugs")} className={`rounded-md px-2.5 py-1 font-medium ${tab === "bugs" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>Bugs found by tests{totalBugs > 0 ? ` (${totalBugs})` : ""}</button>
         <button onClick={() => setTab("deltas")} className={`rounded-md px-2.5 py-1 font-medium ${tab === "deltas" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>Indicator deltas</button>
         <button onClick={() => setTab("transcript")} className={`rounded-md px-2.5 py-1 font-medium ${tab === "transcript" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}>LLM transcript ({unit.llm_calls.length})</button>
       </div>
 
-      {tab === "deltas" ? (
+      {tab === "bugs" ? (
+        <BugDetailView functions={unit.bug_detail} />
+      ) : tab === "deltas" ? (
         imp && imp.dimensions.length ? (
           <div className="space-y-3">
             {imp.dimensions.map((dim) => (
@@ -209,7 +271,7 @@ export default function ImprovementView({ sessionId }: { sessionId: string }) {
     <div className="space-y-3">
       <div>
         <h2 className="text-xl font-semibold text-slate-800">Improvement audit</h2>
-        <p className="mt-1 text-sm text-slate-500">Per round and per method: which indicators moved, the accept/abandon verdict, and the exact prompts sent to the model.</p>
+        <p className="mt-1 text-sm text-slate-500">Per round and per method: the bugs found by generated tests (discovered by execution, not static analysis), which quality indicators moved, the accept/abandon verdict, and the exact prompts sent to the model.</p>
       </div>
       {rounds.map((r) => {
         const isOpen = openRound === r.round;

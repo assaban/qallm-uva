@@ -31,15 +31,15 @@ def test_quality_profiles_lists_default_and_dimensions():
         assert expected in dims
 
 
-def test_quality_profiles_marks_roadmap_unavailable():
+def test_quality_profiles_all_available_no_roadmap():
     r = client.get("/api/quality-profiles")
     body = r.json()
-    roadmap = [p for p in body["profiles"] if not p["available"]]
-    ids = {p["id"] for p in roadmap}
-    assert "iso25010" in ids
-    # fair4rs graduated from roadmap to a real, available profile, so it
-    # must NOT appear among the unavailable entries any more.
-    assert "fair4rs" not in ids
+    # All three built-in profiles are now real and available; the roadmap
+    # is empty. ISO/IEC 25010 graduated from roadmap stub to a real profile.
+    unavailable = [p for p in body["profiles"] if not p["available"]]
+    assert unavailable == []
+    available_ids = {p["id"] for p in body["profiles"] if p["available"]}
+    assert {"implementation_default", "fair4rs_publication", "iso25010_base"} <= available_ids
 
 
 def test_improvement_endpoint_handles_no_run():
