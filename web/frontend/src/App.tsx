@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Shield } from "lucide-react";
+import { Shield, FlaskConical } from "lucide-react";
 import StepRail from "./components/StepRail";
 import { NextBar } from "./components/Shared";
 import { useSession } from "./hooks/useSession";
@@ -10,6 +10,7 @@ import RepairScreen from "./screens/RepairScreen";
 import ReanalyseScreen from "./screens/ReanalyseScreen";
 import TestGenScreen from "./screens/TestGenScreen";
 import ResultsScreen from "./screens/ResultsScreen";
+import ExperimentsView from "./screens/ExperimentsView";
 
 const STEPS_MANUAL = 6;
 const STEPS_AUTO = 4;
@@ -17,6 +18,7 @@ const STEPS_AUTO = 4;
 export default function App() {
   const { state, patch, setStep } = useSession();
   const [mode, setMode] = useState<"manual" | "auto">("manual");
+  const [view, setView] = useState<"pipeline" | "experiments">("pipeline");
   const autoRunner = useAutoRunner(state, patch, setStep);
 
   // Called by UploadScreen after successful upload. We accept the
@@ -103,53 +105,78 @@ export default function App() {
             </div>
           )}
         </div>
+
+        {/* Top-level view switch: the step-based pipeline vs read-only
+            browsing of historical validation experiments. */}
+        <div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1 text-sm shadow-sm w-fit">
+          <button
+            onClick={() => setView("pipeline")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "pipeline" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+          >
+            <Shield className="h-3.5 w-3.5" /> Pipeline
+          </button>
+          <button
+            onClick={() => setView("experiments")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "experiments" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+          >
+            <FlaskConical className="h-3.5 w-3.5" /> Experiments
+          </button>
+        </div>
         {/* Step navigation: locked while an auto run is in flight to
             prevent the user from disrupting the pipeline. Once the run
             ends (success OR failure), navigation is re-enabled so the
             user can review or retry. Without this, an auto-mode run
             that errors out leaves the user trapped on the failed step. */}
-        <StepRail
-          currentStep={state.step}
-          mode={mode}
-          onStepClick={(mode === "auto" && state.loading) ? () => {} : setStep}
-        />
-        {/* Manual-mode preview banner. In manual mode, steps 2 to 4 let
-            the user inspect a static-analysis baseline and a single LLM
-            repair pass. These are a teaching preview: the full pipeline,
-            with all rounds and judge accept/abandon decisions, runs in the
-            "Run pipeline" step. Auto mode has no such preview, it runs the
-            real loop directly, so this banner is manual-only. */}
-        {mode === "manual" && state.step >= 2 && state.step <= 4 && (
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
-            <span className="font-semibold">Preview stages.</span>{" "}
-            Steps 2 to 4 let you inspect a static-analysis baseline and a
-            single LLM repair pass, so you can confirm your code parses and
-            see what one repair looks like. The full QALLM pipeline (all
-            rounds of repair, verification, and judge accept/abandon) runs
-            in the "Run pipeline" step against its own baseline. To run the
-            real pipeline directly, start a new session in Auto mode.
+        {view === "experiments" ? (
+          <div className="min-h-[400px]">
+            <ExperimentsView />
           </div>
-        )}
-        {state.error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            <div>{state.error}</div>
-            {mode === "auto" && (
-              <div className="mt-2 text-xs text-red-600">
-                Auto mode halted. Use the step rail above to navigate back
-                and review earlier stages, or refresh the page to start over.
+        ) : (
+          <>
+            <StepRail
+              currentStep={state.step}
+              mode={mode}
+              onStepClick={(mode === "auto" && state.loading) ? () => {} : setStep}
+            />
+            {/* Manual-mode preview banner. In manual mode, steps 2 to 4 let
+                the user inspect a static-analysis baseline and a single LLM
+                repair pass. These are a teaching preview: the full pipeline,
+                with all rounds and judge accept/abandon decisions, runs in the
+                "Run pipeline" step. Auto mode has no such preview, it runs the
+                real loop directly, so this banner is manual-only. */}
+            {mode === "manual" && state.step >= 2 && state.step <= 4 && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+                <span className="font-semibold">Preview stages.</span>{" "}
+                Steps 2 to 4 let you inspect a static-analysis baseline and a
+                single LLM repair pass, so you can confirm your code parses and
+                see what one repair looks like. The full QALLM pipeline (all
+                rounds of repair, verification, and judge accept/abandon) runs
+                in the "Run pipeline" step against its own baseline. To run the
+                real pipeline directly, start a new session in Auto mode.
               </div>
             )}
-          </div>
-        )}
-        <div className="min-h-[400px]">{screen}</div>
-        {/* NextBar visible whenever navigation is allowed. */}
-        {!(mode === "auto" && state.loading) && (
-          <NextBar
-            step={state.step} maxStep={maxStep}
-            onPrev={() => setStep(Math.max(1, state.step - 1))}
-            onNext={() => canNext && setStep(Math.min(maxStep, state.step + 1))}
-            nextDisabled={!canNext}
-          />
+            {state.error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <div>{state.error}</div>
+                {mode === "auto" && (
+                  <div className="mt-2 text-xs text-red-600">
+                    Auto mode halted. Use the step rail above to navigate back
+                    and review earlier stages, or refresh the page to start over.
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="min-h-[400px]">{screen}</div>
+            {/* NextBar visible whenever navigation is allowed. */}
+            {!(mode === "auto" && state.loading) && (
+              <NextBar
+                step={state.step} maxStep={maxStep}
+                onPrev={() => setStep(Math.max(1, state.step - 1))}
+                onNext={() => canNext && setStep(Math.min(maxStep, state.step + 1))}
+                nextDisabled={!canNext}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

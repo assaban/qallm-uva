@@ -425,3 +425,64 @@ export interface SampleFile {
 export async function getSampleData(): Promise<{ samples: SampleFile[] }> {
   return req<{ samples: SampleFile[] }>("/api/sample-data");
 }
+
+// ─── Experiments (HumanEvalFix validation runs) ───
+export interface ExperimentRunSummary {
+  id: string;
+  models: string[];
+  strategies: string[];
+  rounds: number | null;
+  sample_size: number | null;
+  created: string | null;
+  n_results: number;
+  n_combinations: number;
+  has_report: boolean;
+}
+
+export interface ExperimentAggregate {
+  strategy: string;
+  model: string;
+  n_problems: number;
+  n_bug_detected: number;
+  n_repair_successful: number;
+  n_errored: number;
+  mean_rounds: number;
+  mean_cost_usd: number;
+  mean_elapsed_seconds: number;
+  bug_detection_rate: number;
+  repair_success_rate: number;
+}
+
+export interface ExperimentProblemResult {
+  task_id: string;
+  strategy: string;
+  model: string;
+  bug_detected: boolean;
+  repair_successful: boolean;
+  rounds_run: number;
+  final_coverage: number;
+  cost_usd: number;
+  elapsed_seconds: number;
+  error: string | null;
+}
+
+export async function listExperiments(): Promise<{ runs_dir: string; runs: ExperimentRunSummary[] }> {
+  return req<{ runs_dir: string; runs: ExperimentRunSummary[] }>("/api/experiments");
+}
+
+export async function getExperiment(id: string): Promise<{
+  id: string;
+  manifest: Record<string, unknown>;
+  aggregates: ExperimentAggregate[];
+  has_report: boolean;
+}> {
+  return req(`/api/experiments/${encodeURIComponent(id)}`);
+}
+
+export async function getExperimentResults(id: string): Promise<{ id: string; results: ExperimentProblemResult[] }> {
+  return req(`/api/experiments/${encodeURIComponent(id)}/results`);
+}
+
+export async function getExperimentReport(id: string): Promise<{ id: string; markdown: string }> {
+  return req(`/api/experiments/${encodeURIComponent(id)}/report`);
+}

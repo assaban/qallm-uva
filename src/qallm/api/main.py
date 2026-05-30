@@ -27,6 +27,7 @@ from qallm.api.core import app
 from qallm.api.routers import (
     analysis,
     config,
+    experiments,
     repair,
     results,
     sessions as sessions_router,
@@ -55,6 +56,7 @@ app.include_router(analysis.router)
 app.include_router(repair.router)
 app.include_router(verification.router)
 app.include_router(results.router)
+app.include_router(experiments.router)
 
 
 # ─── Favicon ────────────────────────────────────────────────────────
