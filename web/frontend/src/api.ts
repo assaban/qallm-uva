@@ -528,3 +528,55 @@ export async function getLibrarySession(id: string): Promise<{
 export async function getLibrarySessionReport(id: string): Promise<{ id: string; markdown: string }> {
   return req(`/api/library/${encodeURIComponent(id)}/report`);
 }
+
+// ─── Experiment catalog, launch, live progress ───
+export interface ExperimentSpec {
+  id: string;
+  name: string;
+  summary: string;
+  dataset_id: string;
+  dataset_url: string;
+  citation: string;
+  n_problems: number;
+  measures: string[];
+  notes: string;
+}
+
+export interface ExperimentProgress {
+  run_id: string;
+  tracked: boolean;
+  status?: "running" | "done" | "failed";
+  total?: number;
+  completed?: number;
+  bug_detected?: number;
+  repair_successful?: number;
+  errored?: number;
+  log?: Array<{
+    task_id: string; strategy: string; model: string;
+    bug_detected: boolean; repair_successful: boolean;
+    error: string | null; at: number;
+  }>;
+  error?: string | null;
+}
+
+export async function listExperimentCatalog(): Promise<{ experiments: ExperimentSpec[] }> {
+  return req<{ experiments: ExperimentSpec[] }>("/api/experiment-catalog");
+}
+
+export async function launchExperiment(id: string, params: {
+  models: string[]; strategies: string[]; sample_size?: number;
+  seed?: number; rounds?: number; oracle?: string; judge_strategy?: string;
+}): Promise<{ run_id: string; job_id: string; status: string }> {
+  return post(`/api/experiment-catalog/${encodeURIComponent(id)}/run`, params);
+}
+
+export async function getExperimentProgress(runId: string): Promise<ExperimentProgress> {
+  return req<ExperimentProgress>(`/api/experiment-runs/${encodeURIComponent(runId)}/progress`);
+}
+
+export async function datasetToPipeline(id: string, params: {
+  sample_size?: number; seed?: number; model?: string; strategy?: string;
+  oracle?: string; rounds?: number; tags?: string[];
+}): Promise<{ session_id: string; experiment_id: string; n_files: number; directory: string }> {
+  return post(`/api/experiment-catalog/${encodeURIComponent(id)}/to-pipeline`, params);
+}
