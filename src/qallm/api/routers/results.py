@@ -124,8 +124,19 @@ async def get_improvement(session_id: str):
     findings were tracked and improved, and what we asked the model".
     """
 
-    state = get_state(session_id)
+    # Soft lookup: a historical session opened from the library is not a
+    # live in-memory session, so get_state (which 404s) is wrong here. Read
+    # the in-memory state if present, otherwise fall through to disk.
+    state = sessions.get(session_id) or {}
     report_dir = state.get("report_dir")
+    # Fall back to the on-disk session directory for historical sessions
+    # that are not live in this process's memory (e.g. opened from the
+    # session library). The session id is the reporter run-id, which is the
+    # directory name under QALLM_SESSIONS_DIR.
+    if not report_dir or not os.path.isdir(report_dir):
+        candidate = os.path.join(settings.QALLM_SESSIONS_DIR, session_id)
+        if os.path.isdir(candidate):
+            report_dir = candidate
     if not report_dir or not os.path.isdir(report_dir):
         return {"available": False, "rounds": [],
                 "reason": "No run artefacts yet. Run the pipeline first."}
