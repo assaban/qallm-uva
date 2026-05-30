@@ -192,6 +192,23 @@ async def launch_experiment(experiment_id: str, req: dict):
         raise HTTPException(status_code=400,
                             detail="models and strategies are required")
 
+    # Pre-flight: the experiment needs the datasets package to load its
+    # benchmark from the Hub. Check it here, before creating a run id,
+    # progress entry, or job, so a missing dependency fails cleanly and
+    # never leaves an empty run directory cluttering the history.
+    try:
+        import datasets  # noqa: F401
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This server cannot run experiments: the 'datasets' package "
+                "is not installed. Rebuild the API image (it now installs the "
+                "experiments extra), or install it with "
+                "pip install -e \".[experiments]\"."
+            ),
+        ) from exc
+
     sample_size = req.get("sample_size")
     # Estimate total problem-combinations for the progress bar.
     n_problems = sample_size if sample_size else spec.n_problems

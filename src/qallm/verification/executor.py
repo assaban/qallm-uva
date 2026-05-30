@@ -43,7 +43,9 @@ def _parse_pytest_json(report_path: Path) -> tuple[list[TestDetail], dict[str, i
         message = None
         call_info = test.get("call", {})
         if call_info and call_info.get("longrepr"):
-            message = str(call_info["longrepr"])[:500]
+            # Keep enough of the traceback for the detailed assertion diff
+            # (-v / --tb=long), not just the one-line summary.
+            message = str(call_info["longrepr"])[:2000]
 
         details.append(TestDetail(
             name=test.get("nodeid", "unknown"), status=status,
@@ -134,7 +136,10 @@ def run_tests(
             "--json-report", f"--json-report-file={json_report_path}",
             f"--cov={module_name}", "--cov-branch",
             f"--cov-report=json:{coverage_json_path}",
-            "--cov-report=", "--no-header", "--tb=short", "-q",
+            # -v and a long traceback give the detailed assertion diff the
+            # user needs to understand *why* a test failed (e.g. the full
+            # "At index 1 diff" breakdown), not just the one-line summary.
+            "--cov-report=", "--no-header", "--tb=long", "-v",
         ]
 
         logger.debug("Executing tests in %s (timeout=%ds)", work_dir, timeout)

@@ -115,3 +115,34 @@ def test_bug_detail_attaches_body_and_reason():
     assert "assert f() == 2" in by_name["test_bug"]["body"]
     # The failing test carries the exact reason.
     assert by_name["test_bug"]["message"] == "assert 1 == 2"
+
+
+def test_bug_detail_matches_nodeid_to_body_and_includes_source():
+    """Test names are pytest nodeids (file::name); bodies are keyed by the
+    bare name. The summariser must reconcile them, and surface the function
+    source under test."""
+    from qallm.api.routers.results import _summarise_bug_detail
+    code = (
+        "from source import f\n"
+        "def test_ok():\n    assert f(1) == 1\n"
+        "def test_bug():\n    assert f(2) == 9\n"
+    )
+    v = [{
+        "function_name": "f",
+        "source_code": "def f(x):\n    return x\n",
+        "rounds": [{
+            "generated_test": {"test_code": code},
+            "execution": {
+                "passed": 1, "failed": 1, "errors": 0, "skipped": 0, "total": 2,
+                "test_details": [
+                    {"name": "test_generated.py::test_ok", "status": "passed",
+                     "message": None},
+                    {"name": "test_generated.py::test_bug", "status": "failed",
+                     "message": "assert 2 == 9"},
+                ]}}]}]
+    fn = _summarise_bug_detail(v)[0]
+    assert fn["source_code"] == "def f(x):\n    return x\n"
+    by_name = {t["name"]: t for t in fn["all_tests"]}
+    # Bodies resolved despite the nodeid prefix.
+    assert "assert f(1) == 1" in by_name["test_generated.py::test_ok"]["body"]
+    assert "assert f(2) == 9" in by_name["test_generated.py::test_bug"]["body"]

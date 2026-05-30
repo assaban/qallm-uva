@@ -8,7 +8,7 @@
  * hours and download datasets), this surfaces what they produced.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   FlaskConical, ChevronRight, ChevronLeft, Bug, Wrench,
   Clock, DollarSign, AlertTriangle, FileText, Play,
@@ -218,24 +218,43 @@ function CatalogPanel({ onLaunched }: { onLaunched: () => void }) {
     return () => { alive = false; };
   }, []);
 
-  // Poll progress while a run is active.
+  // Keep a stable ref to onLaunched so the polling effect does not restart
+  // every time the parent re-renders (which created a fresh callback and,
+  // via setRuns -> re-render, an unbounded loop of polling requests).
+  const onLaunchedRef = useRef(onLaunched);
+  useEffect(() => { onLaunchedRef.current = onLaunched; }, [onLaunched]);
+
+  // Poll progress while a run is active. Restarts only when the run id
+  // changes, never on callback identity. Reschedules a tick ONLY while the
+  // run is genuinely still running; any terminal or untracked state stops
+  // the loop and (once) refreshes the historical run list.
   useEffect(() => {
     if (!progressRunId) return;
     let alive = true;
+    let notified = false;
+    const finish = () => {
+      if (notified) return;
+      notified = true;
+      onLaunchedRef.current();
+    };
     const tick = () => {
       api.getExperimentProgress(progressRunId).then((p) => {
         if (!alive) return;
         setProgress(p);
         if (p.tracked && p.status === "running") {
           setTimeout(tick, 1500);
-        } else if (p.status === "done" || p.status === "failed") {
-          onLaunched();  // refresh the run list when finished
+        } else {
+          // done, failed, or untracked: stop polling, refresh once.
+          finish();
         }
-      }).catch(() => {});
+      }).catch(() => {
+        // On a transient error, stop rather than hammering the server.
+        if (alive) finish();
+      });
     };
     tick();
     return () => { alive = false; };
-  }, [progressRunId, onLaunched]);
+  }, [progressRunId]);
 
   function toggleStrategy(s: string) {
     setStrategies((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
@@ -383,7 +402,7 @@ export default function ExperimentsView() {
       <p className="text-sm text-slate-500">
         HumanEvalFix benchmark runs: how well QALLM detects and repairs known bugs across strategies and models. Click a run to see its strategy comparison and per-problem detail.
       </p>
-      <CatalogPanel onLaunched={() => { api.listExperiments().then((r) => setRuns(r.runs)).catch(() => {}); }} />
+      <CatalogPanel onLaunched={useCallback(() => { api.listExperiments().then((r) => setRuns(r.runs)).catch(() => {}); }, [])} />
       <h3 className="pt-2 text-sm font-semibold text-slate-700">Historical runs</h3>
       {loading ? (
         <div className="py-8 text-center text-sm text-slate-400">Loading runs…</div>

@@ -107,3 +107,25 @@ def test_materialise_and_create_session():
     assert sid in sessions
     assert len(sessions[sid]["units"]) == 2
     assert sessions[sid]["orchestrator"].tags == ["heval"]
+
+
+def test_launch_without_datasets_returns_clear_400(monkeypatch):
+    """A server missing the datasets package fails the launch cleanly,
+    without creating a run id, progress entry, or empty run directory."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *a, **k):
+        if name == "datasets":
+            raise ImportError("no datasets")
+        return real_import(name, *a, **k)
+
+    before = dict(ec._progress)
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    r = client.post("/api/experiment-catalog/humanevalfix/run",
+                    json={"models": ["m"], "strategies": ["feedback"]})
+    assert r.status_code == 400
+    assert "datasets" in r.json()["detail"]
+    # No progress entry was created for a rejected launch.
+    assert dict(ec._progress) == before
