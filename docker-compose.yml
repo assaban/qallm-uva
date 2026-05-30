@@ -14,6 +14,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Set WITH_SONAR_SCANNER=1 in your environment (or .env) and rebuild
+        # to bake the SonarQube scanner CLI into the image, needed for the
+        # optional SonarQube analyzer. Defaults off to keep the image lean.
+        WITH_SONAR_SCANNER: ${WITH_SONAR_SCANNER:-0}
     image: qallm:latest
     container_name: qallm-api
     ports:
