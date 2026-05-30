@@ -47,7 +47,7 @@ WORKDIR /home/qallm/app
 COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir .
+    && pip install --no-cache-dir ".[experiments]"
 
 # Drop build-essential now that pip install is done; it added ~250MB.
 RUN apt-get purge -y build-essential \
