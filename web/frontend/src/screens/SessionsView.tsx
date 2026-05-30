@@ -55,6 +55,13 @@ function SessionList({ sessions, onSelect }: {
               {s.model && <span>{s.model}</span>}
               {s.profile_id && <><span className="text-slate-300">·</span><span>{s.profile_id}</span></>}
             </div>
+            {s.tags && s.tags.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {s.tags.map((t) => (
+                  <span key={t} className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">{t}</span>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-3 text-xs text-slate-400">
             {s.rounds_accepted_total != null && (
@@ -162,16 +169,24 @@ function SessionDetail({ id, onBack }: { id: string; onBack: () => void }) {
 
 export default function SessionsView() {
   const [sessions, setSessions] = useState<SessionCard[]>([]);
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
-    api.listLibrarySessions()
-      .then((r) => alive && setSessions(r.sessions))
+    setLoading(true);
+    api.listLibrarySessions(activeTag || undefined)
+      .then((r) => {
+        if (!alive) return;
+        setSessions(r.sessions);
+        // Keep the full tag set stable so chips don't vanish when filtering.
+        if (r.all_tags.length) setAllTags(r.all_tags);
+      })
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
-  }, []);
+  }, [activeTag]);
 
   if (selected) return <SessionDetail id={selected} onBack={() => setSelected(null)} />;
 
@@ -184,6 +199,26 @@ export default function SessionsView() {
       <p className="text-sm text-slate-500">
         Every session the pipeline has processed, newest first. Click one to see its configuration, accept/abandon totals, cost, and full report.
       </p>
+      {allTags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-medium text-slate-400">Filter by tag:</span>
+          <button
+            onClick={() => setActiveTag(null)}
+            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${activeTag === null ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+          >
+            All
+          </button>
+          {allTags.map((t) => (
+            <button
+              key={t}
+              onClick={() => setActiveTag(t)}
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${activeTag === t ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"}`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
       {loading ? (
         <div className="py-8 text-center text-sm text-slate-400">Loading sessions…</div>
       ) : (

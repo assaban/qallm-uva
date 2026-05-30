@@ -28,6 +28,8 @@ export interface SessionConfig {
   model_name: string;
   oracle: string;
   rounds: number;
+  // Optional custom tags for grouping/retrieving the session later.
+  tags?: string;
   // Optional advanced settings (NEW-08). Undefined values fall back to
   // server defaults; the upload endpoint only forwards what's present.
   repair_model?: string;
@@ -61,6 +63,7 @@ export async function uploadFiles(files: FileList, config: SessionConfig) {
   if (config.max_seconds !== undefined) form.append("max_seconds", String(config.max_seconds));
   if (config.max_round_seconds !== undefined) form.append("max_round_seconds", String(config.max_round_seconds));
   if (config.max_cost_usd !== undefined) form.append("max_cost_usd", String(config.max_cost_usd));
+  if (config.tags) form.append("tags", config.tags);
 
   return req<{ session_id: string; files: string[]; config?: Record<string, unknown> }>("/api/session/upload", {
     method: "POST",
@@ -358,6 +361,7 @@ export interface BugTest {
   name: string;
   status: "passed" | "failed" | "error" | "skipped";
   message: string | null;
+  body: string;
 }
 
 export interface FunctionBugDetail {
@@ -369,6 +373,7 @@ export interface FunctionBugDetail {
   total: number;
   coverage_percent: number | null;
   execution_error: string | null;
+  test_code: string;
   bug_tests: BugTest[];
   all_tests: BugTest[];
 }
@@ -491,6 +496,7 @@ export async function getExperimentReport(id: string): Promise<{ id: string; mar
 export interface SessionCard {
   id: string;
   source: string | null;
+  tags: string[];
   strategy: string | null;
   model: string | null;
   profile_id: string | null;
@@ -506,8 +512,9 @@ export interface SessionCard {
   has_report: boolean;
 }
 
-export async function listLibrarySessions(): Promise<{ sessions_dir: string; sessions: SessionCard[] }> {
-  return req<{ sessions_dir: string; sessions: SessionCard[] }>("/api/library");
+export async function listLibrarySessions(tag?: string): Promise<{ sessions_dir: string; sessions: SessionCard[]; all_tags: string[] }> {
+  const q = tag ? `?tag=${encodeURIComponent(tag)}` : "";
+  return req<{ sessions_dir: string; sessions: SessionCard[]; all_tags: string[] }>(`/api/library${q}`);
 }
 
 export async function getLibrarySession(id: string): Promise<{
@@ -520,4 +527,56 @@ export async function getLibrarySession(id: string): Promise<{
 
 export async function getLibrarySessionReport(id: string): Promise<{ id: string; markdown: string }> {
   return req(`/api/library/${encodeURIComponent(id)}/report`);
+}
+
+// ─── Experiment catalog, launch, live progress ───
+export interface ExperimentSpec {
+  id: string;
+  name: string;
+  summary: string;
+  dataset_id: string;
+  dataset_url: string;
+  citation: string;
+  n_problems: number;
+  measures: string[];
+  notes: string;
+}
+
+export interface ExperimentProgress {
+  run_id: string;
+  tracked: boolean;
+  status?: "running" | "done" | "failed";
+  total?: number;
+  completed?: number;
+  bug_detected?: number;
+  repair_successful?: number;
+  errored?: number;
+  log?: Array<{
+    task_id: string; strategy: string; model: string;
+    bug_detected: boolean; repair_successful: boolean;
+    error: string | null; at: number;
+  }>;
+  error?: string | null;
+}
+
+export async function listExperimentCatalog(): Promise<{ experiments: ExperimentSpec[] }> {
+  return req<{ experiments: ExperimentSpec[] }>("/api/experiment-catalog");
+}
+
+export async function launchExperiment(id: string, params: {
+  models: string[]; strategies: string[]; sample_size?: number;
+  seed?: number; rounds?: number; oracle?: string; judge_strategy?: string;
+}): Promise<{ run_id: string; job_id: string; status: string }> {
+  return post(`/api/experiment-catalog/${encodeURIComponent(id)}/run`, params);
+}
+
+export async function getExperimentProgress(runId: string): Promise<ExperimentProgress> {
+  return req<ExperimentProgress>(`/api/experiment-runs/${encodeURIComponent(runId)}/progress`);
+}
+
+export async function datasetToPipeline(id: string, params: {
+  sample_size?: number; seed?: number; model?: string; strategy?: string;
+  oracle?: string; rounds?: number; tags?: string[];
+}): Promise<{ session_id: string; experiment_id: string; n_files: number; directory: string }> {
+  return post(`/api/experiment-catalog/${encodeURIComponent(id)}/to-pipeline`, params);
 }

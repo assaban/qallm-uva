@@ -121,6 +121,7 @@ class QALLMOrchestrator:
             testgen_model_name: str | None = None,
             run_id: str | None = None,
             reporter: QualityReporter | None = None,
+            tags: list[str] | None = None,
     ) -> None:
         """Construct the orchestrator.
 
@@ -172,6 +173,16 @@ class QALLMOrchestrator:
         # session schema use the current vocabulary. Behaviour is identical.
         self.strategy = "feedback" if strategy == "rl" else strategy
         self.oracle = oracle
+        # User-supplied tags for grouping and retrieving sessions. Trimmed,
+        # de-duplicated, blanks dropped; order preserved.
+        self.tags: list[str] = []
+        if tags:
+            seen = set()
+            for raw in tags:
+                t = (raw or "").strip()
+                if t and t not in seen:
+                    seen.add(t)
+                    self.tags.append(t)
         self.profile = profile
 
         # Budget caps: if not supplied, construct from the legacy `rounds`
@@ -676,6 +687,7 @@ class QALLMOrchestrator:
 
         summary = {
             "source": source_path,
+            "tags": self.tags,
             "strategy": self.strategy,
             "judge_strategy": self.judge_strategy_name,
             "lifecycle_stage": self.stage.value,

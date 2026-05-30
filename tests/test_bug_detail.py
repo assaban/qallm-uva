@@ -63,3 +63,55 @@ def test_uses_final_round():
     fn = _summarise_bug_detail(v)[0]
     assert fn["failed"] == 1  # from the LAST round
     assert len(fn["all_tests"]) == 2
+
+
+def test_extract_test_bodies():
+    from qallm.api.routers.results import _extract_test_bodies
+    code = (
+        "import pytest\n"
+        "def test_a():\n"
+        "    assert add(1, 2) == 3\n"
+        "def test_b():\n"
+        "    with pytest.raises(ValueError):\n"
+        "        add(None, 1)\n"
+        "def helper():\n"
+        "    return 1\n"
+    )
+    bodies = _extract_test_bodies(code)
+    assert set(bodies) == {"test_a", "test_b"}  # only test* functions
+    assert "assert add(1, 2) == 3" in bodies["test_a"]
+    assert "pytest.raises(ValueError)" in bodies["test_b"]
+    assert "helper" not in bodies
+
+
+def test_extract_test_bodies_handles_bad_code():
+    from qallm.api.routers.results import _extract_test_bodies
+    assert _extract_test_bodies(None) == {}
+    assert _extract_test_bodies("def (((") == {}
+
+
+def test_bug_detail_attaches_body_and_reason():
+    from qallm.api.routers.results import _summarise_bug_detail
+    code = (
+        "def test_ok():\n    assert f() == 1\n"
+        "def test_bug():\n    assert f() == 2\n"
+    )
+    v = [{
+        "function_name": "f",
+        "rounds": [{
+            "generated_test": {"test_code": code},
+            "execution": {
+                "passed": 1, "failed": 1, "errors": 0, "skipped": 0, "total": 2,
+                "test_details": [
+                    {"name": "test_ok", "status": "passed", "message": None},
+                    {"name": "test_bug", "status": "failed",
+                     "message": "assert 1 == 2"},
+                ]}}]}]
+    fn = _summarise_bug_detail(v)[0]
+    assert fn["test_code"] == code
+    by_name = {t["name"]: t for t in fn["all_tests"]}
+    # Every test carries its exact body; success is self-evident from it.
+    assert "assert f() == 1" in by_name["test_ok"]["body"]
+    assert "assert f() == 2" in by_name["test_bug"]["body"]
+    # The failing test carries the exact reason.
+    assert by_name["test_bug"]["message"] == "assert 1 == 2"

@@ -86,50 +86,64 @@ The markdown report is the artefact to cite. It includes:
 - A per-problem detail table.
 - An errored-runs section listing any problems that failed mid-run.
 
-## Viewing results in the Web-UI
+## Using the experiment from the Web-UI
 
-Completed runs are browsable in the QALLM Web-UI under the **Experiments**
-tab (top of the page, next to **Pipeline**). No experiment is launched
-from the browser: runs take hours and download datasets, so they run from
-the CLI as above. The UI reads the artefacts each run wrote.
+The QALLM Web-UI **Experiments** tab (next to **Pipeline**) is both a
+control surface and a browser. From it you can:
+
+1. **See the catalog**: each available experiment with its dataset id,
+   source URL, citation, problem count, and what it measures.
+2. **Launch a run**: pick a sample size, model, rounds, and strategies,
+   then start a run. The run executes as a background job on the server,
+   so a long run keeps going while you do other things.
+3. **Watch live progress**: a status line, a progress bar, running
+   bug/repair/error tallies, and a streaming tail of per-problem lines,
+   the user-friendly view of what would otherwise scroll past in a
+   terminal. When the run finishes, the historical run list refreshes.
+4. **Browse historical runs**: the same read-only view as before, run
+   list to per-run aggregate cards to per-problem table to markdown
+   report.
+5. **Send the dataset through the pipeline**: instead of the experiment
+   runner, materialise the dataset's buggy programs as files and create a
+   normal pipeline session over them, so the whole dataset flows through
+   QALLM exactly like any other uploaded code, and lands in the session
+   library tagged for retrieval.
+
+Launching from the browser still does real work: datasets download from
+Hugging Face and the run calls LLMs, so the server needs network access
+and (for hosted models) credentials. The CLI path below remains available
+and is the better choice for very long unattended runs.
 
 ### Data flow
 
 ```
-  CLI                          disk (QALLM_RUNS_DIR)              Web-UI
-  ───                          ────────────────────              ──────
-  run_humaneval.py
-     │ runs QALLM per
-     │ (problem, strategy,
-     │  model) combination
-     ▼
-  humaneval_runner          runs/<run-id>/
-     │  writes  ───────────►   manifest.json     ┐
-     │                         results.jsonl     │  GET /api/experiments
-     │                         aggregates.json   ├─────────────────────►  ExperimentsView
-     │                         report.md         ┘  GET /api/experiments/{id}
-     │                                              GET .../{id}/results     run list
-     ▼                                              GET .../{id}/report       │
-  (resumable: appends                                                        ▼
-   one JSONL line per                                              per-run detail:
-   completed combination)                                          - aggregate cards
-                                                                    (bug-detection +
-                                                                     repair-success
-                                                                     per strategy/model)
-                                                                   - per-problem table
-                                                                   - markdown report
+  launch source            disk (QALLM_RUNS_DIR)              Web-UI
+  ─────────────            ────────────────────              ──────
+  Experiments tab
+   POST .../{id}/run  ──┐
+  or run_humaneval.py   │  runs/<run-id>/
+  (CLI)                 ├─►  manifest.json     ┐
+     │ runs QALLM per   │    results.jsonl     │  GET /api/experiments
+     │ (problem,        │    aggregates.json   ├──────────────►  ExperimentsView
+     │  strategy,       │    report.md         ┘  GET .../{id}, /results, /report
+     │  model)          │                                          │ run list +
+     ▼                  │  (a launched run also reports live        │ per-run detail
+  humaneval_runner ─────┘   progress via on_problem_complete ──►  GET .../progress
+     │  (resumable: one                                            (status, tallies,
+     │   JSONL line per                                             streaming log tail)
+     │   completed combo)
 ```
 
-The `experiments` API router (`src/qallm/api/routers/experiments.py`)
-reads the run directory; it never writes. Point it at a different
-location with the `QALLM_RUNS_DIR` environment variable (default `runs`).
-In the Docker stack, mount your runs directory into the api container and
-set `QALLM_RUNS_DIR` to the mount path so past runs appear in the UI.
+The read-only browse endpoints live in
+`src/qallm/api/routers/experiments.py`; the catalog, launch, progress, and
+dataset-to-pipeline endpoints live in
+`src/qallm/api/routers/experiments_control.py`. Point the run directory
+elsewhere with `QALLM_RUNS_DIR` (default `runs`). In the Docker stack,
+mount your runs directory into the api container and set `QALLM_RUNS_DIR`
+to the mount path so past runs appear in the UI.
 
-### What the UI shows
+### What the run detail shows
 
-- **Run list**: every run directory, newest first, with its strategies,
-  models, round count, and result count.
 - **Aggregate cards**: one per (strategy, model), with bug-detection rate
   and repair-success rate (and the underlying counts), plus mean rounds,
   cost, and time per problem. Comparing the cards is the headline result:
