@@ -62,6 +62,54 @@ async def get_stats(session_id: str):
     }
 
 
+def _summarise_bug_detail(verification: list | None) -> list[dict]:
+    """Extract per-function, per-test bug detail from a round's verification.
+
+    The web UI shows aggregate counts ("4 bugs") but not *which* generated
+    tests failed or why. This surfaces that: for each function verified in
+    the round, the final round's executed tests with their pytest status
+    (passed/failed/error/skipped) and the failure message. A failed test is
+    a bug the generated tests caught by execution, the thing static analysis
+    misses.
+
+    ``verification`` is the parsed verification.json: a list of session
+    dicts (one per function), each with a ``rounds`` list whose last entry
+    holds the ``execution`` with ``test_details``.
+    """
+    if not verification:
+        return []
+    functions: list[dict] = []
+    for session in verification:
+        rounds = session.get("rounds") or []
+        if not rounds:
+            continue
+        last = rounds[-1]
+        execution = last.get("execution") or {}
+        details = execution.get("test_details") or []
+        tests = [
+            {
+                "name": d.get("name", "?"),
+                "status": d.get("status", "?"),
+                "message": d.get("message"),
+            }
+            for d in details
+        ]
+        functions.append({
+            "function": session.get("function") or session.get("function_name", "?"),
+            "passed": execution.get("passed", 0),
+            "failed": execution.get("failed", 0),
+            "errors": execution.get("errors", 0),
+            "skipped": execution.get("skipped", 0),
+            "total": execution.get("total", 0),
+            "coverage_percent": execution.get("coverage_percent"),
+            "execution_error": execution.get("execution_error"),
+            # The bugs: tests that ran and failed (not errored).
+            "bug_tests": [t for t in tests if t["status"] == "failed"],
+            "all_tests": tests,
+        })
+    return functions
+
+
 @router.get("/api/session/{session_id}/improvement")
 async def get_improvement(session_id: str):
     """Per-round, per-unit improvement audit for the observability view.
@@ -110,6 +158,7 @@ async def get_improvement(session_id: str):
                 profile = _read_json(os.path.join(unit_dir, "profile.json"))
                 judge = _read_json(os.path.join(unit_dir, "judge.json"))
                 transcript = _read_json(os.path.join(unit_dir, "transcript.json")) or []
+                verification = _read_json(os.path.join(unit_dir, "verification.json"))
                 unit_entry = {
                     "unit_id": unit_seg,
                     "bucket": bucket,
@@ -119,6 +168,7 @@ async def get_improvement(session_id: str):
                     "profile": profile,
                     "judge": judge,
                     "llm_calls": transcript,
+                    "bug_detail": _summarise_bug_detail(verification),
                 }
                 r = rounds.setdefault(round_no, {"round": round_no, "units": []})
                 r["units"].append(unit_entry)
