@@ -104,10 +104,12 @@ async def get_quality_profiles():
     FRAMEWORK = {
         "implementation_default": "EVERSE Research Software Quality",
         "fair4rs_publication": "FAIR for Research Software (FAIR4RS)",
+        "iso25010_base": "ISO/IEC 25010:2023",
     }
     FRIENDLY = {
         "implementation_default": "EVERSE (implementation stage)",
         "fair4rs_publication": "FAIR4RS (publication stage)",
+        "iso25010_base": "ISO/IEC 25010 (general software)",
     }
     EXPLAIN = {
         "implementation_default": (
@@ -116,6 +118,15 @@ async def get_quality_profiles():
             "Reproducibility, and FAIRness using static tools plus QALLM's "
             "execution-based verification. Thresholds are tuned for the "
             "implementation stage of the software lifecycle."
+        ),
+        "iso25010_base": (
+            "The ISO/IEC 25010:2023 product quality model as a "
+            "general-software base profile. All nine characteristics are "
+            "declared. Security and Maintainability are measured statically; "
+            "Functional Suitability is measured by QALLM's execution-based "
+            "verification (the characteristic static tools cannot assess); "
+            "the remaining characteristics are declared but not assessed in "
+            "v1. EVERSE is this model plus FAIRness and Sustainability."
         ),
     }
 
@@ -134,15 +145,10 @@ async def get_quality_profiles():
             ],
         })
 
-    # Roadmap entries: declared so the selector shows where QALLM is going,
-    # but not selectable until implemented. (FAIR4RS is now a real,
-    # available profile, so it has moved out of this list.)
-    roadmap = [
-        {"id": "iso25010", "name": "ISO/IEC 25010", "framework": "ISO/IEC 25010",
-         "description": "Software product quality model. Planned as an "
-                        "alternative profile; not yet implemented.",
-         "available": False, "dimensions": []},
-    ]
+    # All built-in profiles are now real and available; the roadmap list is
+    # empty. SonarQube-backed indicators are a future enhancement to the
+    # iso25010_base profile, not a separate profile.
+    roadmap: list = []
 
     return {"profiles": profiles + roadmap, "default": "implementation_default"}
 
