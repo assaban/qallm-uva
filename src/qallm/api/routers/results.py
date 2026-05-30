@@ -121,18 +121,29 @@ def _summarise_bug_detail(verification: list | None) -> list[dict]:
         generated = last.get("generated_test") or {}
         bodies = _extract_test_bodies(generated.get("test_code"))
         details = execution.get("test_details") or []
+
+        def _bare_name(nodeid: str) -> str:
+            # test_details names are pytest nodeids like
+            # "test_generated.py::test_foo"; the body map is keyed by the
+            # bare function name. Take the part after the last "::".
+            return nodeid.rsplit("::", 1)[-1] if nodeid else ""
+
         tests = [
             {
                 "name": d.get("name", "?"),
                 "status": d.get("status", "?"),
                 "message": d.get("message"),
                 # The exact test method body; success is self-evident from it.
-                "body": bodies.get(d.get("name", ""), ""),
+                "body": bodies.get(_bare_name(d.get("name", "")), ""),
             }
             for d in details
         ]
         functions.append({
             "function": session.get("function") or session.get("function_name", "?"),
+            # The source of the function (code unit) under test. Shown
+            # alongside the tests so a reviewer can read the test against
+            # what it exercises; especially useful for passing tests.
+            "source_code": session.get("source_code", ""),
             "passed": execution.get("passed", 0),
             "failed": execution.get("failed", 0),
             "errors": execution.get("errors", 0),

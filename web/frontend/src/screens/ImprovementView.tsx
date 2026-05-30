@@ -134,6 +134,16 @@ function BugDetailView({ functions }: { functions: import("../api").FunctionBugD
                 {fn.errors > 0 && <span className="rounded bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-700">{fn.errors} err</span>}
               </span>
             </div>
+            {fn.source_code && (
+              <details className="border-b border-slate-100 px-3 py-2">
+                <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Function under test
+                </summary>
+                <pre className="mt-1 max-h-72 overflow-auto whitespace-pre rounded bg-slate-50 px-2 py-1.5 font-mono text-[11px] leading-relaxed text-slate-700">
+                  {fn.source_code}
+                </pre>
+              </details>
+            )}
             <div className="divide-y divide-slate-50">
               {fn.all_tests.length === 0 && (
                 <div className="px-3 py-2 text-xs text-slate-400">No tests executed.</div>

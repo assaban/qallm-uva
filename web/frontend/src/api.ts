@@ -366,6 +366,7 @@ export interface BugTest {
 
 export interface FunctionBugDetail {
   function: string;
+  source_code: string;
   passed: number;
   failed: number;
   errors: number;
