@@ -35,6 +35,19 @@ the API and the SonarQube server come up together:
 docker compose --profile sonarqube up
 ```
 
+The API also needs the `sonar-scanner` CLI baked into its image to run
+SonarQube analysis. It is off by default (it adds a JRE, about 200MB), so
+enable it and rebuild:
+
+```
+WITH_SONAR_SCANNER=1 docker compose build api
+docker compose --profile sonarqube up
+```
+
+Without the scanner the SonarQube analyzer logs a warning and falls back
+to Radon/Bandit, which is why a server that is up but has no scanner shows
+"No such file or directory: 'sonar-scanner'".
+
 Then open http://localhost:9000 (admin/admin on first login, change the
 password), generate a token under My Account -> Security, and set in
 `.env`:

@@ -575,6 +575,10 @@ export async function getExperimentProgress(runId: string): Promise<ExperimentPr
   return req<ExperimentProgress>(`/api/experiment-runs/${encodeURIComponent(runId)}/progress`);
 }
 
+export async function listActiveExperimentRuns(): Promise<{ runs: ExperimentProgress[] }> {
+  return req<{ runs: ExperimentProgress[] }>("/api/experiment-runs/active");
+}
+
 export async function datasetToPipeline(id: string, params: {
   sample_size?: number; seed?: number; model?: string; strategy?: string;
   oracle?: string; rounds?: number; tags?: string[];

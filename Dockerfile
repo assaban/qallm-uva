@@ -54,6 +54,27 @@ RUN apt-get purge -y build-essential \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
+# Optional: the SonarQube scanner CLI. Off by default to keep the image
+# lean (it pulls a JRE, ~200MB). Build with --build-arg WITH_SONAR_SCANNER=1
+# (the compose api service sets this) when you intend to use the optional
+# SonarQube analyzer. Without it, the SonarQube analyzer simply no-ops and
+# the pipeline runs on Radon/Bandit, as designed.
+ARG WITH_SONAR_SCANNER=0
+ARG SONAR_SCANNER_VERSION=5.0.1.3006
+USER root
+RUN if [ "$WITH_SONAR_SCANNER" = "1" ]; then \
+        apt-get update \
+        && apt-get install -y --no-install-recommends default-jre-headless unzip curl \
+        && curl -fsSL -o /tmp/scanner.zip \
+            "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux.zip" \
+        && unzip -q /tmp/scanner.zip -d /opt \
+        && ln -s "/opt/sonar-scanner-${SONAR_SCANNER_VERSION}-linux/bin/sonar-scanner" /usr/local/bin/sonar-scanner \
+        && rm /tmp/scanner.zip \
+        && apt-get purge -y unzip curl \
+        && apt-get autoremove -y \
+        && rm -rf /var/lib/apt/lists/* ; \
+    fi
+
 # Copy the built frontend into the location FastAPI will serve from.
 # Vite's outDir is configured as ../dist (i.e. web/dist), so the build
 # stage's output sits at /app/dist.

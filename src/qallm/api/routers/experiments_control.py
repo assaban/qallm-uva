@@ -240,6 +240,22 @@ async def launch_experiment(experiment_id: str, req: dict):
     return {"run_id": run_id, "job_id": job.job_id, "status": job.status.value}
 
 
+@router.get("/api/experiment-runs/active")
+async def active_experiment_runs():
+    """List runs currently tracked in this process, running first.
+
+    Lets the UI resume showing progress after the user navigates away and
+    back: the run keeps going server-side in a background job, but the
+    component lost its local state, so on mount it asks here which run (if
+    any) is still running and reattaches its progress polling.
+    """
+    with _progress_lock:
+        snaps = [p.to_dict() for p in _progress.values()]
+    # Running first, then most recently started.
+    snaps.sort(key=lambda s: (s["status"] != "running", -(s["started_at"] or 0)))
+    return {"runs": snaps}
+
+
 @router.get("/api/experiment-runs/{run_id}/progress")
 async def experiment_progress(run_id: str):
     """Live progress for a launched run.

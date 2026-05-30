@@ -215,6 +215,14 @@ function CatalogPanel({ onLaunched }: { onLaunched: () => void }) {
   useEffect(() => {
     let alive = true;
     api.listExperimentCatalog().then((r) => alive && setSpecs(r.experiments)).catch(() => {});
+    // Resume: a run launched earlier keeps going server-side. On mount, ask
+    // which run (if any) is still running and reattach its progress, so the
+    // user sees it after navigating away and back.
+    api.listActiveExperimentRuns().then((r) => {
+      if (!alive) return;
+      const running = r.runs.find((x) => x.status === "running");
+      if (running && running.run_id) setProgressRunId(running.run_id);
+    }).catch(() => {});
     return () => { alive = false; };
   }, []);
 
@@ -283,6 +291,25 @@ function CatalogPanel({ onLaunched }: { onLaunched: () => void }) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-slate-700">Available experiments</h3>
+      {/* Always-visible banner for an active run, so progress is shown even
+          when no experiment card is expanded (e.g. after navigating back
+          while a run continues in the background). */}
+      {progress && progress.tracked && progress.status === "running" && (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1.5 font-semibold text-indigo-800">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
+              Experiment running in the background · {progress.completed}/{progress.total}
+            </span>
+            <span className="text-indigo-600">
+              {progress.bug_detected} bugs · {progress.repair_successful} repaired{progress.errored ? ` · ${progress.errored} errored` : ""}
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-200">
+            <div className="h-full bg-indigo-500" style={{ width: `${progress.total ? (100 * (progress.completed || 0) / progress.total) : 0}%` }} />
+          </div>
+        </div>
+      )}
       {specs.map((spec) => {
         const open = openId === spec.id;
         return (

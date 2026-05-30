@@ -155,7 +155,23 @@ async def get_quality_profiles():
 
 @router.get("/api/analysis/tools")
 async def get_analysis_tools():
-    return {"tools": ["bandit", "radon", "ruff", "trufflehog"]}
+    """List the static analysers actually active in this deployment.
+
+    Derived from the AnalysisManager rather than hardcoded, so optional
+    analysers (SonarQube, included only when SONARQUBE_URL and
+    SONARQUBE_TOKEN are set) appear when they are active and not otherwise.
+    Ruff and TruffleHog are part of the analysis pipeline regardless, so
+    they are always listed.
+    """
+    from qallm.analysis.analysis_manager import AnalysisManager
+
+    manager = AnalysisManager()
+    tools = [a.tool_name() for a in manager.available_analyzers]
+    lower = {t.lower() for t in tools}
+    for always_on in ("ruff", "trufflehog"):
+        if always_on not in lower:
+            tools.append(always_on)
+    return {"tools": tools}
 
 
 @router.get("/api/session/{session_id}/config")
