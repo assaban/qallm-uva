@@ -62,19 +62,52 @@ async def get_stats(session_id: str):
     }
 
 
+def _extract_test_bodies(test_code: str | None) -> dict[str, str]:
+    """Map each test function name to its exact source body.
+
+    Parsing the generated test file with AST lets the UI show the precise
+    method body for every test, so a passing test is self-evident from its
+    body and a failing one can be read alongside its failure reason. Falls
+    back to an empty map if the code does not parse.
+    """
+    if not test_code:
+        return {}
+    import ast
+
+    bodies: dict[str, str] = {}
+    try:
+        tree = ast.parse(test_code)
+    except SyntaxError:
+        return {}
+    lines = test_code.splitlines()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if not node.name.startswith("test"):
+                continue
+            start = node.lineno - 1
+            end = getattr(node, "end_lineno", None)
+            if end is None:
+                continue
+            bodies[node.name] = "\n".join(lines[start:end])
+    return bodies
+
+
 def _summarise_bug_detail(verification: list | None) -> list[dict]:
     """Extract per-function, per-test bug detail from a round's verification.
 
     The web UI shows aggregate counts ("4 bugs") but not *which* generated
-    tests failed or why. This surfaces that: for each function verified in
-    the round, the final round's executed tests with their pytest status
-    (passed/failed/error/skipped) and the failure message. A failed test is
-    a bug the generated tests caught by execution, the thing static analysis
-    misses.
+    tests ran, their exact body, or why a failing one failed. This surfaces
+    all of that: for each function verified in the round, the final round's
+    executed tests with their pytest status (passed/failed/error/skipped),
+    the exact test body (extracted from the generated test file), and the
+    full failure reason. A failed test is a bug the generated tests caught
+    by execution, the thing static analysis misses; success is self-evident
+    from the presence of the test body.
 
     ``verification`` is the parsed verification.json: a list of session
     dicts (one per function), each with a ``rounds`` list whose last entry
-    holds the ``execution`` with ``test_details``.
+    holds the ``execution`` with ``test_details`` and a ``generated_test``
+    with the ``test_code``.
     """
     if not verification:
         return []
@@ -85,12 +118,16 @@ def _summarise_bug_detail(verification: list | None) -> list[dict]:
             continue
         last = rounds[-1]
         execution = last.get("execution") or {}
+        generated = last.get("generated_test") or {}
+        bodies = _extract_test_bodies(generated.get("test_code"))
         details = execution.get("test_details") or []
         tests = [
             {
                 "name": d.get("name", "?"),
                 "status": d.get("status", "?"),
                 "message": d.get("message"),
+                # The exact test method body; success is self-evident from it.
+                "body": bodies.get(d.get("name", ""), ""),
             }
             for d in details
         ]
@@ -103,6 +140,8 @@ def _summarise_bug_detail(verification: list | None) -> list[dict]:
             "total": execution.get("total", 0),
             "coverage_percent": execution.get("coverage_percent"),
             "execution_error": execution.get("execution_error"),
+            # The full generated test file, for reference / download.
+            "test_code": generated.get("test_code", ""),
             # The bugs: tests that ran and failed (not errored).
             "bug_tests": [t for t in tests if t["status"] == "failed"],
             "all_tests": tests,

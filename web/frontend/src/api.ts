@@ -358,6 +358,7 @@ export interface BugTest {
   name: string;
   status: "passed" | "failed" | "error" | "skipped";
   message: string | null;
+  body: string;
 }
 
 export interface FunctionBugDetail {
@@ -369,6 +370,7 @@ export interface FunctionBugDetail {
   total: number;
   coverage_percent: number | null;
   execution_error: string | null;
+  test_code: string;
   bug_tests: BugTest[];
   all_tests: BugTest[];
 }

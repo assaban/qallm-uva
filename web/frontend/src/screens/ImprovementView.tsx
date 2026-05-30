@@ -151,10 +151,23 @@ function BugDetailView({ functions }: { functions: import("../api").FunctionBugD
                         {t.status === "failed" ? "BUG" : t.status.toUpperCase()}
                       </span>
                     </div>
-                    {(isBug || isErr) && t.message && (
-                      <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-slate-900 px-2 py-1.5 font-mono text-[11px] leading-relaxed text-slate-100">
-                        {t.message}
+                    {/* The exact test body. For a passing test this is the
+                        self-evident proof of success; for a failing one it
+                        sits above the failure reason so both read together. */}
+                    {t.body && (
+                      <pre className="mt-1 max-h-56 overflow-auto whitespace-pre rounded bg-slate-50 px-2 py-1.5 font-mono text-[11px] leading-relaxed text-slate-700">
+                        {t.body}
                       </pre>
+                    )}
+                    {(isBug || isErr) && t.message && (
+                      <div className="mt-1">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-rose-500">
+                          {isBug ? "Why it failed" : "Error"}
+                        </div>
+                        <pre className="mt-0.5 max-h-56 overflow-auto whitespace-pre-wrap rounded bg-slate-900 px-2 py-1.5 font-mono text-[11px] leading-relaxed text-slate-100">
+                          {t.message}
+                        </pre>
+                      </div>
                     )}
                   </div>
                 );
