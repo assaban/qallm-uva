@@ -86,7 +86,59 @@ The markdown report is the artefact to cite. It includes:
 - A per-problem detail table.
 - An errored-runs section listing any problems that failed mid-run.
 
-## Reproducibility
+## Viewing results in the Web-UI
+
+Completed runs are browsable in the QALLM Web-UI under the **Experiments**
+tab (top of the page, next to **Pipeline**). No experiment is launched
+from the browser: runs take hours and download datasets, so they run from
+the CLI as above. The UI reads the artefacts each run wrote.
+
+### Data flow
+
+```
+  CLI                          disk (QALLM_RUNS_DIR)              Web-UI
+  ───                          ────────────────────              ──────
+  run_humaneval.py
+     │ runs QALLM per
+     │ (problem, strategy,
+     │  model) combination
+     ▼
+  humaneval_runner          runs/<run-id>/
+     │  writes  ───────────►   manifest.json     ┐
+     │                         results.jsonl     │  GET /api/experiments
+     │                         aggregates.json   ├─────────────────────►  ExperimentsView
+     │                         report.md         ┘  GET /api/experiments/{id}
+     │                                              GET .../{id}/results     run list
+     ▼                                              GET .../{id}/report       │
+  (resumable: appends                                                        ▼
+   one JSONL line per                                              per-run detail:
+   completed combination)                                          - aggregate cards
+                                                                    (bug-detection +
+                                                                     repair-success
+                                                                     per strategy/model)
+                                                                   - per-problem table
+                                                                   - markdown report
+```
+
+The `experiments` API router (`src/qallm/api/routers/experiments.py`)
+reads the run directory; it never writes. Point it at a different
+location with the `QALLM_RUNS_DIR` environment variable (default `runs`).
+In the Docker stack, mount your runs directory into the api container and
+set `QALLM_RUNS_DIR` to the mount path so past runs appear in the UI.
+
+### What the UI shows
+
+- **Run list**: every run directory, newest first, with its strategies,
+  models, round count, and result count.
+- **Aggregate cards**: one per (strategy, model), with bug-detection rate
+  and repair-success rate (and the underlying counts), plus mean rounds,
+  cost, and time per problem. Comparing the cards is the headline result:
+  the feedback (RL) strategy is expected to detect more bugs than one-shot
+  or property-based generation.
+- **Per-problem table**: each task with bug-detected / repaired flags,
+  rounds, coverage, and cost. Errored problems are highlighted.
+- **Markdown report**: the full `report.md`, including the Wilcoxon
+  pairwise tests, viewable inline.
 
 The experiment is deterministic *up to* LLM non-determinism. The seed controls only the sampling step (when `--sample-size` is set); the underlying QALLM pipeline uses the LLM at its configured temperature, which on OpenAI providers introduces server-side randomness even at `temperature=0`.
 

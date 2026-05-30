@@ -26,6 +26,32 @@ The integration targets a self-hosted SonarQube Server, which suits
 QALLM's access pattern (many short-lived, locally-analysed code variants
 per run) better than a CI/CD-oriented hosted service.
 
+### Option A: docker compose (recommended)
+
+QALLM's `docker-compose.yml` ships SonarQube as an optional profile, so
+the API and the SonarQube server come up together:
+
+```
+docker compose --profile sonarqube up
+```
+
+Then open http://localhost:9000 (admin/admin on first login, change the
+password), generate a token under My Account -> Security, and set in
+`.env`:
+
+```
+SONARQUBE_URL=http://sonarqube:9000
+SONARQUBE_TOKEN=<your token>
+```
+
+Because both services share the compose network, the API reaches the
+server at the `sonarqube` hostname. Restart the api service to pick up
+the new `.env` values.
+
+### Option B: standalone docker run
+
+If you are not using the compose stack:
+
 1. Start a server:
 
    ```

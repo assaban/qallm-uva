@@ -40,6 +40,20 @@ class Settings:
         os.getenv("SONARQUBE_TIMEOUT_SECONDS", "180")
     )
 
+    # Directory where HumanEvalFix experiment runs are written and read
+    # back for the Web-UI. Each subdirectory is one run (manifest.json,
+    # results.jsonl, aggregates.json, report.md). Defaults to ./runs.
+    QALLM_RUNS_DIR: str = os.getenv("QALLM_RUNS_DIR", "runs")
+
+    # Directory where per-session reports are written by the orchestrator's
+    # QualityReporter and read back for the Web-UI session library. Each
+    # subdirectory is one processed session (summary.json, report.md, the
+    # lineage/abandoned round artefacts). Must match the base_dir the
+    # orchestrator uses for its reporter.
+    QALLM_SESSIONS_DIR: str = os.getenv(
+        "QALLM_SESSIONS_DIR", "outputs/quality_reporter"
+    )
+
     # Budget caps. All are floors, not ceilings: code-level ceilings in
     # `qallm.cost` override these if they are too large. The intent is
     # that a typo in this file or an .env cannot blow the budget.
