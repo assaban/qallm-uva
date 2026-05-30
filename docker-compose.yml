@@ -2,6 +2,7 @@
 #
 # Default:                docker compose up           # API only
 # With local LLM:         docker compose --profile with-ollama up
+# With SonarQube:         docker compose --profile sonarqube up
 # Rebuild after changes:  docker compose up --build
 #
 # Configuration lives in .env. Copy .env.example to .env first and fill
@@ -51,6 +52,38 @@ services:
 #    volumes:
 #      - ollama-models:/root/.ollama
 #    restart: unless-stopped
-#
-#volumes:
+
+  # Optional SonarQube server for higher-fidelity static analysis. Skipped
+  # by default; activate with:
+  #     docker compose --profile sonarqube up
+  # Then open http://localhost:${SONARQUBE_PORT:-9000} (admin/admin on
+  # first login), generate a token, and set SONARQUBE_URL and
+  # SONARQUBE_TOKEN in .env so the api service picks SonarQube up. When
+  # both run in this stack, set SONARQUBE_URL=http://sonarqube:9000.
+  sonarqube:
+    image: sonarqube:community
+    container_name: qallm-sonarqube
+    profiles: ["sonarqube"]
+    ports:
+      - "${SONARQUBE_PORT:-9000}:9000"
+    environment:
+      # Embedded H2 database: fine for local/single-node evaluation use,
+      # which is QALLM's case. Not for production multi-node SonarQube.
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube-data:/opt/sonarqube/data
+      - sonarqube-extensions:/opt/sonarqube/extensions
+      - sonarqube-logs:/opt/sonarqube/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9000/api/system/status || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+volumes:
+  sonarqube-data:
+  sonarqube-extensions:
+  sonarqube-logs:
 #  ollama-models:
