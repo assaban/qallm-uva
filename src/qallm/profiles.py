@@ -30,19 +30,39 @@ from typing import Any
 
 
 class QualityDimension(str, Enum):
-    """The EVERSE quality dimensions QALLM measures automatically in v1.
+    """Quality dimensions QALLM can name in a profile.
 
-    The full EVERSE catalogue is broader (Usability, Performance,
-    Compatibility, etc.). These five are the ones QALLM has tooling for:
-    static metrics for Maintainability and Security, execution evidence
-    for Reliability, project-shape checks for Reproducibility and FAIRness.
+    The first block are the dimensions QALLM has tooling for in v1: static
+    metrics for Maintainability and Security, execution evidence for
+    Reliability and Functional Suitability, project-shape checks for
+    Reproducibility and FAIRness.
+
+    The second block are the remaining ISO/IEC 25010:2023 product-quality
+    characteristics. They are defined so a profile can declare the full
+    standard (with these as declared-but-skipped indicators) even though
+    QALLM does not yet measure them. Naming the relationship explicitly:
+    ISO/IEC 25010:2023 has nine characteristics; EVERSE is those nine plus
+    FAIRness and Sustainability, specialised for research software. So the
+    25010 base profile is a strict subset of the EVERSE dimension space.
     """
 
+    # Measured by QALLM in v1.
     MAINTAINABILITY = "Maintainability"
     SECURITY = "Security"
     RELIABILITY = "Reliability"
-    REPRODUCIBILITY = "Reproducibility"
-    FAIRNESS = "FAIRness"
+    FUNCTIONAL_SUITABILITY = "Functional Suitability"
+    REPRODUCIBILITY = "Reproducibility"   # EVERSE addition
+    FAIRNESS = "FAIRness"                  # EVERSE addition
+
+    # Remaining ISO/IEC 25010:2023 characteristics (declared, not yet
+    # measured). Interaction Capability and Flexibility are the 2023
+    # renames of Usability and Portability; Safety is new in 2023.
+    PERFORMANCE_EFFICIENCY = "Performance Efficiency"
+    COMPATIBILITY = "Compatibility"
+    INTERACTION_CAPABILITY = "Interaction Capability"
+    FLEXIBILITY = "Flexibility"
+    SAFETY = "Safety"
+    SUSTAINABILITY = "Sustainability"     # EVERSE addition
 
 
 class LifecycleStage(str, Enum):
@@ -439,9 +459,200 @@ FAIR4RS_PUBLICATION: QualityProfile = QualityProfile(
 )
 
 
+# ─── ISO/IEC 25010 base profile (general software) ──────────────────
+# The international-standard product-quality model, as a general-software
+# base profile. ISO/IEC 25010:2023 defines nine characteristics; this
+# profile declares all nine so it is faithful to the standard, but only
+# populates the ones QALLM can measure:
+#
+#   * Reliability, Security, Maintainability: measured via the existing
+#     Radon/Bandit evaluators (the offline fallback). When a SonarQube
+#     analyzer is configured, its higher-fidelity ratings can replace
+#     these (sonar.reliability_rating etc.) without changing the profile
+#     shape, the complement-with-fallback decision.
+#   * Functional Suitability: measured via QALLM's execution-based
+#     verification (pass rate + bugs). This is the characteristic SonarQube
+#     and other static tools cannot assess, and is QALLM's distinctive
+#     contribution to a 25010 evaluation: functional correctness shown by
+#     running the code, not by reading it.
+#   * Performance Efficiency, Compatibility, Interaction Capability,
+#     Flexibility, Safety: declared but not measured (qallm.not_measured ->
+#     SKIPPED). Honest about scope: in-model, not assessed in v1.
+#
+# Lifecycle stage IMPLEMENTATION: this is a code-quality view, like the
+# EVERSE implementation default, not a publication/FAIR view.
+ISO25010_BASE: QualityProfile = QualityProfile(
+    profile_id="iso25010_base",
+    lifecycle_stage=LifecycleStage.IMPLEMENTATION,
+    description=(
+        "ISO/IEC 25010:2023 product quality model as a general-software "
+        "base profile. Declares all nine characteristics for fidelity to "
+        "the standard. Reliability, Security and Maintainability are "
+        "measured with static metrics (replaceable by SonarQube ratings "
+        "when configured); Functional Suitability is measured by QALLM's "
+        "execution-based verification, the characteristic static tools "
+        "cannot assess; the remaining five are declared but not measured "
+        "in v1."
+    ),
+    dimensions=(
+        # ── Functional Suitability: QALLM's execution evidence ──
+        DimensionSpec(
+            dimension=QualityDimension.FUNCTIONAL_SUITABILITY,
+            repair_prompt_id="reliability_repair_v1",
+            indicators=(
+                QualityIndicator(
+                    name="test_pass_rate",
+                    evaluator="qallm.verification.pass_rate",
+                    threshold=0.9,
+                    comparator=Comparator.GE,
+                    description=(
+                        "Functional correctness shown by execution: fraction "
+                        "of generated tests passing. 25010 functional "
+                        "correctness, measured dynamically."
+                    ),
+                ),
+                QualityIndicator(
+                    name="bugs_found",
+                    evaluator="qallm.verification.bugs",
+                    threshold=0.0,
+                    comparator=Comparator.LE,
+                    description=(
+                        "Number of failing generated tests (bugs the code "
+                        "still exhibits under execution). Zero is the target."
+                    ),
+                ),
+            ),
+        ),
+        # ── Reliability (static proxy; SonarQube can replace) ──
+        DimensionSpec(
+            dimension=QualityDimension.RELIABILITY,
+            repair_prompt_id="reliability_repair_v1",
+            indicators=(
+                QualityIndicator(
+                    name="determinism",
+                    evaluator="qallm.repro.determinism",
+                    threshold=1.0,
+                    comparator=Comparator.GE,
+                    description="1 if repeated execution is deterministic.",
+                ),
+            ),
+        ),
+        # ── Security (Bandit; SonarQube can replace) ──
+        DimensionSpec(
+            dimension=QualityDimension.SECURITY,
+            repair_prompt_id="security_repair_v1",
+            indicators=(
+                QualityIndicator(
+                    name="high_severity_issues",
+                    evaluator="bandit.high",
+                    threshold=0.0,
+                    comparator=Comparator.LE,
+                    description="Count of high-severity Bandit findings.",
+                ),
+                QualityIndicator(
+                    name="cwe_class_coverage",
+                    evaluator="bandit.cwe_classes",
+                    threshold=0.0,
+                    comparator=Comparator.LE,
+                    description="Distinct CWE classes present in findings.",
+                ),
+            ),
+        ),
+        # ── Maintainability (Radon; SonarQube can replace) ──
+        DimensionSpec(
+            dimension=QualityDimension.MAINTAINABILITY,
+            repair_prompt_id="maintainability_repair_v1",
+            indicators=(
+                QualityIndicator(
+                    name="maintainability_index",
+                    evaluator="radon.mi",
+                    threshold=65.0,
+                    comparator=Comparator.GE,
+                    description="Radon maintainability index (0-100).",
+                ),
+                QualityIndicator(
+                    name="cyclomatic_complexity",
+                    evaluator="radon.cc",
+                    threshold=10.0,
+                    comparator=Comparator.LE,
+                    description="Average cyclomatic complexity per block.",
+                ),
+            ),
+        ),
+        # ── Declared but not measured in v1 (standard fidelity) ──
+        DimensionSpec(
+            dimension=QualityDimension.PERFORMANCE_EFFICIENCY,
+            repair_prompt_id="noop",
+            indicators=(
+                QualityIndicator(
+                    name="not_measured",
+                    evaluator="qallm.not_measured",
+                    threshold=0.0,
+                    comparator=Comparator.GE,
+                    description="Declared per ISO/IEC 25010; not assessed in v1.",
+                ),
+            ),
+        ),
+        DimensionSpec(
+            dimension=QualityDimension.COMPATIBILITY,
+            repair_prompt_id="noop",
+            indicators=(
+                QualityIndicator(
+                    name="not_measured",
+                    evaluator="qallm.not_measured",
+                    threshold=0.0,
+                    comparator=Comparator.GE,
+                    description="Declared per ISO/IEC 25010; not assessed in v1.",
+                ),
+            ),
+        ),
+        DimensionSpec(
+            dimension=QualityDimension.INTERACTION_CAPABILITY,
+            repair_prompt_id="noop",
+            indicators=(
+                QualityIndicator(
+                    name="not_measured",
+                    evaluator="qallm.not_measured",
+                    threshold=0.0,
+                    comparator=Comparator.GE,
+                    description="Declared per ISO/IEC 25010 (was Usability); not assessed in v1.",
+                ),
+            ),
+        ),
+        DimensionSpec(
+            dimension=QualityDimension.FLEXIBILITY,
+            repair_prompt_id="noop",
+            indicators=(
+                QualityIndicator(
+                    name="not_measured",
+                    evaluator="qallm.not_measured",
+                    threshold=0.0,
+                    comparator=Comparator.GE,
+                    description="Declared per ISO/IEC 25010 (was Portability); not assessed in v1.",
+                ),
+            ),
+        ),
+        DimensionSpec(
+            dimension=QualityDimension.SAFETY,
+            repair_prompt_id="noop",
+            indicators=(
+                QualityIndicator(
+                    name="not_measured",
+                    evaluator="qallm.not_measured",
+                    threshold=0.0,
+                    comparator=Comparator.GE,
+                    description="Declared per ISO/IEC 25010:2023 (new in 2023); not assessed in v1.",
+                ),
+            ),
+        ),
+    ),
+)
+
+
 _BUILT_IN: dict[str, QualityProfile] = {
     IMPLEMENTATION_DEFAULT.profile_id: IMPLEMENTATION_DEFAULT,
     FAIR4RS_PUBLICATION.profile_id: FAIR4RS_PUBLICATION,
+    ISO25010_BASE.profile_id: ISO25010_BASE,
 }
 
 
@@ -481,6 +692,7 @@ __all__ = [
     "Comparator",
     "DimensionSpec",
     "FAIR4RS_PUBLICATION",
+    "ISO25010_BASE",
     "IMPLEMENTATION_DEFAULT",
     "LifecycleStage",
     "QualityDimension",

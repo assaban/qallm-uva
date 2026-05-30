@@ -12,6 +12,7 @@ from qallm.common.model import CodeUnit
 # Tool Imports
 from qallm.analysis.bandit_analyzer import BanditAnalyzer
 from qallm.analysis.radon_analyzer import RadonAnalyzer
+from qallm.analysis.sonarqube_analyzer import SonarQubeAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,13 @@ class AnalysisManager:
             BanditAnalyzer(),
             RadonAnalyzer()
         ]
+        # SonarQube is optional: include it only when configured, so the
+        # default offline pipeline stays on Radon/Bandit. When a SonarQube
+        # server is configured it complements (not replaces) them, adding
+        # higher-fidelity ISO/IEC 25010-aligned ratings.
+        if SonarQubeAnalyzer.is_configured():
+            self.available_analyzers.append(SonarQubeAnalyzer())
+            logger.info("SonarQube analyzer enabled (server configured).")
         self.selected_tool_names = selected_tools
         logger.info(f"Initialization completed. Selected tools: {self.selected_tool_names}")
 

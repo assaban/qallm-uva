@@ -402,11 +402,58 @@ def _verification_bugs(source: str, context: dict[str, Any]) -> float | None:
     return float(sum(s.final_bugs for s in sessions))
 
 
+def _sonar_measure(context: dict[str, Any], key: str) -> float | None:
+    """Read one SonarQube measure from context, or None if unavailable.
+
+    The orchestrator places the analysed unit's SonarQube measures (parsed
+    from the analyzer's RawToolResult) under ``context["sonar_measures"]``
+    when a SonarQube server is configured. When it is not, the key is
+    absent and these evaluators skip, so the iso25010_base profile falls
+    back to its Radon/Bandit indicators (the complement-with-fallback
+    decision). SonarQube ratings are 1.0=A (best) .. 5.0=E (worst).
+    """
+    measures = context.get("sonar_measures")
+    if not measures or key not in measures:
+        return None
+    try:
+        return float(measures[key])
+    except (TypeError, ValueError):
+        return None
+
+
+def _sonar_reliability_rating(source: str, context: dict[str, Any]) -> float | None:
+    return _sonar_measure(context, "reliability_rating")
+
+
+def _sonar_security_rating(source: str, context: dict[str, Any]) -> float | None:
+    return _sonar_measure(context, "security_rating")
+
+
+def _sonar_maintainability_rating(source: str, context: dict[str, Any]) -> float | None:
+    # SonarQube exposes the maintainability rating under sqale_rating.
+    return _sonar_measure(context, "sqale_rating")
+
+
+def _not_measured(source: str, context: dict[str, Any]) -> float | None:
+    """Always declines, marking the indicator SKIPPED.
+
+    Used for quality characteristics a profile declares to stay faithful
+    to a standard (e.g. the ISO/IEC 25010 characteristics QALLM does not
+    yet measure) without claiming a measurement it cannot make. SKIPPED is
+    the honest state: in-model, not assessed.
+    """
+    return None
+
+
 def _register_builtins() -> None:
     register("radon.mi", _radon_mi)
     register("radon.cc", _radon_cc)
     register("bandit.high", _bandit_high)
     register("bandit.cwe_classes", _bandit_cwe_classes)
+    register("qallm.not_measured", _not_measured)
+    register("sonar.reliability_rating", _sonar_reliability_rating)
+    register("sonar.security_rating", _sonar_security_rating)
+    register("sonar.maintainability_rating", _sonar_maintainability_rating)
     register("qallm.repro.manifest", _repro_manifest)
     register("qallm.repro.determinism", _repro_determinism)
     register("qallm.verification.pass_rate", _verification_pass_rate)
