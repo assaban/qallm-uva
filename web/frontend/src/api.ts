@@ -28,6 +28,8 @@ export interface SessionConfig {
   model_name: string;
   oracle: string;
   rounds: number;
+  // Optional custom tags for grouping/retrieving the session later.
+  tags?: string;
   // Optional advanced settings (NEW-08). Undefined values fall back to
   // server defaults; the upload endpoint only forwards what's present.
   repair_model?: string;
@@ -61,6 +63,7 @@ export async function uploadFiles(files: FileList, config: SessionConfig) {
   if (config.max_seconds !== undefined) form.append("max_seconds", String(config.max_seconds));
   if (config.max_round_seconds !== undefined) form.append("max_round_seconds", String(config.max_round_seconds));
   if (config.max_cost_usd !== undefined) form.append("max_cost_usd", String(config.max_cost_usd));
+  if (config.tags) form.append("tags", config.tags);
 
   return req<{ session_id: string; files: string[]; config?: Record<string, unknown> }>("/api/session/upload", {
     method: "POST",
@@ -493,6 +496,7 @@ export async function getExperimentReport(id: string): Promise<{ id: string; mar
 export interface SessionCard {
   id: string;
   source: string | null;
+  tags: string[];
   strategy: string | null;
   model: string | null;
   profile_id: string | null;
@@ -508,8 +512,9 @@ export interface SessionCard {
   has_report: boolean;
 }
 
-export async function listLibrarySessions(): Promise<{ sessions_dir: string; sessions: SessionCard[] }> {
-  return req<{ sessions_dir: string; sessions: SessionCard[] }>("/api/library");
+export async function listLibrarySessions(tag?: string): Promise<{ sessions_dir: string; sessions: SessionCard[]; all_tags: string[] }> {
+  const q = tag ? `?tag=${encodeURIComponent(tag)}` : "";
+  return req<{ sessions_dir: string; sessions: SessionCard[]; all_tags: string[] }>(`/api/library${q}`);
 }
 
 export async function getLibrarySession(id: string): Promise<{

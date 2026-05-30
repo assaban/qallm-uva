@@ -69,6 +69,7 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
     oracle: "crash",
     rounds: 5,
     model_name: "",
+    tags: "",
   });
 
   // Advanced config (under expandable panel, all optional).
@@ -250,6 +251,19 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
             <input type="number" min={1} max={20} value={config.rounds} onChange={e => setConfig({ ...config, rounds: Number(e.target.value) })} className="w-full rounded-xl border p-2.5 text-sm" />
           </div>
         )}
+
+        {/* Tags: optional, comma-separated, for grouping/retrieving sessions. */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-500 uppercase">Tags (optional)</label>
+          <input
+            type="text"
+            value={config.tags}
+            onChange={e => setConfig({ ...config, tags: e.target.value })}
+            placeholder="e.g. thesis, baseline, run-3"
+            className="w-full rounded-xl border p-2.5 text-sm"
+          />
+          <p className="text-xs text-slate-400">Comma-separated. Use these to group and filter sessions in the library.</p>
+        </div>
 
         {/* Advanced settings, collapsible */}
         <div className="border-t pt-4">

@@ -52,6 +52,9 @@ async def upload_session(
     max_seconds: Optional[float] = Form(None),
     max_round_seconds: Optional[float] = Form(None),
     max_cost_usd: Optional[float] = Form(None),
+    # Optional custom tags/names for grouping and retrieving sessions,
+    # supplied as a comma-separated string (e.g. "thesis,baseline,run-3").
+    tags: str = Form(""),
 ):
     """Upload files, create session, initialise orchestrator.
 
@@ -112,6 +115,7 @@ async def upload_session(
         # A short timestamp prefix is included for human readability when
         # browsing the outputs/ directory.
         run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{session_id[:8]}"
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
         orchestrator = QALLMOrchestrator(
             stage=stage,
             strategy=strategy,
@@ -128,6 +132,7 @@ async def upload_session(
             testgen_llm_type=testgen_llm_type,
             testgen_model_name=testgen_model_name,
             run_id=run_id,
+            tags=tag_list,
         )
         units = orchestrator.ingestion_manager.collect(target)
 
@@ -187,6 +192,7 @@ async def ingest_source(req: dict):
             model_name=model_name,
             oracle=req.get("oracle", "crash"),
             rounds=req.get("rounds", 5),
+            tags=req.get("tags") or [],
         )
         units = orchestrator.ingestion_manager.collect(source_path)
 

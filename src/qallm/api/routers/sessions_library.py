@@ -54,6 +54,7 @@ def _summarise(session_id: str, summary: dict) -> dict:
     return {
         "id": session_id,
         "source": summary.get("source"),
+        "tags": summary.get("tags") or [],
         "strategy": summary.get("strategy"),
         "model": summary.get("model"),
         "profile_id": profile.get("profile_id"),
@@ -70,17 +71,20 @@ def _summarise(session_id: str, summary: dict) -> dict:
 
 
 @router.get("/api/library")
-async def list_sessions():
+async def list_sessions(tag: str | None = None):
     """List every processed session with a compact summary card.
 
+    Optionally filter to sessions carrying a given ``tag``. Also returns
+    the set of all tags in use, so the UI can offer them as filter chips.
     Empty list when the sessions directory does not exist, so the UI shows
     an empty state rather than an error.
     """
     base = _sessions_dir()
     if not os.path.isdir(base):
-        return {"sessions_dir": base, "sessions": []}
+        return {"sessions_dir": base, "sessions": [], "all_tags": []}
 
     sessions = []
+    all_tags: set[str] = set()
     for name in sorted(os.listdir(base), reverse=True):
         path = os.path.join(base, name)
         if not os.path.isdir(path) or not _is_session_dir(path):
@@ -88,8 +92,14 @@ async def list_sessions():
         summary = _read_json(os.path.join(path, "summary.json")) or {}
         card = _summarise(name, summary)
         card["has_report"] = os.path.isfile(os.path.join(path, "report.md"))
+        all_tags.update(card.get("tags") or [])
+        # Apply the tag filter after collecting all_tags, so the filter
+        # chips always reflect the full corpus, not the filtered view.
+        if tag and tag not in (card.get("tags") or []):
+            continue
         sessions.append(card)
-    return {"sessions_dir": base, "sessions": sessions}
+    return {"sessions_dir": base, "sessions": sessions,
+            "all_tags": sorted(all_tags)}
 
 
 def _session_path_or_404(session_id: str) -> str:
