@@ -14,6 +14,9 @@ import {
 } from "lucide-react";
 import * as api from "../api";
 import type { SessionCard } from "../api";
+import type { UnitTrackView } from "../types";
+import { LineageReport } from "./LineageReport";
+import ImprovementView from "./ImprovementView";
 
 function basename(path: string | null): string {
   if (!path) return "(unknown source)";
@@ -144,6 +147,13 @@ function SessionDetail({ id, onBack }: { id: string; onBack: () => void }) {
               </pre>
             )}
           </div>
+
+          {/* The same "Report lineage and verdict" view as the pipeline's
+              final report, reconstructed from this session's summary.json
+              tracks plus the on-disk improvement artefacts. */}
+          <LineageReport tracks={(summary.tracks as Record<string, UnitTrackView>) || {}} />
+
+          <ImprovementView sessionId={id} />
         </>
       )}
     </div>
