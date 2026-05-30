@@ -31,6 +31,7 @@ from qallm.api.routers import (
     repair,
     results,
     sessions as sessions_router,
+    sessions_library,
     verification,
 )
 
@@ -57,6 +58,7 @@ app.include_router(repair.router)
 app.include_router(verification.router)
 app.include_router(results.router)
 app.include_router(experiments.router)
+app.include_router(sessions_library.router)
 
 
 # ─── Favicon ────────────────────────────────────────────────────────

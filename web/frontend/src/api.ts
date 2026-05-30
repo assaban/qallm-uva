@@ -486,3 +486,38 @@ export async function getExperimentResults(id: string): Promise<{ id: string; re
 export async function getExperimentReport(id: string): Promise<{ id: string; markdown: string }> {
   return req(`/api/experiments/${encodeURIComponent(id)}/report`);
 }
+
+// ─── Session library (past processed sessions) ───
+export interface SessionCard {
+  id: string;
+  source: string | null;
+  strategy: string | null;
+  model: string | null;
+  profile_id: string | null;
+  lifecycle_stage: string | null;
+  oracle: string | null;
+  rounds_per_function: number | null;
+  units_analyzed: number | null;
+  functions_verified: number | null;
+  rounds_accepted_total: number | null;
+  rounds_abandoned_total: number | null;
+  total_cost_usd: number | null;
+  halt_reason: string | null;
+  has_report: boolean;
+}
+
+export async function listLibrarySessions(): Promise<{ sessions_dir: string; sessions: SessionCard[] }> {
+  return req<{ sessions_dir: string; sessions: SessionCard[] }>("/api/library");
+}
+
+export async function getLibrarySession(id: string): Promise<{
+  id: string;
+  summary: Record<string, unknown>;
+  has_report: boolean;
+}> {
+  return req(`/api/library/${encodeURIComponent(id)}`);
+}
+
+export async function getLibrarySessionReport(id: string): Promise<{ id: string; markdown: string }> {
+  return req(`/api/library/${encodeURIComponent(id)}/report`);
+}
