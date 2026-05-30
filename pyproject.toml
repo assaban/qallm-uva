@@ -33,6 +33,12 @@ dependencies = [
 experiments = [
     "datasets>=2.18.0",
 ]
+# Install with: pip install -e ".[jupyter]"
+# Needed only for the %%qallm notebook magic (qallm.jupyter). Most notebook
+# environments already provide ipython; this pins it for a clean install.
+jupyter = [
+    "ipython>=8.0",
+]
 
 [project.scripts]
 qallm = "qallm.run_qallm:main"
