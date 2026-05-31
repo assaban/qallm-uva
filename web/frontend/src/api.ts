@@ -389,6 +389,7 @@ export interface FunctionBugDetail {
   errors: number;
   skipped: number;
   total: number;
+  discarded?: string[];
   coverage_percent: number | null;
   execution_error: string | null;
   test_code: string;
@@ -421,6 +422,44 @@ export interface ImprovementResponse {
 
 export async function getImprovement(sid: string): Promise<ImprovementResponse> {
   return req<ImprovementResponse>(`/api/session/${sid}/improvement`);
+}
+
+// ─── Static-vs-execution gap ───
+export type FindingStatus = "confirmed" | "unconfirmed" | "untested";
+
+export interface GapFinding {
+  tool: string;
+  severity: string;
+  line: number;
+  message: string;
+  rule_id: string;
+  function: string | null;
+  status: FindingStatus;
+}
+
+export interface GapRoundSummary {
+  confirmed: number;
+  unconfirmed: number;
+  untested: number;
+  execution_only: number;
+  confirmation_rate: number | null;
+}
+
+export interface GapRound {
+  round: number;
+  findings: GapFinding[];
+  execution_only_functions: string[];
+  summary: GapRoundSummary;
+}
+
+export interface GapResponse {
+  available: boolean;
+  rounds: GapRound[];
+  reason?: string;
+}
+
+export async function getGap(sid: string): Promise<GapResponse> {
+  return req<GapResponse>(`/api/session/${sid}/gap`);
 }
 
 // ─── Quality model profiles (selector) ───

@@ -17,6 +17,7 @@ from qallm.api.core import (
     get_state,
     sessions,
 )
+from qallm.analysis.gap_analysis import GapReport, build_gap_report
 from qallm.config import settings
 from qallm.orchestrator import QALLMOrchestrator
 
@@ -149,6 +150,9 @@ def _summarise_bug_detail(verification: list | None) -> list[dict]:
             "errors": execution.get("errors", 0),
             "skipped": execution.get("skipped", 0),
             "total": execution.get("total", 0),
+            # Tests dropped pre-execution for requesting undefined fixtures
+            # (would have errored in setup); surfaced so the count is visible.
+            "discarded": list(generated.get("discarded_tests") or []),
             "coverage_percent": execution.get("coverage_percent"),
             "execution_error": execution.get("execution_error"),
             # The full generated test file, for reference / download.
@@ -254,6 +258,78 @@ async def download_tests(session_id: str):
                     "content": gen["test_code"],
                 })
     return {"files": files}
+
+
+@router.get("/api/session/{session_id}/gap")
+async def get_gap(session_id: str):
+    """Static-vs-execution gap per round: which static findings execution
+    confirmed, which it could not reproduce, and which execution-found bugs
+    no static tool flagged (the verification gap).
+
+    Reads each round's persisted source.py, static.json, and
+    verification.json, so it works for live and historical sessions alike.
+    """
+    state = sessions.get(session_id) or {}
+    report_dir = state.get("report_dir")
+    if not report_dir or not os.path.isdir(report_dir):
+        candidate = os.path.join(settings.QALLM_SESSIONS_DIR, session_id)
+        if os.path.isdir(candidate):
+            report_dir = candidate
+    if not report_dir or not os.path.isdir(report_dir):
+        return {"available": False, "rounds": [],
+                "reason": "No run artefacts yet. Run the pipeline first."}
+
+    def _read_json(path: str):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                return json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def _read_text(path: str) -> str:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                return fh.read()
+        except OSError:
+            return ""
+
+    # Each round's artefacts live under lineage/round_N/<unit>/ (accepted)
+    # or abandoned/round_N/<unit>/. We classify findings per unit and merge
+    # per round. static.json + source.py + verification.json sit together.
+    reports: dict[int, GapReport] = {}
+    for bucket in ("lineage", "abandoned"):
+        bucket_dir = os.path.join(report_dir, bucket)
+        if not os.path.isdir(bucket_dir):
+            continue
+        for round_name in sorted(os.listdir(bucket_dir)):
+            round_path = os.path.join(bucket_dir, round_name)
+            if not os.path.isdir(round_path):
+                continue
+            try:
+                round_no = int(round_name.replace("round_", ""))
+            except ValueError:
+                continue
+            for unit_seg in sorted(os.listdir(round_path)):
+                unit_dir = os.path.join(round_path, unit_seg)
+                if not os.path.isdir(unit_dir):
+                    continue
+                source = _read_text(os.path.join(unit_dir, "source.py"))
+                findings = _read_json(os.path.join(unit_dir, "static.json")) or []
+                verification = _read_json(os.path.join(unit_dir, "verification.json"))
+                if not source and not findings:
+                    continue
+                unit_report = build_gap_report(round_no, source, findings, verification)
+                merged = reports.setdefault(round_no, GapReport(round=round_no))
+                merged.findings.extend(unit_report.findings)
+                merged.execution_only_functions.extend(
+                    unit_report.execution_only_functions
+                )
+
+    for rep in reports.values():
+        rep.execution_only_functions = sorted(set(rep.execution_only_functions))
+
+    ordered = [reports[k].to_dict() for k in sorted(reports)]
+    return {"available": True, "rounds": ordered}
 
 
 @router.get("/api/health")

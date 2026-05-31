@@ -45,6 +45,7 @@ interface RoundTestSummary {
     passed: number;
     bugs: number;
     errors: number;
+    discarded: number;
   }[];
 }
 
@@ -195,6 +196,7 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
                 passed: fn.passed,
                 bugs: fn.failed,
                 errors: fn.errors,
+                discarded: (fn.discarded || []).length,
               });
             }
           }
@@ -401,6 +403,7 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
                             <span className="flex items-center gap-0.5 text-emerald-600"><CheckCircle2 className="h-3 w-3" />{fn.passed}</span>
                             <span className="flex items-center gap-0.5 text-rose-600"><XCircle className="h-3 w-3" />{fn.bugs}</span>
                             {fn.errors > 0 && <span className="flex items-center gap-0.5 text-amber-600"><AlertCircle className="h-3 w-3" />{fn.errors}</span>}
+                            {fn.discarded > 0 && <span className="flex items-center gap-0.5 text-slate-400" title="Tests dropped before running: requested undefined fixtures">⊘{fn.discarded}</span>}
                             <span className="text-slate-400">/ {fn.total}</span>
                           </span>
                         </div>
