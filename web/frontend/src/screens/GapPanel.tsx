@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { ShieldCheck, ShieldAlert, ShieldQuestion, Zap, Microscope, Loader2 } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldQuestion, Zap, Microscope, Loader2, BadgeCheck } from "lucide-react";
 import * as api from "../api";
-import type { GapRound, FindingStatus, FindingVerdictRow, FindingVerdict } from "../api";
+import type { GapRound, FindingStatus, FindingVerdictRow, FindingVerdict, FixResultRow, FixVerdict } from "../api";
 
 // The static-vs-execution gap, per round: how many static findings
 // execution confirmed, could not reproduce, or could not test, and the
@@ -32,6 +32,31 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
       })
       .catch(() => setConfirmError("Confirm/refute failed."))
       .finally(() => setConfirming(false));
+  };
+
+  // Verified-fix loop: re-run confirmed findings' reproducing tests against
+  // the repaired code to prove the defect is gone. Pure execution, no LLM.
+  const [verifying, setVerifying] = useState(false);
+  const [fixResults, setFixResults] = useState<FixResultRow[] | null>(null);
+  const [fixSummary, setFixSummary] = useState<api.VerifyFixesResponse["summary"] | null>(null);
+  const [fixError, setFixError] = useState<string | null>(null);
+
+  const confirmedFindings = (verdicts ?? []).filter(v => v.verdict === "confirmed");
+
+  const runVerifyFixes = () => {
+    setVerifying(true);
+    setFixError(null);
+    api.verifyFixes(sessionId, confirmedFindings)
+      .then(res => {
+        if (res.available) {
+          setFixResults(res.results);
+          setFixSummary(res.summary ?? null);
+        } else {
+          setFixError(res.reason ?? "Not available.");
+        }
+      })
+      .catch(() => setFixError("Verify-fixes failed."))
+      .finally(() => setVerifying(false));
   };
 
   useEffect(() => {
@@ -110,9 +135,81 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
             {verdicts.map((v, i) => <VerdictCard key={i} v={v} />)}
           </div>
         )}
+
+        {/* Verified-fix loop: once findings are confirmed, prove the repair
+            actually fixed them by re-running the reproducing tests against
+            the repaired code. */}
+        {confirmedFindings.length > 0 && (
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <BadgeCheck className="h-4 w-4 text-emerald-600" /> Prove the fixes
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Re-runs each confirmed finding's reproducing test against the repaired code. A fix is verified when the test that demonstrated the defect now shows it is gone. Pure execution, no model calls.
+                </p>
+              </div>
+              <button
+                onClick={runVerifyFixes}
+                disabled={verifying}
+                className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 disabled:opacity-50"
+              >
+                {verifying ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying...</> : <>Verify fixes ({confirmedFindings.length})</>}
+              </button>
+            </div>
+
+            {fixError && <div className="mt-3 text-xs text-rose-600">{fixError}</div>}
+
+            {fixSummary && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                <Stat icon={<BadgeCheck className="h-3.5 w-3.5" />} label="verified fixed" value={fixSummary.verified_fixed} tone="emerald" />
+                <Stat icon={<ShieldAlert className="h-3.5 w-3.5" />} label="not fixed" value={fixSummary.not_fixed} tone="amber" />
+                <Stat icon={<ShieldAlert className="h-3.5 w-3.5" />} label="inconclusive" value={fixSummary.inconclusive} tone="slate" />
+                {fixSummary.verified_fix_rate !== null && (
+                  <span className="text-slate-500">verified-fix rate: <span className="font-semibold text-slate-700">{(fixSummary.verified_fix_rate * 100).toFixed(0)}%</span></span>
+                )}
+              </div>
+            )}
+
+            {fixResults && fixResults.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {fixResults.map((r, i) => <FixCard key={i} r={r} />)}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+function FixCard({ r }: { r: FixResultRow }) {
+  return (
+    <div className="rounded-lg border border-slate-100 p-3 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <FixBadge verdict={r.fix_verdict} />
+        <span className="text-slate-600">{r.tool}</span>
+        <span className="text-slate-400">·</span>
+        <span className="text-slate-500">{r.type}</span>
+        <span className="text-slate-400">·</span>
+        <span className="font-mono text-slate-500">L{r.line}</span>
+        {r.function && <><span className="text-slate-400">·</span><span className="font-mono text-slate-700">{r.function}</span></>}
+      </div>
+      <div className="mt-1 text-slate-600">{r.message}</div>
+      <div className="mt-1 italic text-slate-500">{r.reason}</div>
+    </div>
+  );
+}
+
+function FixBadge({ verdict }: { verdict: FixVerdict }) {
+  const map: Record<FixVerdict, { label: string; cls: string }> = {
+    verified_fixed: { label: "verified fixed", cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+    not_fixed: { label: "not fixed", cls: "text-amber-700 bg-amber-50 border-amber-200" },
+    inconclusive: { label: "inconclusive", cls: "text-slate-600 bg-slate-50 border-slate-200" },
+  };
+  const m = map[verdict];
+  return <span className={`rounded border px-1.5 py-0.5 font-medium ${m.cls}`}>{m.label}</span>;
 }
 
 function VerdictCard({ v }: { v: FindingVerdictRow }) {

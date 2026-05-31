@@ -98,6 +98,84 @@ async def confirm_findings(session_id: str):
     }
 
 
+@router.post("/api/session/{session_id}/verify-fixes")
+async def verify_fixes_endpoint(session_id: str, req: dict):
+    """Prove that confirmed findings are fixed by the repair, via execution.
+
+    Takes the confirmed findings (verdict dicts carrying a reproducing_test,
+    as returned by /confirm-findings), re-runs each one's reproducing test
+    against the repaired source for its file, and reports whether the defect
+    is provably gone (verified_fixed), still present (not_fixed), or could
+    not be re-tested (inconclusive).
+
+    The confirmed findings are passed in from the client (which already has
+    them from the confirm step) so no LLM calls are repeated; this endpoint
+    is pure execution.
+    """
+    from qallm.verification.verified_fix import verify_fixes
+
+    state = get_state(session_id)
+    repaired_units = state.get("repaired_units", {})
+    if not repaired_units:
+        return {"available": False, "results": [],
+                "reason": "No repaired code yet. Run repair first."}
+
+    findings = req.get("findings") or []
+    if not findings:
+        return {"available": False, "results": [],
+                "reason": "No confirmed findings provided to verify."}
+
+    # Group the confirmed findings by file so each is re-run against the
+    # repaired source for its own unit.
+    by_file: dict[str, list[dict]] = {}
+    for f in findings:
+        by_file.setdefault(f.get("file") or "", []).append(f)
+
+    all_results: list[dict] = []
+    verified_fixed = not_fixed = inconclusive = 0
+    for name, file_findings in by_file.items():
+        repaired = repaired_units.get(name)
+        if not repaired:
+            # No repair for this file: its findings cannot be verified fixed.
+            for f in file_findings:
+                all_results.append({
+                    **{k: f.get(k) for k in (
+                        "finding_index", "tool", "type", "severity", "line",
+                        "message", "rule_id", "function")},
+                    "file": name,
+                    "fix_verdict": "inconclusive",
+                    "reason": "No repaired version of this file to test against.",
+                })
+                inconclusive += 1
+            continue
+        repaired_unit = repaired.repaired_code_unit
+        report = verify_fixes(
+            confirmed_findings=file_findings,
+            repaired_source=repaired_unit.source_code,
+            source_filename=name,
+            source_origin=repaired_unit.original_path,
+        )
+        verified_fixed += report.verified_fixed
+        not_fixed += report.not_fixed
+        inconclusive += report.inconclusive
+        for r in report.results:
+            d = r.to_dict()
+            d["file"] = name
+            all_results.append(d)
+
+    denom = verified_fixed + not_fixed
+    return {
+        "available": True,
+        "results": all_results,
+        "summary": {
+            "verified_fixed": verified_fixed,
+            "not_fixed": not_fixed,
+            "inconclusive": inconclusive,
+            "verified_fix_rate": (verified_fixed / denom) if denom else None,
+        },
+    }
+
+
 @router.post("/api/analyse")
 async def run_analysis(req: dict):
     """Run static analysis on the session's code units.

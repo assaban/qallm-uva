@@ -500,6 +500,46 @@ export async function confirmFindings(sid: string): Promise<ConfirmFindingsRespo
   });
 }
 
+// ─── Verified-fix loop ───
+export type FixVerdict = "verified_fixed" | "not_fixed" | "inconclusive";
+
+export interface FixResultRow {
+  finding_index: number;
+  file?: string;
+  tool: string;
+  type: string;
+  severity: string;
+  line: number;
+  message: string;
+  rule_id: string;
+  function: string | null;
+  fix_verdict: FixVerdict;
+  reason: string;
+}
+
+export interface VerifyFixesResponse {
+  available: boolean;
+  results: FixResultRow[];
+  reason?: string;
+  summary?: {
+    verified_fixed: number;
+    not_fixed: number;
+    inconclusive: number;
+    verified_fix_rate: number | null;
+  };
+}
+
+export async function verifyFixes(
+  sid: string,
+  findings: FindingVerdictRow[],
+): Promise<VerifyFixesResponse> {
+  return req<VerifyFixesResponse>(`/api/session/${sid}/verify-fixes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ findings }),
+  });
+}
+
 // ─── Quality model profiles (selector) ───
 export interface QualityProfileInfo {
   id: string;
