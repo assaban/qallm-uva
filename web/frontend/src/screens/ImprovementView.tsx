@@ -265,7 +265,7 @@ export default function ImprovementView({ sessionId }: { sessionId: string }) {
   const [rounds, setRounds] = useState<ImprovementRound[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [openRound, setOpenRound] = useState<number | null>(null);
+  const [openRounds, setOpenRounds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     let alive = true;
@@ -276,9 +276,11 @@ export default function ImprovementView({ sessionId }: { sessionId: string }) {
         if (!res.available) { setError(res.reason || "No data yet."); setRounds([]); }
         else {
           setRounds(res.rounds);
-          // Open the first repair round by default (skip baseline).
+          // Open the first repair round by default (skip baseline). Other
+          // rounds can be opened independently and stay open.
           const firstRepair = res.rounds.find(r => r.round > 0);
-          setOpenRound(firstRepair ? firstRepair.round : (res.rounds[0]?.round ?? null));
+          const initial = firstRepair ? firstRepair.round : res.rounds[0]?.round;
+          setOpenRounds(initial !== undefined ? new Set([initial]) : new Set());
         }
       })
       .catch((e) => alive && setError(e.message))
@@ -292,19 +294,40 @@ export default function ImprovementView({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="space-y-3">
-      <div>
-        <h2 className="text-xl font-semibold text-slate-800">Improvement audit</h2>
-        <p className="mt-1 text-sm text-slate-500">Per round and per method: the bugs found by generated tests (discovered by execution, not static analysis), which quality indicators moved, the accept/abandon verdict, and the exact prompts sent to the model.</p>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-800">Improvement audit</h2>
+          <p className="mt-1 text-sm text-slate-500">Per round and per method: the bugs found by generated tests (discovered by execution, not static analysis), which quality indicators moved, the accept/abandon verdict, and the exact prompts sent to the model.</p>
+        </div>
+        <div className="flex shrink-0 gap-2 text-xs">
+          <button
+            onClick={() => setOpenRounds(new Set(rounds.map(r => r.round)))}
+            className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Expand all
+          </button>
+          <button
+            onClick={() => setOpenRounds(new Set())}
+            className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Collapse all
+          </button>
+        </div>
       </div>
       {rounds.map((r) => {
-        const isOpen = openRound === r.round;
+        const isOpen = openRounds.has(r.round);
         const isBaseline = r.round === 0;
         const accepted = r.units.filter(u => u.accepted).length;
         const abandoned = r.units.filter(u => !u.accepted && !u.is_baseline).length;
         return (
           <div key={r.round} className="rounded-2xl border border-slate-200 bg-white/70 shadow-sm">
             <button
-              onClick={() => setOpenRound(isOpen ? null : r.round)}
+              onClick={() => setOpenRounds(prev => {
+                const next = new Set(prev);
+                if (next.has(r.round)) next.delete(r.round);
+                else next.add(r.round);
+                return next;
+              })}
               className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
             >
               <span className="flex items-center gap-2 font-semibold text-slate-800">
