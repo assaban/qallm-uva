@@ -59,16 +59,16 @@ RUN apt-get purge -y build-essential \
 # (the compose api service sets this) when you intend to use the optional
 # SonarQube analyzer. Without it, the SonarQube analyzer simply no-ops and
 # the pipeline runs on Radon/Bandit, as designed.
-ARG WITH_SONAR_SCANNER=0
-ARG SONAR_SCANNER_VERSION=5.0.1.3006
+ARG WITH_SONAR_SCANNER=1
+ARG SONAR_SCANNER_VERSION=7.0.2.4839
 USER root
 RUN if [ "$WITH_SONAR_SCANNER" = "1" ]; then \
         apt-get update \
         && apt-get install -y --no-install-recommends default-jre-headless unzip curl \
         && curl -fsSL -o /tmp/scanner.zip \
-            "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux.zip" \
+            "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-aarch64.zip" \
         && unzip -q /tmp/scanner.zip -d /opt \
-        && ln -s "/opt/sonar-scanner-${SONAR_SCANNER_VERSION}-linux/bin/sonar-scanner" /usr/local/bin/sonar-scanner \
+        && ln -s "/opt/sonar-scanner-${SONAR_SCANNER_VERSION}-linux-aarch64/bin/sonar-scanner" /usr/local/bin/sonar-scanner \
         && rm /tmp/scanner.zip \
         && apt-get purge -y unzip curl \
         && apt-get autoremove -y \

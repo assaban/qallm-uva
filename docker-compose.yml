@@ -11,9 +11,12 @@
 
 services:
   api:
+    platform: linux/arm64
     build:
       context: .
       dockerfile: Dockerfile
+      platforms:
+        - linux/arm64
       args:
         # Set WITH_SONAR_SCANNER=1 in your environment (or .env) and rebuild
         # to bake the SonarQube scanner CLI into the image, needed for the
