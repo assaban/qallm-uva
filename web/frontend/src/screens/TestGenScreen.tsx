@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { FlaskConical, Play, Lock, CheckSquare, Square, FileCode2, Activity, Layers, Coins, Clock } from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { FlaskConical, Play, Lock, CheckSquare, Square, FileCode2, Activity, Layers, Coins, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import type { SessionState } from "../hooks/useSession";
 import type { FunctionEntry } from "../types";
 import * as api from "../api";
@@ -19,6 +19,35 @@ interface SessionConfig {
   strategy?: string;
 }
 
+// One row in the live progress timeline: a distinct (round, stage,
+// function) state the orchestrator passed through, with the counters as
+// they stood at that moment.
+interface ProgressRow {
+  key: string;
+  roundLabel: string;
+  stage: string;
+  fn: string | null;
+  fnIndex: number;
+  fnTotal: number;
+  accepted: number;
+  abandoned: number;
+  elapsed: number;
+  tokens: number;
+}
+
+// Per-round test outcome summary, derived from the improvement data once a
+// round has completed.
+interface RoundTestSummary {
+  round: number;
+  functions: {
+    name: string;
+    total: number;
+    passed: number;
+    bugs: number;
+    errors: number;
+  }[];
+}
+
 export default function TestGenScreen({ state, patch, autoMode }: { state: SessionState; patch: (p: Partial<SessionState>) => void; autoMode?: boolean }) {
   const [fns, setFns] = useState<FunctionEntry[]>([]);
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -27,6 +56,16 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
   // null when nothing is running or when the job has just started and we
   // have not received the first poll yet.
   const [progress, setProgress] = useState<JobProgress | null>(null);
+  // Accumulated timeline of distinct progress states, so the right panel
+  // shows the *progression* across rounds and stages instead of a single
+  // overwritten status line. Each distinct (round, stage, function) snapshot
+  // becomes one row.
+  const [timeline, setTimeline] = useState<ProgressRow[]>([]);
+  // Per-round test summaries, fetched from the improvement data as each
+  // round completes (the live snapshot carries no test detail; tests land
+  // on disk when a round finishes).
+  const [roundTests, setRoundTests] = useState<RoundTestSummary[]>([]);
+  const lastRoundFetched = useRef<number>(-1);
 
   useEffect(() => {
     if (!state.sessionId) return;
@@ -101,6 +140,79 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
   // fall back to global state.progress (set by useAutoRunner during
   // auto mode runs).
   const liveProgress = progress ?? state.progress;
+
+  // Accumulate the live snapshot into a timeline. Append a new row only
+  // when the (round, stage, function) tuple changes, so the table grows by
+  // meaningful steps rather than on every poll.
+  useEffect(() => {
+    if (!liveProgress) return;
+    const roundLabel = liveProgress.phase === "baseline"
+      ? "Round 0 (baseline)"
+      : liveProgress.phase === "rounds"
+        ? `Round ${liveProgress.current_round} of ${liveProgress.total_rounds}`
+        : liveProgress.phase;
+    const stage = liveProgress.current_stage || liveProgress.phase;
+    const fn = liveProgress.current_function;
+    const key = `${roundLabel}|${stage}|${fn ?? ""}|${liveProgress.function_index}`;
+    setTimeline(prev => {
+      if (prev.length && prev[prev.length - 1].key === key) return prev;
+      return [...prev, {
+        key,
+        roundLabel,
+        stage,
+        fn,
+        fnIndex: liveProgress.function_index,
+        fnTotal: liveProgress.function_total,
+        accepted: liveProgress.rounds_accepted,
+        abandoned: liveProgress.rounds_abandoned,
+        elapsed: liveProgress.elapsed_seconds,
+        tokens: liveProgress.tokens_used,
+      }];
+    });
+  }, [liveProgress]);
+
+  // When a round completes (current_round advances, or the job finishes),
+  // fetch the improvement data and summarise each function's tests for the
+  // rounds we have not summarised yet. The live snapshot has no test detail,
+  // so this is how completed-round tests become visible during the run.
+  useEffect(() => {
+    if (!state.sessionId || !liveProgress) return;
+    const justFinished = liveProgress.phase === "done"
+      ? liveProgress.total_rounds
+      : liveProgress.current_round - 1;
+    if (justFinished <= lastRoundFetched.current) return;
+    lastRoundFetched.current = justFinished;
+    api.getImprovement(state.sessionId)
+      .then(imp => {
+        if (!imp || !imp.rounds) return;
+        const summaries: RoundTestSummary[] = imp.rounds.map(r => {
+          const fns: RoundTestSummary["functions"] = [];
+          for (const unit of r.units || []) {
+            for (const fn of unit.bug_detail || []) {
+              fns.push({
+                name: fn.function,
+                total: fn.total,
+                passed: fn.passed,
+                bugs: fn.failed,
+                errors: fn.errors,
+              });
+            }
+          }
+          return { round: r.round, functions: fns };
+        });
+        setRoundTests(summaries);
+      })
+      .catch(() => {});
+  }, [state.sessionId, liveProgress]);
+
+  // Reset the timeline and round tests when a fresh run starts.
+  useEffect(() => {
+    if (state.loading && timeline.length && !liveProgress) {
+      setTimeline([]);
+      setRoundTests([]);
+      lastRoundFetched.current = -1;
+    }
+  }, [state.loading, liveProgress, timeline.length]);
 
   const oracle = sessionConfig.oracle || "crash";
 
@@ -186,98 +298,120 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
               <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-500" /> Generating tests automatically...
             </div>
           ) : null}
-
-          {/* Live progress: surfaces what the orchestrator is doing right
-              now. Renders only while the job runs and progress has been
-              received. Designed as a status line plus counters, not a
-              progress bar; LLM call durations and judge-driven early-halt
-              make percentage estimates misleading. */}
-          {state.loading && liveProgress && (
-            <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-indigo-600 animate-pulse" />
-                <span className="text-sm font-semibold capitalize text-slate-800">
-                  {liveProgress.phase === "rounds"
-                    ? `Round ${liveProgress.current_round} of ${liveProgress.total_rounds}`
-                    : liveProgress.phase === "baseline"
-                      ? "Round 0 (baseline)"
-                      : liveProgress.phase}
-                </span>
-                {liveProgress.current_stage && (
-                  <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-medium capitalize text-indigo-700">
-                    {liveProgress.current_stage}
-                  </span>
-                )}
-              </div>
-
-              {liveProgress.current_unit_id && (
-                <div className="flex items-start gap-2 text-xs text-slate-600">
-                  <FileCode2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-                  <span className="font-mono break-all">{liveProgress.current_unit_id}</span>
-                </div>
-              )}
-
-              {/* Function-level visibility inside the verify stage. On
-                  slow local LLMs the verify stage can run for tens of
-                  minutes per unit; showing "function 3 of 8: predict"
-                  is the difference between "stuck" and "working". */}
-              {liveProgress.current_function && liveProgress.function_total > 0 && (
-                <div className="flex items-center gap-2 text-xs text-slate-600">
-                  <span className="rounded-md bg-slate-200 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
-                    {liveProgress.function_index}/{liveProgress.function_total}
-                  </span>
-                  <span>Verifying function: <span className="font-mono font-semibold text-slate-800">{liveProgress.current_function}</span></span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-                <div className="flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-emerald-600" />
-                  <span className="text-slate-500">Accepted:</span>
-                  <span className="font-semibold text-emerald-700">{liveProgress.rounds_accepted}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-rose-600" />
-                  <span className="text-slate-500">Abandoned:</span>
-                  <span className="font-semibold text-rose-700">{liveProgress.rounds_abandoned}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-slate-400" />
-                  <span className="text-slate-500">Elapsed:</span>
-                  <span className="font-semibold text-slate-700">{liveProgress.elapsed_seconds.toFixed(1)}s</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Coins className="h-3.5 w-3.5 text-amber-600" />
-                  <span className="text-slate-500">Cost:</span>
-                  <span className="font-semibold text-slate-700">${liveProgress.cost_usd.toFixed(4)}</span>
-                </div>
-              </div>
-
-              {liveProgress.tokens_used > 0 && (
-                <div className="text-xs text-slate-500">
-                  {liveProgress.tokens_used.toLocaleString()} tokens used
-                  {liveProgress.units_total > 0 && (
-                    <> · {liveProgress.units_completed} of {liveProgress.units_total} units completed</>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         <div className="space-y-6">
+          {/* Live verification timeline: accumulates each distinct stage
+              state into a table so the progression across rounds is visible,
+              instead of a single status line that gets overwritten. */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Live verification</h3>
+              {liveProgress && (
+                <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <Clock className="h-3.5 w-3.5" /> {liveProgress.elapsed_seconds.toFixed(0)}s
+                  <Coins className="ml-2 h-3.5 w-3.5 text-amber-600" /> ${liveProgress.cost_usd.toFixed(4)}
+                </span>
+              )}
+            </div>
+
+            {timeline.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-400">
+                The run timeline appears here: each round and stage as the pipeline works through baseline, repair, verify, and judge.
+              </p>
+            ) : (
+              <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-slate-100">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-slate-50 text-left text-slate-500">
+                    <tr>
+                      <th className="px-2 py-1.5">Round</th>
+                      <th className="px-2 py-1.5">Stage</th>
+                      <th className="px-2 py-1.5">Function</th>
+                      <th className="px-2 py-1.5 text-right">Acc/Aband</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {timeline.map((row, i) => {
+                      const isLast = i === timeline.length - 1;
+                      return (
+                        <tr key={row.key} className={`border-t border-slate-100 ${isLast && state.loading ? "bg-indigo-50" : ""}`}>
+                          <td className="px-2 py-1.5 whitespace-nowrap">{row.roundLabel}</td>
+                          <td className="px-2 py-1.5">
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium capitalize text-slate-600">{row.stage}</span>
+                          </td>
+                          <td className="px-2 py-1.5 font-mono text-slate-700">
+                            {row.fn ? (
+                              <span>{row.fn}{row.fnTotal > 0 && <span className="text-slate-400"> ({row.fnIndex}/{row.fnTotal})</span>}</span>
+                            ) : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                            <span className="text-emerald-700">{row.accepted}</span>
+                            <span className="text-slate-300"> / </span>
+                            <span className="text-rose-700">{row.abandoned}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {liveProgress && liveProgress.tokens_used > 0 && (
+              <div className="mt-2 text-xs text-slate-500">
+                {liveProgress.tokens_used.toLocaleString()} tokens
+                {liveProgress.units_total > 0 && <> · {liveProgress.units_completed} of {liveProgress.units_total} units completed</>}
+              </div>
+            )}
+          </div>
+
+          {/* Per-round tests, accumulated. Shows how the FROZEN+GROW suite
+              grows: each completed round's functions with pass/bug/error
+              counts. Latest round first. */}
+          {roundTests.length > 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="font-semibold">Tests by round</h3>
+              <p className="mt-1 text-xs text-slate-500">Accumulated test outcomes per round. The suite grows each round (FROZEN+GROW): later rounds re-run earlier tests plus new ones.</p>
+              <div className="mt-3 space-y-3">
+                {[...roundTests].reverse().map(rt => (
+                  <div key={rt.round} className="rounded-xl border border-slate-100 p-3">
+                    <div className="text-xs font-semibold text-slate-700">
+                      {rt.round === 0 ? "Round 0 (baseline)" : `Round ${rt.round}`}
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                      {rt.functions.map((fn, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs">
+                          <span className="font-mono text-slate-700">{fn.name}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="flex items-center gap-0.5 text-emerald-600"><CheckCircle2 className="h-3 w-3" />{fn.passed}</span>
+                            <span className="flex items-center gap-0.5 text-rose-600"><XCircle className="h-3 w-3" />{fn.bugs}</span>
+                            {fn.errors > 0 && <span className="flex items-center gap-0.5 text-amber-600"><AlertCircle className="h-3 w-3" />{fn.errors}</span>}
+                            <span className="text-slate-400">/ {fn.total}</span>
+                          </span>
+                        </div>
+                      ))}
+                      {rt.functions.length === 0 && <div className="text-xs text-slate-400">No test detail recorded.</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Oracle reference, moved below the live state since it is read
+              once rather than watched. */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="font-semibold">Active oracle: <span className="capitalize">{oracle}</span></h3>
-            <p className="mt-2 text-sm text-slate-600">{ORACLES[oracle]?.desc}</p>
-            <div className="mt-4 space-y-3">
+            <div className="mt-3 space-y-3">
               {Object.entries(ORACLES).map(([k, v]) => (
                 <div key={k} className={`rounded-xl border p-3 transition ${oracle === k ? "border-slate-900 bg-slate-50" : "border-slate-200 opacity-60"}`}>
                   <div className="text-sm font-medium">{v.title}</div>
-                  {oracle !== k && <div className="mt-1 text-xs text-slate-500">{v.desc.slice(0, 80)}...</div>}
+                  <div className="mt-1 text-xs text-slate-500">{oracle === k ? v.desc : `${v.desc.slice(0, 80)}...`}</div>
                 </div>
               ))}
             </div>
           </div>
+
           {state.testGenResult && (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
               <div className="flex items-center gap-2"><FlaskConical className="h-5 w-5 text-emerald-600" /><h3 className="font-semibold text-emerald-900">Tests completed</h3></div>
