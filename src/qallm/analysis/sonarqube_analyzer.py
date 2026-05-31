@@ -115,13 +115,22 @@ class SonarQubeAnalyzer(StaticCodeAnalyzer):
 
     # ─── live scan path (exercised when a server is configured) ─────
     def _scan(self, unit: CodeUnit, project_key: str) -> tuple[list, dict]:
-        """Run the scanner and fetch issues + measures. Network-dependent."""
+        """Run the scanner and fetch issues + measures. Network-dependent.
+
+        SonarQube processes an upload asynchronously on its compute engine,
+        so after the scanner exits we wait for that background task to
+        finish before fetching, otherwise issues come back empty and
+        measures 404 because the project is not ready yet.
+        """
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             filename = unit.original_path.name if unit.original_path else "cell.py"
             (workspace / filename).write_text(unit.source_code, encoding="utf-8")
             self._write_scanner_props(workspace, project_key)
             self._run_scanner(workspace)
+            # Wait for the compute-engine task the scan submitted, so the
+            # analysis is fully processed before we read it.
+            self._wait_for_processing(workspace)
             issues = self._fetch_issues(project_key)
             measures = self._fetch_measures(project_key)
             return issues, measures
@@ -141,13 +150,64 @@ class SonarQubeAnalyzer(StaticCodeAnalyzer):
         )
 
     def _run_scanner(self, workspace: Path) -> None:
-        subprocess.run(
+        """Run sonar-scanner, surfacing its output and failing loudly.
+
+        Previously the output was captured and the exit code ignored, so a
+        failed scan looked like a success and only surfaced later as an
+        empty issue list or a 404 when fetching measures. Now a non-zero
+        exit raises with the scanner's own stderr/stdout, so the real cause
+        is visible.
+        """
+        proc = subprocess.run(
             [settings.SONARQUBE_SCANNER],
             cwd=str(workspace),
             capture_output=True,
             text=True,
             timeout=settings.SONARQUBE_TIMEOUT_SECONDS,
             check=False,
+        )
+        if proc.returncode != 0:
+            tail = (proc.stderr or proc.stdout or "").strip()[-1500:]
+            raise RuntimeError(
+                f"sonar-scanner exited {proc.returncode}: {tail}"
+            )
+        logger.debug("sonar-scanner output:\n%s", proc.stdout)
+
+    def _wait_for_processing(self, workspace: Path) -> None:
+        """Block until the compute-engine task for this scan completes.
+
+        The scanner writes report-task.txt containing the ceTaskId; we poll
+        /api/ce/task until it is SUCCESS (or fail on FAILED/CANCELED). If the
+        report file or task id is missing we skip waiting rather than hang.
+        """
+        import time
+
+        report = workspace / ".scannerwork" / "report-task.txt"
+        if not report.exists():
+            logger.warning("No report-task.txt; skipping processing wait.")
+            return
+        ce_task_id = None
+        for line in report.read_text(encoding="utf-8").splitlines():
+            if line.startswith("ceTaskId="):
+                ce_task_id = line.split("=", 1)[1].strip()
+                break
+        if not ce_task_id:
+            return
+
+        deadline = time.monotonic() + settings.SONARQUBE_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            data = self._api_get("/api/ce/task", {"id": ce_task_id})
+            status = data.get("task", {}).get("status")
+            if status == "SUCCESS":
+                return
+            if status in ("FAILED", "CANCELED"):
+                raise RuntimeError(
+                    f"SonarQube compute-engine task {ce_task_id} {status}"
+                )
+            time.sleep(1.0)
+        logger.warning(
+            "SonarQube task %s did not finish within the timeout; "
+            "results may be incomplete.", ce_task_id
         )
 
     def _api_get(self, path: str, params: dict) -> dict:

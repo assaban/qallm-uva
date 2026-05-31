@@ -127,3 +127,97 @@ def test_orchestrator_threads_sonar_measures_into_context(monkeypatch):
     measures = orch._sonar_measures_for(_unit())
     assert measures == {"reliability_rating": "1.0",
                         "security_rating": "2.0", "sqale_rating": "1.0"}
+
+
+def test_run_scanner_raises_on_nonzero_exit(monkeypatch, tmp_path):
+    """A failed scan must raise with the scanner's output, not pass silently.
+
+    This is the fix for the long-standing silent failure: previously the
+    scanner ran with check=False and its output discarded, so a failed scan
+    looked successful and surfaced only later as empty issues / a 404."""
+    from unittest.mock import patch
+
+    from qallm.analysis.sonarqube_analyzer import SonarQubeAnalyzer
+
+    monkeypatch.setattr("qallm.config.settings.SONARQUBE_SCANNER", "sonar-scanner")
+    monkeypatch.setattr("qallm.config.settings.SONARQUBE_TIMEOUT_SECONDS", 5)
+    analyzer = SonarQubeAnalyzer()
+
+    class FakeProc:
+        returncode = 2
+        stdout = "INFO scanning"
+        stderr = "ERROR: project not authorized"
+
+    with patch("subprocess.run", return_value=FakeProc()):
+        try:
+            analyzer._run_scanner(tmp_path)
+            assert False, "expected RuntimeError on non-zero exit"
+        except RuntimeError as e:
+            assert "exited 2" in str(e)
+            assert "not authorized" in str(e)
+
+
+def test_wait_for_processing_polls_until_success(monkeypatch, tmp_path):
+    """After the scan, fetching must wait for the compute-engine task so the
+    analysis is processed before issues/measures are read."""
+    from unittest.mock import patch
+
+    from qallm.analysis.sonarqube_analyzer import SonarQubeAnalyzer
+
+    monkeypatch.setattr("qallm.config.settings.SONARQUBE_URL", "http://localhost:9000")
+    monkeypatch.setattr("qallm.config.settings.SONARQUBE_TOKEN", "tok")
+    monkeypatch.setattr("qallm.config.settings.SONARQUBE_TIMEOUT_SECONDS", 5)
+    analyzer = SonarQubeAnalyzer()
+
+    sw = tmp_path / ".scannerwork"
+    sw.mkdir()
+    (sw / "report-task.txt").write_text("ceTaskId=ABC123\nprojectKey=x\n")
+
+    calls = {"n": 0}
+
+    def fake_api_get(path, params):
+        assert path == "/api/ce/task"
+        assert params["id"] == "ABC123"
+        calls["n"] += 1
+        # PENDING first, then SUCCESS.
+        return {"task": {"status": "SUCCESS" if calls["n"] >= 2 else "PENDING"}}
+
+    with patch.object(analyzer, "_api_get", side_effect=fake_api_get), \
+         patch("time.sleep", lambda *_: None):
+        analyzer._wait_for_processing(tmp_path)
+    assert calls["n"] >= 2
+
+
+def test_wait_for_processing_raises_on_failed_task(monkeypatch, tmp_path):
+    from unittest.mock import patch
+
+    from qallm.analysis.sonarqube_analyzer import SonarQubeAnalyzer
+
+    monkeypatch.setattr("qallm.config.settings.SONARQUBE_URL", "http://localhost:9000")
+    monkeypatch.setattr("qallm.config.settings.SONARQUBE_TOKEN", "tok")
+    monkeypatch.setattr("qallm.config.settings.SONARQUBE_TIMEOUT_SECONDS", 5)
+    analyzer = SonarQubeAnalyzer()
+
+    sw = tmp_path / ".scannerwork"
+    sw.mkdir()
+    (sw / "report-task.txt").write_text("ceTaskId=BAD1\n")
+
+    with patch.object(analyzer, "_api_get",
+                      return_value={"task": {"status": "FAILED"}}), \
+         patch("time.sleep", lambda *_: None):
+        try:
+            analyzer._wait_for_processing(tmp_path)
+            assert False, "expected RuntimeError on FAILED task"
+        except RuntimeError as e:
+            assert "FAILED" in str(e)
+
+
+def test_wait_for_processing_skips_when_no_report(monkeypatch, tmp_path):
+    """No report-task.txt should skip waiting, not hang or crash."""
+    from qallm.analysis.sonarqube_analyzer import SonarQubeAnalyzer
+
+    monkeypatch.setattr("qallm.config.settings.SONARQUBE_URL", "http://localhost:9000")
+    monkeypatch.setattr("qallm.config.settings.SONARQUBE_TOKEN", "tok")
+    analyzer = SonarQubeAnalyzer()
+    # No .scannerwork dir present; should return without error.
+    analyzer._wait_for_processing(tmp_path)
