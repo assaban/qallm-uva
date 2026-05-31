@@ -37,15 +37,34 @@ def _parse_pytest_json(report_path: Path) -> tuple[list[TestDetail], dict[str, i
 
     for test in data.get("tests", []):
         outcome = test.get("outcome", "error")
-        status = {"passed": "passed", "failed": "failed", "skipped": "skipped"}.get(outcome, "error")
-        counts[status] = counts.get(status, 0) + 1
+        # TestDetail.status uses the singular "error"; the counts dict uses
+        # the plural "errors". Keep them distinct: a prior version wrote the
+        # singular status into the counts dict, creating a stray "error" key
+        # and leaving "errors" at zero, so errored tests were never counted.
+        status = {
+            "passed": "passed", "failed": "failed", "skipped": "skipped",
+        }.get(outcome, "error")
+        count_key = "errors" if status == "error" else status
+        counts[count_key] = counts.get(count_key, 0) + 1
 
         message = None
-        call_info = test.get("call", {})
-        if call_info and call_info.get("longrepr"):
-            # Keep enough of the traceback for the detailed assertion diff
-            # (-v / --tb=long), not just the one-line summary.
-            message = str(call_info["longrepr"])[:2000]
+        # A test can carry a longrepr in any of three phases. Failed
+        # assertions land in "call"; an error during fixture setup (e.g. a
+        # missing fixture like a referenced-but-undefined `fixed_obj`) or
+        # teardown lands in "setup"/"teardown" and never reaches "call".
+        # Reading only "call" left setup-errors with status=error and an
+        # empty message ("ERROR with no detail"). Check all three, in the
+        # order pytest runs them, and surface the first longrepr found.
+        call_info = test.get("call", {}) or {}
+        for phase in ("call", "setup", "teardown"):
+            phase_info = test.get(phase, {}) or {}
+            longrepr = phase_info.get("longrepr")
+            if longrepr:
+                prefix = "" if phase == "call" else f"[{phase} error] "
+                # Keep enough of the traceback for the detailed assertion
+                # diff (-v / --tb=long), not just the one-line summary.
+                message = (prefix + str(longrepr))[:2000]
+                break
 
         details.append(TestDetail(
             name=test.get("nodeid", "unknown"), status=status,
