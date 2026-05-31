@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { ShieldCheck, ShieldAlert, ShieldQuestion, Zap } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldQuestion, Zap, Microscope, Loader2 } from "lucide-react";
 import * as api from "../api";
-import type { GapRound, FindingStatus } from "../api";
+import type { GapRound, FindingStatus, FindingVerdictRow, FindingVerdict } from "../api";
 
 // The static-vs-execution gap, per round: how many static findings
 // execution confirmed, could not reproduce, or could not test, and the
@@ -10,6 +10,29 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
   const [rounds, setRounds] = useState<GapRound[]>([]);
   const [loading, setLoading] = useState(true);
   const [reason, setReason] = useState<string | null>(null);
+
+  // Confirm/refute: an explicit action (it makes LLM calls), so it runs on
+  // demand rather than on load.
+  const [confirming, setConfirming] = useState(false);
+  const [verdicts, setVerdicts] = useState<FindingVerdictRow[] | null>(null);
+  const [confirmSummary, setConfirmSummary] = useState<api.ConfirmFindingsResponse["summary"] | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+
+  const runConfirm = () => {
+    setConfirming(true);
+    setConfirmError(null);
+    api.confirmFindings(sessionId)
+      .then(res => {
+        if (res.available) {
+          setVerdicts(res.verdicts);
+          setConfirmSummary(res.summary ?? null);
+        } else {
+          setConfirmError(res.reason ?? "Not available.");
+        }
+      })
+      .catch(() => setConfirmError("Confirm/refute failed."))
+      .finally(() => setConfirming(false));
+  };
 
   useEffect(() => {
     let alive = true;
@@ -46,8 +69,90 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
       <div className="mt-4 space-y-4">
         {rounds.map(r => <GapRoundCard key={r.round} round={r} />)}
       </div>
+
+      {/* Per-finding confirm/refute: sharpens the function-level gap above to
+          individual findings by generating a targeted test for each. */}
+      <div className="mt-6 border-t border-slate-100 pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <Microscope className="h-4 w-4 text-indigo-600" /> Confirm or refute each finding
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Generates a targeted test per finding to reproduce its defect. Reliability findings are confirmed when a correctness test fails; security findings when an exploit test passes. Complexity and maintainability findings are not execution-testable.
+            </p>
+          </div>
+          <button
+            onClick={runConfirm}
+            disabled={confirming}
+            className="flex shrink-0 items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {confirming ? <><Loader2 className="h-4 w-4 animate-spin" /> Running...</> : <>Run confirm/refute</>}
+          </button>
+        </div>
+
+        {confirmError && <div className="mt-3 text-xs text-rose-600">{confirmError}</div>}
+
+        {confirmSummary && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <Stat icon={<ShieldCheck className="h-3.5 w-3.5" />} label="confirmed" value={confirmSummary.confirmed} tone="emerald" />
+            <Stat icon={<ShieldQuestion className="h-3.5 w-3.5" />} label="refuted" value={confirmSummary.refuted} tone="amber" />
+            <Stat icon={<ShieldAlert className="h-3.5 w-3.5" />} label="inconclusive" value={confirmSummary.inconclusive} tone="slate" />
+            <Stat icon={<ShieldAlert className="h-3.5 w-3.5" />} label="not testable" value={confirmSummary.not_execution_testable} tone="slate" />
+            {confirmSummary.confirmation_rate !== null && (
+              <span className="text-slate-500">rate: <span className="font-semibold text-slate-700">{(confirmSummary.confirmation_rate * 100).toFixed(0)}%</span></span>
+            )}
+          </div>
+        )}
+
+        {verdicts && verdicts.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {verdicts.map((v, i) => <VerdictCard key={i} v={v} />)}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+function VerdictCard({ v }: { v: FindingVerdictRow }) {
+  const [showTest, setShowTest] = useState(false);
+  return (
+    <div className="rounded-lg border border-slate-100 p-3 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <VerdictBadge verdict={v.verdict} />
+        <span className="text-slate-600">{v.tool}</span>
+        <span className="text-slate-400">·</span>
+        <span className="text-slate-500">{v.type}</span>
+        <span className="text-slate-400">·</span>
+        <span className="font-mono text-slate-500">L{v.line}</span>
+        {v.function && <><span className="text-slate-400">·</span><span className="font-mono text-slate-700">{v.function}</span></>}
+      </div>
+      <div className="mt-1 text-slate-600">{v.message}</div>
+      <div className="mt-1 text-slate-500 italic">{v.reason}</div>
+      {v.reproducing_test && (
+        <div className="mt-2">
+          <button onClick={() => setShowTest(s => !s)} className="text-indigo-600 hover:underline">
+            {showTest ? "Hide" : "Show"} reproducing test
+          </button>
+          {showTest && (
+            <pre className="mt-1 overflow-auto rounded bg-slate-900 p-2 text-[11px] text-slate-100">{v.reproducing_test}</pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VerdictBadge({ verdict }: { verdict: FindingVerdict }) {
+  const map: Record<FindingVerdict, { label: string; cls: string }> = {
+    confirmed: { label: "confirmed", cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+    refuted: { label: "refuted", cls: "text-amber-700 bg-amber-50 border-amber-200" },
+    inconclusive: { label: "inconclusive", cls: "text-slate-600 bg-slate-50 border-slate-200" },
+    not_execution_testable: { label: "not testable", cls: "text-slate-500 bg-slate-50 border-slate-200" },
+  };
+  const m = map[verdict];
+  return <span className={`rounded border px-1.5 py-0.5 font-medium ${m.cls}`}>{m.label}</span>;
 }
 
 function GapRoundCard({ round }: { round: GapRound }) {

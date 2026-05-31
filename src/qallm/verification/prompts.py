@@ -272,3 +272,69 @@ def build_feedback_prompt(
     parts.append("Return ONLY the complete test file. Start with imports.\n")
 
     return "\n".join(parts)
+
+
+def build_finding_targeted_prompt(func: FunctionInfo, finding: dict) -> str:
+    """Build a prompt to write a test that demonstrates one specific static
+    finding's defect.
+
+    Unlike the oracle prompts (which explore broadly), this is surgical: the
+    model is told exactly what a static analyser flagged and asked to write a
+    test whose failure (or demonstration) confirms the finding is a real,
+    triggerable problem. The framing differs by finding type:
+
+    * RELIABILITY: a correctness bug, the test should make the function
+      return a wrong result or raise an unexpected exception.
+    * SECURITY: a vulnerability, the test should demonstrate the unsafe
+      behaviour is reachable (e.g. injected input being executed), not just
+      that the function runs.
+
+    The caller is responsible for only invoking this on finding types that
+    execution can speak to; complexity/maintainability findings are not
+    reproducible by a test and must not reach here.
+    """
+    ftype = (finding.get("type") or "").upper()
+    line = finding.get("line")
+    message = finding.get("message", "")
+    rule = finding.get("rule_id", "")
+    tool = finding.get("tool", "a static analyser")
+
+    parts = [
+        "## Function under test\n",
+        f"```python\n{func.source}\n```\n",
+    ]
+    if func.docstring:
+        parts.append(f"## Docstring\n{func.docstring}\n")
+
+    parts.append(
+        "## Static finding to investigate\n"
+        f"{tool} reported, on line {line} (rule {rule}):\n"
+        f"> {message}\n"
+    )
+
+    if ftype == "SECURITY":
+        goal = (
+            "Write a pytest test that DEMONSTRATES this security problem is "
+            "real and reachable: construct an input that causes the flagged "
+            "unsafe operation to do something it should not (for example, "
+            "input that gets executed, or that escapes its intended scope). "
+            "The test should assert that the unsafe effect occurs, so a "
+            "passing test is evidence the vulnerability is exploitable."
+        )
+    else:  # RELIABILITY / correctness
+        goal = (
+            "Write a pytest test that REPRODUCES this as a concrete defect: "
+            "find an input for which the function returns a wrong result or "
+            "raises an exception it should handle. The test should assert the "
+            "CORRECT expected behaviour, so that it FAILS against the current "
+            "code, demonstrating the finding is a real bug."
+        )
+
+    parts.append(
+        "## Task\n"
+        f"{goal}\n\n"
+        "Focus only on this one finding. Generate 1 to 3 focused tests that "
+        "target it specifically; do not test unrelated behaviour.\n\n"
+        "Return ONLY the complete test file. Start with imports."
+    )
+    return "\n".join(parts)

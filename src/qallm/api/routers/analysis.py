@@ -22,6 +22,82 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.post("/api/session/{session_id}/confirm-findings")
+async def confirm_findings(session_id: str):
+    """Confirm or refute each static finding individually by execution.
+
+    For each finding on a unit, a targeted test is generated and run to
+    decide whether the finding reproduces (confirmed), does not (refuted),
+    could not be tested (inconclusive), or is a finding type execution
+    cannot judge such as complexity (not_execution_testable). Reuses the
+    session's test-generation model and token tracker.
+
+    This makes LLM calls, so it is an explicit POST action rather than
+    something computed on every page load.
+    """
+    from qallm.verification.confirm_refute import FindingConfirmer
+    from qallm.verification.extractor import extract_functions_from_source
+    from qallm.analysis.gap_analysis import function_spans, _function_for_line
+
+    state = get_state(session_id)
+    orch: QALLMOrchestrator = state["orchestrator"]
+    confirmer = FindingConfirmer(orch.testgen_llm, orch.tracker)
+
+    analysed_units = state.get("analysed_units", {})
+    if not analysed_units:
+        return {"available": False, "verdicts": [],
+                "reason": "Run analysis first so there are findings to confirm."}
+
+    all_verdicts: list[dict] = []
+    confirmed = refuted = inconclusive = not_testable = 0
+
+    for name, analysed in analysed_units.items():
+        findings = [asdict(f) for f in analysed.findings]
+        if not findings:
+            continue
+        source = analysed.code_unit.source_code
+        spans = function_spans(source)
+        funcs = {f.name: f for f in extract_functions_from_source(source, name)}
+
+        # Group findings by the function their line falls in, so each
+        # function's findings are confirmed against that function's code.
+        for fname, func in funcs.items():
+            fn_findings = [
+                f for f in findings
+                if _function_for_line(spans, int(f.get("line", 0) or 0)) == fname
+            ]
+            if not fn_findings:
+                continue
+            report = confirmer.confirm_findings(
+                func=func,
+                findings=fn_findings,
+                source_code=source,
+                source_filename=name,
+                source_origin=analysed.code_unit.original_path,
+            )
+            confirmed += report.confirmed
+            refuted += report.refuted
+            inconclusive += report.inconclusive
+            not_testable += report.not_testable
+            for v in report.verdicts:
+                d = v.to_dict()
+                d["file"] = name
+                all_verdicts.append(d)
+
+    denom = confirmed + refuted
+    return {
+        "available": True,
+        "verdicts": all_verdicts,
+        "summary": {
+            "confirmed": confirmed,
+            "refuted": refuted,
+            "inconclusive": inconclusive,
+            "not_execution_testable": not_testable,
+            "confirmation_rate": (confirmed / denom) if denom else None,
+        },
+    }
+
+
 @router.post("/api/analyse")
 async def run_analysis(req: dict):
     """Run static analysis on the session's code units.
