@@ -69,15 +69,19 @@ class TestGenerator:
         # 1. Select the appropriate prompt builder based on session state
         if existing_session and len(existing_session.rounds) > 0:
             last_round = existing_session.rounds[-1]
-            logger.info("Generating feedback-based tests for %s (Round %d)",
-                        func.name, len(existing_session.rounds) + 1)
+            # Label by the pipeline round being verified (the count of prior
+            # generations), so the log matches the orchestrator's "Round N"
+            # instead of being one ahead.
+            gen_round = len(existing_session.rounds)
+            logger.info("Generating feedback-based tests for %s (round %d)",
+                        func.name, gen_round)
 
             user_prompt = build_feedback_prompt(
                 func=func,
                 previous_test_code=last_round.generated_test.test_code,
                 execution=last_round.execution,
                 reward=last_round.reward,
-                round_number=len(existing_session.rounds) + 1,
+                round_number=gen_round + 1,
             )
         else:
             builder = PROMPT_BUILDERS.get(oracle)
