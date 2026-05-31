@@ -85,16 +85,19 @@ async def confirm_findings(session_id: str):
                 all_verdicts.append(d)
 
     denom = confirmed + refuted
+    summary = {
+        "confirmed": confirmed,
+        "refuted": refuted,
+        "inconclusive": inconclusive,
+        "not_execution_testable": not_testable,
+        "confirmation_rate": (confirmed / denom) if denom else None,
+    }
+    # Record on session state so the metrics export can include it.
+    state["confirm_summary"] = summary
     return {
         "available": True,
         "verdicts": all_verdicts,
-        "summary": {
-            "confirmed": confirmed,
-            "refuted": refuted,
-            "inconclusive": inconclusive,
-            "not_execution_testable": not_testable,
-            "confirmation_rate": (confirmed / denom) if denom else None,
-        },
+        "summary": summary,
     }
 
 
@@ -164,15 +167,17 @@ async def verify_fixes_endpoint(session_id: str, req: dict):
             all_results.append(d)
 
     denom = verified_fixed + not_fixed
+    summary = {
+        "verified_fixed": verified_fixed,
+        "not_fixed": not_fixed,
+        "inconclusive": inconclusive,
+        "verified_fix_rate": (verified_fixed / denom) if denom else None,
+    }
+    state["verify_summary"] = summary
     return {
         "available": True,
         "results": all_results,
-        "summary": {
-            "verified_fixed": verified_fixed,
-            "not_fixed": not_fixed,
-            "inconclusive": inconclusive,
-            "verified_fix_rate": (verified_fixed / denom) if denom else None,
-        },
+        "summary": summary,
     }
 
 
