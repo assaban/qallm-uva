@@ -16,6 +16,7 @@ import {
   ChevronRight, ChevronDown, MessageSquare, Sparkles, FlaskConical,
 } from "lucide-react";
 import * as api from "../api";
+import GapPanel from "./GapPanel";
 import type {
   ImprovementRound, ImprovementUnit, IndicatorDelta, LLMCall,
 } from "../api";
@@ -294,6 +295,7 @@ export default function ImprovementView({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="space-y-3">
+      <GapPanel sessionId={sessionId} />
       <div className="flex items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-slate-800">Improvement audit</h2>
