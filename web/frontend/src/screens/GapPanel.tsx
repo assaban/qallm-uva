@@ -81,6 +81,17 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
   }
   if (rounds.length === 0) return null;
 
+  // Headline metrics, aggregated across rounds. The verification-gap rate
+  // is the share of all execution-found defects that no static tool
+  // flagged: execution_only / (findings_with_a_function_bug + execution_only).
+  // It is the clearest single expression of what execution adds over static
+  // analysis. Confirmation and verified-fix rates come from the on-demand
+  // actions below and are null until those are run.
+  const totalExecOnly = rounds.reduce((a, r) => a + r.summary.execution_only, 0);
+  const totalConfirmedFindings = rounds.reduce((a, r) => a + r.summary.confirmed, 0);
+  const gapDenom = totalConfirmedFindings + totalExecOnly;
+  const gapRate = gapDenom > 0 ? totalExecOnly / gapDenom : null;
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white/70 p-6 shadow-sm">
       <div className="flex items-center gap-2">
@@ -90,6 +101,32 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
       <p className="mt-1 text-sm text-slate-500">
         Static findings are hypotheses; execution is the judge. For each round: which static findings execution confirmed, which it could not reproduce (candidate false positives), which it could not test, and the bugs execution found that no static tool flagged, the verification gap.
       </p>
+
+      {/* Headline: the three metrics that express QALLM's value over static
+          analysis, in one place. */}
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <MetricCard
+          label="Verification gap"
+          help="Execution-found bugs no static tool flagged, as a share of all execution-found defects."
+          value={gapRate}
+          detail={`${totalExecOnly} execution-only`}
+          tone="indigo"
+        />
+        <MetricCard
+          label="Confirmation rate"
+          help="Of static findings execution could test, the share it reproduced. Run confirm/refute below."
+          value={confirmSummary ? confirmSummary.confirmation_rate : null}
+          detail={confirmSummary ? `${confirmSummary.confirmed} confirmed / ${confirmSummary.refuted} refuted` : "not run yet"}
+          tone="emerald"
+        />
+        <MetricCard
+          label="Verified-fix rate"
+          help="Of confirmed findings re-tested after repair, the share provably fixed. Run verify fixes below."
+          value={fixSummary ? fixSummary.verified_fix_rate : null}
+          detail={fixSummary ? `${fixSummary.verified_fixed} fixed / ${fixSummary.not_fixed} not` : "not run yet"}
+          tone="sky"
+        />
+      </div>
 
       <div className="mt-4 space-y-4">
         {rounds.map(r => <GapRoundCard key={r.round} round={r} />)}
@@ -316,6 +353,29 @@ function GapRoundCard({ round }: { round: GapRound }) {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function MetricCard({ label, help, value, detail, tone }: {
+  label: string;
+  help: string;
+  value: number | null;
+  detail: string;
+  tone: string;
+}) {
+  const tones: Record<string, string> = {
+    indigo: "border-indigo-200 bg-indigo-50",
+    emerald: "border-emerald-200 bg-emerald-50",
+    sky: "border-sky-200 bg-sky-50",
+  };
+  return (
+    <div className={`rounded-xl border p-4 ${tones[tone]}`} title={help}>
+      <div className="text-xs font-medium text-slate-600">{label}</div>
+      <div className="mt-1 text-2xl font-bold text-slate-900">
+        {value === null ? <span className="text-slate-300">—</span> : `${(value * 100).toFixed(0)}%`}
+      </div>
+      <div className="mt-0.5 text-xs text-slate-500">{detail}</div>
     </div>
   );
 }
