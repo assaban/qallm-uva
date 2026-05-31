@@ -8,6 +8,7 @@ analysis (RQ1 benchmarking).
 from __future__ import annotations
 
 import logging
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
@@ -68,6 +69,15 @@ class TokenTracker:
     calls: int = 0
     errors: int = 0
     history: list[dict[str, Any]] = field(default_factory=list)
+    # Monotonic timestamp of the most recent sign of life: bumped when a
+    # call is about to be made (beat) and when one is recorded. A watchdog
+    # reads this to tell a genuinely hung run from one that is merely slow
+    # (a single local-model generation can legitimately run for minutes).
+    last_activity: float = field(default_factory=time.monotonic)
+
+    def beat(self) -> None:
+        """Mark activity. Called right before a (possibly slow) LLM call."""
+        self.last_activity = time.monotonic()
 
     @property
     def total_tokens(self) -> int:
@@ -80,6 +90,7 @@ class TokenTracker:
     def record(self, resp: LLMResponse) -> None:
         """Records the results of an LLM call and updates cumulative metrics[cite: 37]."""
         self.calls += 1
+        self.last_activity = time.monotonic()
 
         # Extract safe values once[cite: 37]
         in_tokens = resp.input_tokens if resp.input_tokens is not None else 0

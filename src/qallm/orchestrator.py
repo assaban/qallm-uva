@@ -45,6 +45,7 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import logging
+import time
 from typing import Literal, Optional
 
 from qallm.analysis.normalizer import LifecycleStage
@@ -411,6 +412,9 @@ class QALLMOrchestrator:
             elapsed_seconds=self.budget_state.elapsed_seconds,
             tokens_used=self.tracker.total_tokens,
             cost_usd=self.tracker.total_cost_usd,
+            seconds_since_activity=max(
+                0.0, time.monotonic() - self.tracker.last_activity
+            ),
             halt_reason=self.halt_reason.value if self.halt_reason else None,
         )
 

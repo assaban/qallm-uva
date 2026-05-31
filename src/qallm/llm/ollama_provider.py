@@ -63,6 +63,11 @@ class OllamaModel(LLMModel):
         with timer() as t:
             try:
                 import ollama
+                # Mark activity right before the (potentially minutes-long)
+                # call so a watchdog gives this call a fresh window rather
+                # than mistaking a slow local generation for a hang.
+                if tracker:
+                    tracker.beat()
                 client = ollama.Client(
                     host=settings.OLLAMA_BASE_URL,
                     timeout=timeout_seconds,

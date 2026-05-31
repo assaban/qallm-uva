@@ -130,8 +130,14 @@ class OrchestratorProgress:
     elapsed_seconds: float
     tokens_used: int
     cost_usd: float
+    # Seconds since the last LLM-call heartbeat. A watchdog uses this to
+    # tell a slow-but-live run (a single local generation in flight) from a
+    # genuinely hung one: this stays small while a call is being made or has
+    # just completed, and only grows without bound if the process is stuck
+    # somewhere that is not an LLM call.
+    seconds_since_activity: float = 0.0
     # Termination state.
-    halt_reason: Optional[str]
+    halt_reason: Optional[str] = None
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)

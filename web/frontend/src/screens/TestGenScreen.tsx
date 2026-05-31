@@ -298,6 +298,21 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
               <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-500" /> Generating tests automatically...
             </div>
           ) : null}
+
+          {/* Active oracle reference. Lives on the left, below the function
+              list, since it is read once to understand what the oracle
+              does; the right column is reserved for live stream status. */}
+          <div className="mt-6 border-t border-slate-100 pt-4">
+            <h3 className="text-sm font-semibold text-slate-700">Active oracle: <span className="capitalize">{oracle}</span></h3>
+            <div className="mt-3 space-y-2">
+              {Object.entries(ORACLES).map(([k, v]) => (
+                <div key={k} className={`rounded-xl border p-3 transition ${oracle === k ? "border-slate-900 bg-slate-50" : "border-slate-200 opacity-60"}`}>
+                  <div className="text-sm font-medium">{v.title}</div>
+                  <div className="mt-1 text-xs text-slate-500">{oracle === k ? v.desc : `${v.desc.slice(0, 80)}...`}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -397,20 +412,6 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
               </div>
             </div>
           )}
-
-          {/* Oracle reference, moved below the live state since it is read
-              once rather than watched. */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="font-semibold">Active oracle: <span className="capitalize">{oracle}</span></h3>
-            <div className="mt-3 space-y-3">
-              {Object.entries(ORACLES).map(([k, v]) => (
-                <div key={k} className={`rounded-xl border p-3 transition ${oracle === k ? "border-slate-900 bg-slate-50" : "border-slate-200 opacity-60"}`}>
-                  <div className="text-sm font-medium">{v.title}</div>
-                  <div className="mt-1 text-xs text-slate-500">{oracle === k ? v.desc : `${v.desc.slice(0, 80)}...`}</div>
-                </div>
-              ))}
-            </div>
-          </div>
 
           {state.testGenResult && (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">

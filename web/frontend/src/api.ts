@@ -162,6 +162,9 @@ export interface JobProgress {
   elapsed_seconds: number;
   tokens_used: number;
   cost_usd: number;
+  // Seconds since the last LLM-call heartbeat. Small while a call is in
+  // flight or just completed; grows without bound only if truly stuck.
+  seconds_since_activity?: number;
   halt_reason: string | null;
 }
 
@@ -257,10 +260,24 @@ export async function pollJobUntilDone<T = unknown>(
       );
     }
     if (now - lastProgressAt > inactivity) {
-      throw new Error(
-        `Job ${jobId} made no progress for ${Math.round(inactivity / 60000)} minutes. ` +
-        `Last observed: ${view.progress?.current_stage ?? view.status} on ${view.progress?.current_unit_id ?? "n/a"}.`,
-      );
+      // The progress signature has been flat for the inactivity window.
+      // Before declaring a stall, check the heartbeat: if an LLM call is
+      // in flight or recently completed (seconds_since_activity small), the
+      // run is slow, not hung (a single local-model generation can run for
+      // minutes), so keep waiting and reset the window. Only a flat
+      // signature AND a stale heartbeat is a genuine stall.
+      const sinceActivity = view.progress?.seconds_since_activity;
+      const heartbeatStale = sinceActivity === undefined
+        ? true  // backend did not report a heartbeat: fall back to old behaviour
+        : sinceActivity * 1000 > inactivity;
+      if (!heartbeatStale) {
+        lastProgressAt = now;  // model is working; grant a fresh window
+      } else {
+        throw new Error(
+          `Job ${jobId} made no progress for ${Math.round(inactivity / 60000)} minutes. ` +
+          `Last observed: ${view.progress?.current_stage ?? view.status} on ${view.progress?.current_unit_id ?? "n/a"}.`,
+        );
+      }
     }
     await new Promise(r => setTimeout(r, interval));
   }
