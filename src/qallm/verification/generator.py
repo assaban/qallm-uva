@@ -20,6 +20,7 @@ from qallm.verification.prompts import (
     build_feedback_prompt
 )
 from qallm.verification.sandbox import CodeExtractor
+from qallm.verification.test_validator import strip_unsatisfied_fixture_tests
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,28 @@ class TestGenerator:
         test_code = _fix_source_import(extracted_code, module_name)
         is_valid, validation_error = _validate_test_code(test_code)
 
+        # Drop tests that request fixtures nothing provides: they would
+        # error during pytest setup and never run, contributing no signal
+        # while inflating the error count. Keep the valid tests.
+        discarded: list[str] = []
+        if is_valid:
+            stripped_code, discarded = strip_unsatisfied_fixture_tests(test_code)
+            if discarded:
+                logger.warning(
+                    "Discarded %d test(s) for %s requesting undefined "
+                    "fixtures: %s",
+                    len(discarded), func.name, ", ".join(discarded),
+                )
+                test_code = stripped_code
+                # Re-validate: if stripping removed every test, the result
+                # is no longer a usable suite.
+                is_valid, validation_error = _validate_test_code(test_code)
+                if not is_valid:
+                    validation_error = (
+                        "All generated tests requested undefined fixtures "
+                        f"({', '.join(discarded)}); nothing left to run."
+                    )
+
         if not is_valid:
             logger.warning("Generated tests for %s are invalid: %s", func.name, validation_error)
 
@@ -126,4 +149,5 @@ class TestGenerator:
             provider=resp.provider,
             input_tokens=resp.input_tokens,
             output_tokens=resp.output_tokens,
+            discarded_tests=discarded,
         )

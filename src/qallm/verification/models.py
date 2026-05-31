@@ -58,6 +58,9 @@ class GeneratedTest:
     provider: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
+    # Names of test functions removed before execution because they
+    # requested fixtures nothing provides (would error in setup, never run).
+    discarded_tests: list[str] = field(default_factory=list)
 
 
 @dataclass
