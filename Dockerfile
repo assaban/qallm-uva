@@ -46,8 +46,10 @@ WORKDIR /home/qallm/app
 # Install Python deps first, leveraging Docker layer cache.
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir ".[experiments]"
+RUN pip install --upgrade pip \
+    && pip install ".[experiments]"
+#RUN pip install --no-cache-dir --upgrade pip \
+#    && pip install --no-cache-dir ".[experiments]" \
 
 # Drop build-essential now that pip install is done; it added ~250MB.
 RUN apt-get purge -y build-essential \
@@ -59,7 +61,7 @@ RUN apt-get purge -y build-essential \
 # (the compose api service sets this) when you intend to use the optional
 # SonarQube analyzer. Without it, the SonarQube analyzer simply no-ops and
 # the pipeline runs on Radon/Bandit, as designed.
-ARG WITH_SONAR_SCANNER=1
+ARG WITH_SONAR_SCANNER=0
 ARG SONAR_SCANNER_VERSION=7.0.2.4839
 USER root
 RUN if [ "$WITH_SONAR_SCANNER" = "1" ]; then \
