@@ -462,6 +462,44 @@ export async function getGap(sid: string): Promise<GapResponse> {
   return req<GapResponse>(`/api/session/${sid}/gap`);
 }
 
+// ─── Confirm/refute individual findings ───
+export type FindingVerdict =
+  | "confirmed" | "refuted" | "inconclusive" | "not_execution_testable";
+
+export interface FindingVerdictRow {
+  finding_index: number;
+  file?: string;
+  tool: string;
+  type: string;
+  severity: string;
+  line: number;
+  message: string;
+  rule_id: string;
+  function: string | null;
+  verdict: FindingVerdict;
+  reason: string;
+  reproducing_test: string | null;
+}
+
+export interface ConfirmFindingsResponse {
+  available: boolean;
+  verdicts: FindingVerdictRow[];
+  reason?: string;
+  summary?: {
+    confirmed: number;
+    refuted: number;
+    inconclusive: number;
+    not_execution_testable: number;
+    confirmation_rate: number | null;
+  };
+}
+
+export async function confirmFindings(sid: string): Promise<ConfirmFindingsResponse> {
+  return req<ConfirmFindingsResponse>(`/api/session/${sid}/confirm-findings`, {
+    method: "POST",
+  });
+}
+
 // ─── Quality model profiles (selector) ───
 export interface QualityProfileInfo {
   id: string;
