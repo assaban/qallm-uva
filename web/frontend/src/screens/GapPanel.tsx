@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { ShieldCheck, ShieldAlert, ShieldQuestion, Zap, Microscope, Loader2 } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldQuestion, Zap, Microscope, Loader2, BadgeCheck } from "lucide-react";
 import * as api from "../api";
-import type { GapRound, FindingStatus, FindingVerdictRow, FindingVerdict } from "../api";
+import type { GapRound, FindingStatus, FindingVerdictRow, FindingVerdict, FixResultRow, FixVerdict } from "../api";
 
 // The static-vs-execution gap, per round: how many static findings
 // execution confirmed, could not reproduce, or could not test, and the
@@ -34,6 +34,31 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
       .finally(() => setConfirming(false));
   };
 
+  // Verified-fix loop: re-run confirmed findings' reproducing tests against
+  // the repaired code to prove the defect is gone. Pure execution, no LLM.
+  const [verifying, setVerifying] = useState(false);
+  const [fixResults, setFixResults] = useState<FixResultRow[] | null>(null);
+  const [fixSummary, setFixSummary] = useState<api.VerifyFixesResponse["summary"] | null>(null);
+  const [fixError, setFixError] = useState<string | null>(null);
+
+  const confirmedFindings = (verdicts ?? []).filter(v => v.verdict === "confirmed");
+
+  const runVerifyFixes = () => {
+    setVerifying(true);
+    setFixError(null);
+    api.verifyFixes(sessionId, confirmedFindings)
+      .then(res => {
+        if (res.available) {
+          setFixResults(res.results);
+          setFixSummary(res.summary ?? null);
+        } else {
+          setFixError(res.reason ?? "Not available.");
+        }
+      })
+      .catch(() => setFixError("Verify-fixes failed."))
+      .finally(() => setVerifying(false));
+  };
+
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -56,6 +81,17 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
   }
   if (rounds.length === 0) return null;
 
+  // Headline metrics, aggregated across rounds. The verification-gap rate
+  // is the share of all execution-found defects that no static tool
+  // flagged: execution_only / (findings_with_a_function_bug + execution_only).
+  // It is the clearest single expression of what execution adds over static
+  // analysis. Confirmation and verified-fix rates come from the on-demand
+  // actions below and are null until those are run.
+  const totalExecOnly = rounds.reduce((a, r) => a + r.summary.execution_only, 0);
+  const totalConfirmedFindings = rounds.reduce((a, r) => a + r.summary.confirmed, 0);
+  const gapDenom = totalConfirmedFindings + totalExecOnly;
+  const gapRate = gapDenom > 0 ? totalExecOnly / gapDenom : null;
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white/70 p-6 shadow-sm">
       <div className="flex items-center gap-2">
@@ -65,6 +101,32 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
       <p className="mt-1 text-sm text-slate-500">
         Static findings are hypotheses; execution is the judge. For each round: which static findings execution confirmed, which it could not reproduce (candidate false positives), which it could not test, and the bugs execution found that no static tool flagged, the verification gap.
       </p>
+
+      {/* Headline: the three metrics that express QALLM's value over static
+          analysis, in one place. */}
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <MetricCard
+          label="Verification gap"
+          help="Execution-found bugs no static tool flagged, as a share of all execution-found defects."
+          value={gapRate}
+          detail={`${totalExecOnly} execution-only`}
+          tone="indigo"
+        />
+        <MetricCard
+          label="Confirmation rate"
+          help="Of static findings execution could test, the share it reproduced. Run confirm/refute below."
+          value={confirmSummary ? confirmSummary.confirmation_rate : null}
+          detail={confirmSummary ? `${confirmSummary.confirmed} confirmed / ${confirmSummary.refuted} refuted` : "not run yet"}
+          tone="emerald"
+        />
+        <MetricCard
+          label="Verified-fix rate"
+          help="Of confirmed findings re-tested after repair, the share provably fixed. Run verify fixes below."
+          value={fixSummary ? fixSummary.verified_fix_rate : null}
+          detail={fixSummary ? `${fixSummary.verified_fixed} fixed / ${fixSummary.not_fixed} not` : "not run yet"}
+          tone="sky"
+        />
+      </div>
 
       <div className="mt-4 space-y-4">
         {rounds.map(r => <GapRoundCard key={r.round} round={r} />)}
@@ -110,9 +172,81 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
             {verdicts.map((v, i) => <VerdictCard key={i} v={v} />)}
           </div>
         )}
+
+        {/* Verified-fix loop: once findings are confirmed, prove the repair
+            actually fixed them by re-running the reproducing tests against
+            the repaired code. */}
+        {confirmedFindings.length > 0 && (
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <BadgeCheck className="h-4 w-4 text-emerald-600" /> Prove the fixes
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Re-runs each confirmed finding's reproducing test against the repaired code. A fix is verified when the test that demonstrated the defect now shows it is gone. Pure execution, no model calls.
+                </p>
+              </div>
+              <button
+                onClick={runVerifyFixes}
+                disabled={verifying}
+                className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 disabled:opacity-50"
+              >
+                {verifying ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying...</> : <>Verify fixes ({confirmedFindings.length})</>}
+              </button>
+            </div>
+
+            {fixError && <div className="mt-3 text-xs text-rose-600">{fixError}</div>}
+
+            {fixSummary && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                <Stat icon={<BadgeCheck className="h-3.5 w-3.5" />} label="verified fixed" value={fixSummary.verified_fixed} tone="emerald" />
+                <Stat icon={<ShieldAlert className="h-3.5 w-3.5" />} label="not fixed" value={fixSummary.not_fixed} tone="amber" />
+                <Stat icon={<ShieldAlert className="h-3.5 w-3.5" />} label="inconclusive" value={fixSummary.inconclusive} tone="slate" />
+                {fixSummary.verified_fix_rate !== null && (
+                  <span className="text-slate-500">verified-fix rate: <span className="font-semibold text-slate-700">{(fixSummary.verified_fix_rate * 100).toFixed(0)}%</span></span>
+                )}
+              </div>
+            )}
+
+            {fixResults && fixResults.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {fixResults.map((r, i) => <FixCard key={i} r={r} />)}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+function FixCard({ r }: { r: FixResultRow }) {
+  return (
+    <div className="rounded-lg border border-slate-100 p-3 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <FixBadge verdict={r.fix_verdict} />
+        <span className="text-slate-600">{r.tool}</span>
+        <span className="text-slate-400">·</span>
+        <span className="text-slate-500">{r.type}</span>
+        <span className="text-slate-400">·</span>
+        <span className="font-mono text-slate-500">L{r.line}</span>
+        {r.function && <><span className="text-slate-400">·</span><span className="font-mono text-slate-700">{r.function}</span></>}
+      </div>
+      <div className="mt-1 text-slate-600">{r.message}</div>
+      <div className="mt-1 italic text-slate-500">{r.reason}</div>
+    </div>
+  );
+}
+
+function FixBadge({ verdict }: { verdict: FixVerdict }) {
+  const map: Record<FixVerdict, { label: string; cls: string }> = {
+    verified_fixed: { label: "verified fixed", cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+    not_fixed: { label: "not fixed", cls: "text-amber-700 bg-amber-50 border-amber-200" },
+    inconclusive: { label: "inconclusive", cls: "text-slate-600 bg-slate-50 border-slate-200" },
+  };
+  const m = map[verdict];
+  return <span className={`rounded border px-1.5 py-0.5 font-medium ${m.cls}`}>{m.label}</span>;
 }
 
 function VerdictCard({ v }: { v: FindingVerdictRow }) {
@@ -219,6 +353,29 @@ function GapRoundCard({ round }: { round: GapRound }) {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function MetricCard({ label, help, value, detail, tone }: {
+  label: string;
+  help: string;
+  value: number | null;
+  detail: string;
+  tone: string;
+}) {
+  const tones: Record<string, string> = {
+    indigo: "border-indigo-200 bg-indigo-50",
+    emerald: "border-emerald-200 bg-emerald-50",
+    sky: "border-sky-200 bg-sky-50",
+  };
+  return (
+    <div className={`rounded-xl border p-4 ${tones[tone]}`} title={help}>
+      <div className="text-xs font-medium text-slate-600">{label}</div>
+      <div className="mt-1 text-2xl font-bold text-slate-900">
+        {value === null ? <span className="text-slate-300">—</span> : `${(value * 100).toFixed(0)}%`}
+      </div>
+      <div className="mt-0.5 text-xs text-slate-500">{detail}</div>
     </div>
   );
 }
