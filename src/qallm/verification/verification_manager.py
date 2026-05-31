@@ -210,13 +210,14 @@ class VerificationManager:
                 )
                 gen_elapsed = time.perf_counter() - gen_start
                 logger.info(
-                    "  [%s] test-gen: %.2fs (provider=%s, model=%s, tokens=in:%d/out:%d, valid=%s%s)",
+                    "  [%s] test-gen: %.2fs (provider=%s, model=%s, tokens=in:%d/out:%d, valid=%s%s%s)",
                     func.name, gen_elapsed,
                     generated.provider or "unknown",
                     generated.model or "unknown",
                     generated.input_tokens or 0,
                     generated.output_tokens or 0,
                     generated.is_valid,
+                    f", discarded={len(generated.discarded_tests)}" if generated.discarded_tests else "",
                     f", error={generated.generation_error}" if generated.generation_error else "",
                 )
                 # Record only valid tests in the store under FROZEN modes;
