@@ -55,8 +55,14 @@ flowchart TD
     subgraph S2["Stage 2: Static Quality Analysis"]
         Units --> Radon[Radon: MI, CC]
         Units --> Bandit[Bandit: security]
-        Radon --> Norm[LifecycleNormalizer<br/>per EVERSE dimension]
+        Units --> Ruff[Ruff: lint]
+        Units --> Sonar[SonarQube: optional<br/>reliability, security]
+        Units --> Truffle[TruffleHog: secrets]
+        Radon --> Norm[Normalizer<br/>per EVERSE dimension]
         Bandit --> Norm
+        Ruff --> Norm
+        Sonar --> Norm
+        Truffle --> Norm
         Norm --> Report1[Static findings]
     end
 
@@ -115,6 +121,41 @@ A design question sits inside this stage: is the iterative-feedback test generat
 * **`feedback`** (default): LLM, N rounds with execution feedback (default N = 5). The proposed verifier.
 
 This is an ablation *within* the verification stage, not three rival products. The thesis contribution is the improvement loop; the strategy flag exists to justify which verifier the loop should use. Selectable as a single flag (`--strategy hypothesis|oneshot|feedback`). The legacy value `rl` is accepted as an alias for `feedback` for back-compat.
+
+## Static findings as hypotheses: confirm, refute, and verify fixes
+
+QALLM does not stop at listing static findings. It treats each finding as a *hypothesis* and uses execution to adjudicate it, then to prove that a repair actually worked. This is the layer that turns "the linter complained" into "the bug was real and is now provably gone", and it produces three reproducible metrics that are the empirical core of the thesis.
+
+```mermaid
+flowchart TD
+    Finding[Static finding<br/>tool, type, line] --> Type{Execution-testable type?}
+    Type -->|Complexity, Maintainability| NT[not_execution_testable<br/>a property of the source]
+    Type -->|Reliability, Security| Target[Generate a targeted test<br/>for this specific finding]
+    Target --> Run[Run in sandbox]
+    Run --> Verdict{Verdict}
+    Verdict -->|reliability test fails<br/>security exploit passes| Confirmed[confirmed:<br/>finding reproduced]
+    Verdict -->|clean run| Refuted[refuted:<br/>candidate false positive]
+
+    Confirmed --> Repair[Repair applied]
+    Repair --> Rerun[Re-run the same test<br/>against repaired code]
+    Rerun --> Fix{Defect gone?}
+    Fix -->|yes| Fixed[verified_fixed:<br/>proven fix]
+    Fix -->|no| NotFixed[not_fixed:<br/>repair satisfied the tool<br/>but not the defect]
+
+    Exec[Execution-found bugs in<br/>functions with no static finding] --> Gap[Verification gap:<br/>defects static analysis missed]
+```
+
+The classification is deliberately type-aware: complexity and maintainability are properties of the source text, not runtime behaviour, so they are marked `not_execution_testable` rather than pretending a test can reproduce them. Reliability findings are confirmed when a correctness test fails; security findings when an exploit test passes.
+
+Three metrics fall out of this, each produced per session and aggregated count-weighted across sessions by [`qallm.metrics_export`](src/qallm/metrics_export.py):
+
+| Metric | Question it answers | Definition |
+| --- | --- | --- |
+| **Verification gap rate** | What share of execution-found defects did static analysis miss entirely? | execution-only bugs / (confirmed findings + execution-only bugs) |
+| **Confirmation rate** | Of static findings execution could test, how many did it reproduce? | confirmed / (confirmed + refuted) |
+| **Verified-fix rate** | Of confirmed findings re-tested after repair, how many were provably fixed? | verified_fixed / (verified_fixed + not_fixed) |
+
+Rates are null (not zero) when their denominator is empty, so an absent measurement is never read as a measured absence. Errored and discarded tests are excluded from all defect counts: only a test that ran and failed is evidence of a defect. These metrics are exported per session as JSON and CSV, and rolled up across the session library, the evidence pipeline behind the thesis evaluation. The on-demand confirm/refute and verify-fixes actions, the gap dashboard, and the metric exports are all surfaced in the web UI. The reasoning behind this layer is in [`docs/surpassing-static-analysers.md`](docs/surpassing-static-analysers.md).
 
 ## Quality profiles
 
@@ -200,7 +241,7 @@ docker compose up --build
 Open <http://localhost:8000> in a browser. The CLI is also available inside the container:
 
 ```bash
-docker compose exec api qallm --source /home/qallm/app/uploads/your_notebook.ipynb --strategy feedback
+docker compose exec api qallm /home/qallm/app/uploads/your_notebook.ipynb --strategy feedback
 ```
 
 Outputs land in `./outputs` on the host (mounted into the container).
@@ -229,13 +270,13 @@ pip install -e .
 export OPENAI_API_KEY=sk-...   # or ANTHROPIC_API_KEY
 
 # Static analysis only, on a notebook
-qallm --source notebooks/analysis.ipynb --strategy hypothesis
+qallm notebooks/analysis.ipynb --strategy hypothesis
 
 # One-shot LLM verification
-qallm --source notebooks/analysis.ipynb --strategy oneshot --llm openai
+qallm notebooks/analysis.ipynb --strategy oneshot --llm openai
 
 # Full iterative-feedback verification, 5 rounds
-qallm --source notebooks/analysis.ipynb --strategy feedback --rounds 5 --llm openai
+qallm notebooks/analysis.ipynb --strategy feedback --rounds 5 --llm openai
 ```
 
 Inputs may be a single `.py` or `.ipynb` file, a directory, a `.zip` archive, or a GitHub URL.
@@ -266,22 +307,33 @@ The Docker Compose stack above is the unit of deployment, and serving the fronte
 ```
 src/qallm/
   ingestion/          Stage 1: notebook, script, ZIP, git
-  analysis/           Stage 2: Radon, Bandit, Ruff, normalisation
-  verification/       Stage 3: iterative-feedback loop, sandbox, executor, prompts
+  analysis/           Stage 2: Radon, Bandit, Ruff, SonarQube, TruffleHog,
+                      normalisation, and gap_analysis (static vs execution)
+  verification/       Stage 3: iterative-feedback loop, sandbox, executor,
+                      prompts, test_validator, confirm_refute, verified_fix
   repair/             LLM code repair between rounds
   judge/              Accept/abandon verdict per round
   utils/              Reporters, signatures
+  common/             Shared types used across stages
   llm/                OpenAI, Anthropic, Ollama adapters
   api/                FastAPI app (serves the React UI from web/dist)
   experiments/        HumanEval validation harness
+  sample_data/        Example inputs
   profiles.py         EVERSE quality profiles
   evaluation.py       Indicator registry and verdicts
   fairness.py         FAIRness indicators
+  improvement.py      Improvement-lineage model
+  metrics_export.py   Per-session and cross-session metric export (JSON/CSV)
+  config.py           Settings (env-driven)
+  cost.py             Token/cost tracking and budget caps
   jobs.py             Background job store for the web UI
+  jupyter.py          %%qallm notebook magic
   orchestrator.py     The conductor
+  orchestrator_models.py  Progress/snapshot dataclasses
+  cli_observability.py    CLI run telemetry
   experiment.py       Batch experiment runner
   stats.py            Wilcoxon + Cliff's delta
-  run_qallm.py        CLI entry point
+  run_qallm.py        CLI entry point (`qallm <source> ...`)
 web/frontend/         React + Vite web UI
 tests/                Unit and integration tests
 docs/                 Design notes, thesis materials
@@ -296,6 +348,12 @@ To keep one source of truth, each document owns a domain. When they overlap, the
 | What QALLM is, quickstart, CLI | This README | full |
 | What QALLM *does* (the loop, judge, budget, outputs, methodology) | [`docs/workflow-design.md`](docs/workflow-design.md) | one-paragraph summary, links out |
 | Quality frameworks (EVERSE, ISO/IEC 25010, FAIR4RS, SonarQube) | [`docs/workflow-design.md`](docs/workflow-design.md) section 13 | summary table, links out |
+| Static-vs-execution strategy (gap, confirm/refute, verified fixes) | [`docs/surpassing-static-analysers.md`](docs/surpassing-static-analysers.md) | summary section, links out |
+| Run mechanics (rounds, FROZEN+GROW, ERROR vs BUG) | [`docs/run-mechanics-and-diagnostics.md`](docs/run-mechanics-and-diagnostics.md) | none |
+| SonarQube integration and setup | [`docs/sonarqube-integration.md`](docs/sonarqube-integration.md) | none |
+| Verification oracles | [`docs/oracles.md`](docs/oracles.md) | none |
+| Methodology decisions | [`docs/methodology-decisions.md`](docs/methodology-decisions.md) | none |
+| Thesis structure and metric definitions | [`docs/thesis-draft-scaffold.md`](docs/thesis-draft-scaffold.md) | none |
 | Production deployment (split FE/API, CORS, TLS, ops) | [`docs/deployment.md`](docs/deployment.md) | quickstart only, links out |
 | Auto-mode web UI behaviour | [`docs/web-ui-automode.md`](docs/web-ui-automode.md) | none |
 | Issue backlog state | [`docs/backlog-audit-2026-05.md`](docs/backlog-audit-2026-05.md) | none |
@@ -305,16 +363,19 @@ To keep one source of truth, each document owns a domain. When they overlap, the
 Working in `dev`:
 
 * All four pipeline stages, three strategies, three LLM providers.
+* Static analysis via Radon, Bandit, Ruff, TruffleHog, and optional SonarQube.
+* The static-vs-execution layer: gap analysis, per-finding confirm/refute, and verified-fix checking, with per-session and cross-session metric export (JSON/CSV).
 * Sandbox with timeout enforcement and pytest-cov telemetry.
-* Code extractor with AST-validated multi-strategy extraction.
-* Dependency mapper for sibling-module imports.
+* AST validation of generated tests (drops tests that request undefined fixtures before they run).
+* Code extractor with AST-validated multi-strategy extraction; dependency mapper for sibling-module imports.
+* EVERSE quality profiles integrated into the orchestrator.
+* React web UI served from the API process, with live verification timeline, gap dashboard, and the confirm/verify/export actions.
 * Experiment runner and statistical analysis (Wilcoxon, Cliff's delta).
 * Pilot results across 31 functions on three models.
 
 In development:
 
-* React SPA frontend on a feature branch (Option B architecture: Vite build, FastAPI static mount).
-* `qallm.profiles` module landing in `dev`; orchestrator integration to follow incrementally.
+* Wiring the batch experiment runner to emit the three execution-based metrics across a whole dataset.
 * Full-scale experiments on the Yutong Li dataset (2,796 notebooks, 277 projects).
 
 Out of scope for v1:
