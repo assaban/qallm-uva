@@ -356,7 +356,8 @@ To keep one source of truth, each document owns a domain. When they overlap, the
 | Thesis structure and metric definitions | [`docs/thesis-draft-scaffold.md`](docs/thesis-draft-scaffold.md) | none |
 | Production deployment (split FE/API, CORS, TLS, ops) | [`docs/deployment.md`](docs/deployment.md) | quickstart only, links out |
 | Auto-mode web UI behaviour | [`docs/web-ui-automode.md`](docs/web-ui-automode.md) | none |
-| Issue backlog state | [`docs/backlog-audit-2026-05.md`](docs/backlog-audit-2026-05.md) | none |
+| Jupyter `%%qallm` magic | [`docs/jupyter-magic.md`](docs/jupyter-magic.md) | none |
+| Web UI history views (Experiments, Sessions) | [`docs/web-ui-history.md`](docs/web-ui-history.md) | none |
 
 ## Status
 

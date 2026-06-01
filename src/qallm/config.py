@@ -8,7 +8,6 @@ import os
 
 class Settings:
     OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
-    # OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 
     ANTHROPIC_API_KEY: str | None = os.getenv("ANTHROPIC_API_KEY")
