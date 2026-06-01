@@ -12,12 +12,18 @@ import logging
 import os
 
 from fastapi import APIRouter
+from fastapi.responses import PlainTextResponse
 
 from qallm.api.core import (
     get_state,
     sessions,
 )
 from qallm.analysis.gap_analysis import GapReport, build_gap_report
+from qallm.metrics_export import (
+    aggregate_sessions,
+    build_session_metrics,
+    to_csv,
+)
 from qallm.config import settings
 from qallm.orchestrator import QALLMOrchestrator
 
@@ -261,24 +267,18 @@ async def download_tests(session_id: str):
 
 
 @router.get("/api/session/{session_id}/gap")
-async def get_gap(session_id: str):
-    """Static-vs-execution gap per round: which static findings execution
-    confirmed, which it could not reproduce, and which execution-found bugs
-    no static tool flagged (the verification gap).
-
-    Reads each round's persisted source.py, static.json, and
-    verification.json, so it works for live and historical sessions alike.
-    """
+def _resolve_report_dir(session_id: str) -> str | None:
+    """The on-disk report dir for a session, from live state or the library."""
     state = sessions.get(session_id) or {}
     report_dir = state.get("report_dir")
-    if not report_dir or not os.path.isdir(report_dir):
-        candidate = os.path.join(settings.QALLM_SESSIONS_DIR, session_id)
-        if os.path.isdir(candidate):
-            report_dir = candidate
-    if not report_dir or not os.path.isdir(report_dir):
-        return {"available": False, "rounds": [],
-                "reason": "No run artefacts yet. Run the pipeline first."}
+    if report_dir and os.path.isdir(report_dir):
+        return report_dir
+    candidate = os.path.join(settings.QALLM_SESSIONS_DIR, session_id)
+    return candidate if os.path.isdir(candidate) else None
 
+
+def _compute_gap_rounds(report_dir: str) -> list[dict]:
+    """Per-round gap dicts from a session's persisted round artefacts."""
     def _read_json(path: str):
         try:
             with open(path, encoding="utf-8") as fh:
@@ -293,9 +293,6 @@ async def get_gap(session_id: str):
         except OSError:
             return ""
 
-    # Each round's artefacts live under lineage/round_N/<unit>/ (accepted)
-    # or abandoned/round_N/<unit>/. We classify findings per unit and merge
-    # per round. static.json + source.py + verification.json sit together.
     reports: dict[int, GapReport] = {}
     for bucket in ("lineage", "abandoned"):
         bucket_dir = os.path.join(report_dir, bucket)
@@ -327,9 +324,123 @@ async def get_gap(session_id: str):
 
     for rep in reports.values():
         rep.execution_only_functions = sorted(set(rep.execution_only_functions))
+    return [reports[k].to_dict() for k in sorted(reports)]
 
-    ordered = [reports[k].to_dict() for k in sorted(reports)]
-    return {"available": True, "rounds": ordered}
+
+@router.get("/api/session/{session_id}/gap")
+async def get_gap(session_id: str):
+    """Static-vs-execution gap per round: which static findings execution
+    confirmed, which it could not reproduce, and which execution-found bugs
+    no static tool flagged (the verification gap).
+
+    Reads each round's persisted source.py, static.json, and
+    verification.json, so it works for live and historical sessions alike.
+    """
+    report_dir = _resolve_report_dir(session_id)
+    if not report_dir:
+        return {"available": False, "rounds": [],
+                "reason": "No run artefacts yet. Run the pipeline first."}
+    return {"available": True, "rounds": _compute_gap_rounds(report_dir)}
+
+
+@router.get("/api/session/{session_id}/metrics")
+async def get_session_metrics(session_id: str):
+    """Thesis-ready metrics for one session: run metadata plus the
+    verification-gap figures (always available), and the confirmation /
+    verified-fix figures if those actions were run and recorded on the
+    session state. Returns JSON; see /metrics.csv for the flat form.
+    """
+    report_dir = _resolve_report_dir(session_id)
+    if not report_dir:
+        return {"available": False,
+                "reason": "No run artefacts yet. Run the pipeline first."}
+
+    summary_path = os.path.join(report_dir, "summary.json")
+    summary = None
+    if os.path.isfile(summary_path):
+        try:
+            with open(summary_path, encoding="utf-8") as fh:
+                summary = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            summary = None
+
+    gap_rounds = _compute_gap_rounds(report_dir)
+    # Confirmation / verified-fix summaries are recorded on the live session
+    # state when those actions run; absent for historical sessions.
+    state = sessions.get(session_id) or {}
+    metrics = build_session_metrics(
+        session_id=session_id,
+        summary=summary,
+        gap_rounds=gap_rounds,
+        confirm_summary=state.get("confirm_summary"),
+        verify_summary=state.get("verify_summary"),
+    )
+    return {"available": True, "metrics": metrics.to_dict()}
+
+
+@router.get("/api/session/{session_id}/metrics.csv")
+async def get_session_metrics_csv(session_id: str):
+    """The single session's metrics as a one-row CSV (with header)."""
+    report_dir = _resolve_report_dir(session_id)
+    if not report_dir:
+        return PlainTextResponse("", status_code=404)
+    summary = None
+    summary_path = os.path.join(report_dir, "summary.json")
+    if os.path.isfile(summary_path):
+        try:
+            with open(summary_path, encoding="utf-8") as fh:
+                summary = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            summary = None
+    state = sessions.get(session_id) or {}
+    metrics = build_session_metrics(
+        session_id, summary, _compute_gap_rounds(report_dir),
+        confirm_summary=state.get("confirm_summary"),
+        verify_summary=state.get("verify_summary"),
+    )
+    csv_text = to_csv([metrics])
+    return PlainTextResponse(csv_text, media_type="text/csv", headers={
+        "Content-Disposition": f'attachment; filename="qallm_metrics_{session_id}.csv"',
+    })
+
+
+@router.get("/api/metrics/aggregate")
+async def get_aggregate_metrics():
+    """Cross-session roll-up over every persisted session in the library.
+
+    Rates are recomputed from summed counts (count-weighted), not averaged,
+    so larger sessions weigh proportionally. Confirmation / verified-fix
+    counts come from live state when present.
+    """
+    base = settings.QALLM_SESSIONS_DIR
+    if not os.path.isdir(base):
+        return {"available": False, "reason": "No sessions directory yet."}
+
+    metrics_list = []
+    for sid in sorted(os.listdir(base)):
+        sdir = os.path.join(base, sid)
+        if not os.path.isdir(sdir):
+            continue
+        summary = None
+        summary_path = os.path.join(sdir, "summary.json")
+        if os.path.isfile(summary_path):
+            try:
+                with open(summary_path, encoding="utf-8") as fh:
+                    summary = json.load(fh)
+            except (OSError, json.JSONDecodeError):
+                summary = None
+        gap_rounds = _compute_gap_rounds(sdir)
+        if not gap_rounds and summary is None:
+            continue
+        state = sessions.get(sid) or {}
+        metrics_list.append(build_session_metrics(
+            sid, summary, gap_rounds,
+            confirm_summary=state.get("confirm_summary"),
+            verify_summary=state.get("verify_summary"),
+        ))
+
+    agg = aggregate_sessions(metrics_list)
+    return {"available": True, "aggregate": agg.to_dict()}
 
 
 @router.get("/api/health")

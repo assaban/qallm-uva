@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ShieldCheck, ShieldAlert, ShieldQuestion, Zap, Microscope, Loader2, BadgeCheck } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldQuestion, Zap, Microscope, Loader2, BadgeCheck, Download } from "lucide-react";
 import * as api from "../api";
 import type { GapRound, FindingStatus, FindingVerdictRow, FindingVerdict, FixResultRow, FixVerdict } from "../api";
 
@@ -126,6 +126,24 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
           detail={fixSummary ? `${fixSummary.verified_fixed} fixed / ${fixSummary.not_fixed} not` : "not run yet"}
           tone="sky"
         />
+      </div>
+
+      {/* Export the metrics for the thesis. The numbers shown above are what
+          gets written; confirm/verify rates are included once run. */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => api.downloadSessionMetrics(sessionId, "json")}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+        >
+          <Download className="h-3.5 w-3.5" /> Metrics JSON
+        </button>
+        <button
+          onClick={() => api.downloadSessionMetrics(sessionId, "csv")}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+        >
+          <Download className="h-3.5 w-3.5" /> Metrics CSV
+        </button>
+        <span className="text-xs text-slate-400">Run confirm/refute and verify fixes first to include those rates.</span>
       </div>
 
       <div className="mt-4 space-y-4">

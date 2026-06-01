@@ -540,6 +540,65 @@ export async function verifyFixes(
   });
 }
 
+// ─── Metrics export (thesis evidence) ───
+export interface SessionMetricsResponse {
+  available: boolean;
+  reason?: string;
+  metrics?: Record<string, unknown>;
+}
+
+export async function getSessionMetrics(sid: string): Promise<SessionMetricsResponse> {
+  return req<SessionMetricsResponse>(`/api/session/${sid}/metrics`);
+}
+
+export interface AggregateMetricsResponse {
+  available: boolean;
+  reason?: string;
+  aggregate?: {
+    n_sessions: number;
+    verification_gap_rate: number | null;
+    confirmation_rate: number | null;
+    verified_fix_rate: number | null;
+    total_static_findings: number;
+    total_execution_only_bugs: number;
+    total_confirmed: number;
+    total_refuted: number;
+    total_verified_fixed: number;
+    total_not_fixed: number;
+    total_cost_usd: number;
+    per_session: Record<string, unknown>[];
+  };
+}
+
+export async function getAggregateMetrics(): Promise<AggregateMetricsResponse> {
+  return req<AggregateMetricsResponse>(`/api/metrics/aggregate`);
+}
+
+// Trigger a browser download of a session's metrics in the given format.
+export async function downloadSessionMetrics(sid: string, format: "json" | "csv") {
+  if (format === "csv") {
+    const a = document.createElement("a");
+    a.href = `/api/session/${sid}/metrics.csv`;
+    a.download = `qallm_metrics_${sid}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return;
+  }
+  // JSON: fetch the metrics object and save the inner `metrics` as a file.
+  const res = await getSessionMetrics(sid);
+  const payload = res.metrics ?? res;
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `qallm_metrics_${sid}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ─── Quality model profiles (selector) ───
 export interface QualityProfileInfo {
   id: string;
