@@ -86,38 +86,31 @@ The output is in `web/frontend/dist/`. Upload this directory to your static host
 
 ### 2. Configure the API to NOT serve the frontend
 
-When the frontend lives elsewhere, the API should not also try to serve it. Make this conditional on an environment variable.
-
-In `src/qallm/api/main.py`, find the static-files mount near the bottom of the file:
+When the frontend lives elsewhere, the API should not also try to serve it. This is already handled by presence: the API mounts the frontend only when a built dist directory is found. The mount logic in `src/qallm/api/main.py` resolves the dist path from the `QALLM_FRONTEND_DIST` environment variable (used by the Docker image) and otherwise falls back to the source-tree location for editable installs:
 
 ```python
-# Mount the built frontend at /
-_FRONTEND_DIST = Path(__file__).parents[2] / "web" / "frontend" / "dist"
-if _FRONTEND_DIST.exists():
-    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="frontend")
-```
+_env_dist = os.getenv("QALLM_FRONTEND_DIST")
+if _env_dist:
+    _FRONTEND_DIST = Path(_env_dist)
+else:
+    _FRONTEND_DIST = Path(__file__).resolve().parents[2].parent / "web" / "dist"
 
-Replace with:
-
-```python
-import os
-_SERVE_FRONTEND = os.getenv("QALLM_SERVE_FRONTEND", "true").lower() != "false"
-_FRONTEND_DIST = Path(__file__).parents[2] / "web" / "frontend" / "dist"
-if _SERVE_FRONTEND and _FRONTEND_DIST.exists():
+if _FRONTEND_DIST.is_dir():
     app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="frontend")
 else:
-    logger.info("Frontend serving disabled (QALLM_SERVE_FRONTEND=false or dist missing)")
+    logger.info("Frontend dist not found at %s; running API only", _FRONTEND_DIST)
 ```
 
-When deploying the API standalone:
+So to run the API standalone, build an API-only image (do not run the frontend build stage) or point `QALLM_FRONTEND_DIST` at a path that does not exist. There is no separate on/off boolean; the presence of a dist directory is the switch.
 
 ```
-docker run -e QALLM_SERVE_FRONTEND=false -p 8000:8000 qallm-api
+# API-only: no dist present, so nothing is mounted at /
+docker run -p 8000:8000 qallm-api
 ```
 
 ### 3. Configure CORS on the API
 
-The API needs to accept cross-origin requests from your frontend's domain.
+The API needs to accept cross-origin requests from your frontend's domain. CORS middleware is *not* wired in by default (the integrated deployment is same-origin and does not need it), so add it for a split deployment.
 
 In `src/qallm/api/main.py`:
 
@@ -140,11 +133,12 @@ When deploying:
 
 ```
 docker run \
-  -e QALLM_SERVE_FRONTEND=false \
   -e QALLM_CORS_ORIGINS=https://qallm.example.org \
   -p 8000:8000 \
   qallm-api
 ```
+
+(API-only because this image was built without the frontend dist; see step 2.)
 
 ### 4. Set up TLS
 
@@ -161,7 +155,7 @@ After deployment:
 ```
 # API health check
 curl https://api.qallm.example.org/api/health
-# Should return {"status": "ok"}
+# Should return {"status": "online"}
 
 # CORS preflight
 curl -X OPTIONS https://api.qallm.example.org/api/health \
@@ -220,7 +214,7 @@ If you have already split the deployment and want to go back:
 
 ```
 docker run -p 8000:8000 qallm-api
-# Defaults: QALLM_SERVE_FRONTEND=true, frontend served at /
+# An image built with the frontend dist serves the UI at / automatically.
 ```
 
 Visit `http://localhost:8000` and the integrated UI loads. No CORS issues because everything is same-origin.
