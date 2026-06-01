@@ -422,40 +422,49 @@ Test sources are part of the artefact because reviewers and future researchers n
 
 For implementation, the workflow maps onto the modules already in place, plus the new ones implied by sections 4.5, 9, and 10.
 
-| Workflow step              | Module                                                                | Status                            |
-|----------------------------|-----------------------------------------------------------------------|-----------------------------------|
-| Ingest                     | `qallm.ingestion`                                                     | Working.                          |
-| Static analysis            | `qallm.analysis`                                                      | Working.                          |
-| Verification (RL loop)     | `qallm.verification`                                                  | Working.                          |
-| Test suite persistence     | `qallm.verification.test_persistence`                                 | Built (PR feature/test-stability). 250 lines plus 22 tests. Section 4.5. |
-| Profile evaluation         | `qallm.profiles` + `qallm.evaluation`                                 | Working; reliability indicators wired in NEW-03. Framework-agnostic by design. |
-| FAIRness indicators        | `qallm.fairness` module + four evaluators in `qallm.evaluation`       | Built (NEW-04). 40 tests, four indicators across project root and source AST. |
-| Judge                      | `qallm.judge` package: models, comparator, prompts, strategies        | Built (NEW-02). 31 tests.         |
-| Improvement strategies     | `qallm.judge.strategies`: StrictJudge, LexicographicJudge, ModelJudge | Built (NEW-02). Model has Strict fallback on LLM error. |
-| Cost estimation            | `qallm.cost` (price table reused from `qallm.llm.base.MODEL_RATES`)   | Built (NEW-05). 220 lines, 20 tests. |
-| Budget enforcement         | `qallm.orchestrator` round-boundary check via `BudgetState.check()`   | Built (NEW-05). Five caps with ceilings. |
-| Loop / orchestration       | `qallm.orchestrator` (judge + lineage + abandoned + budget)            | Built (NEW-06). 9 integration tests covering accept/abandon paths. |
-| Lineage and abandoned log  | Extend `qallm.utils.reporter`                                         | To build.                         |
-| Canonical JSON + views     | `qallm.utils.reporter` + new `qallm.utils.views` (markdown + HTML)    | Built (NEW-07). Per-unit lineage / abandoned dirs each with six artefacts; report.md and report.html generated from `summary.json`. 29 tests. |
-| Web UI integration         | `qallm.api.main` + `web/frontend`                                     | Built (NEW-08). API uses v3 loop end-to-end; UploadScreen Advanced panel exposes judge / stability / policy / caps / separate models; ResultsScreen surfaces lineage, abandoned, halt, budget. 19 new tests. |
-| HumanEval experiment       | `qallm.experiments` (dataset, metrics, runner, report) + `scripts/run_humaneval.py` | Built (NEW-09). End-to-end driver against `bigcode/humanevalpack`. Bug-detection and repair-success definitions, JSONL streaming with resumption, Wilcoxon pairwise significance, markdown report. User guide at `docs/experiments/humaneval.md`. 50 new tests; production run gated behind CLI. |
+| Workflow step              | Module                                                                | Status   |
+|----------------------------|-----------------------------------------------------------------------|----------|
+| Ingest                     | `qallm.ingestion`                                                     | Working. |
+| Static analysis            | `qallm.analysis` (Radon, Bandit, Ruff, TruffleHog, optional SonarQube) | Working. |
+| Verification (feedback loop) | `qallm.verification`                                                | Working. |
+| Generated-test validation  | `qallm.verification.test_validator` (drops undefined-fixture tests)   | Working. |
+| Test suite persistence     | `qallm.verification.test_persistence`                                 | Working. |
+| Static-vs-execution gap    | `qallm.analysis.gap_analysis`                                         | Working. |
+| Confirm / refute findings  | `qallm.verification.confirm_refute` (type-aware, per finding)         | Working. |
+| Verified fixes             | `qallm.verification.verified_fix`                                    | Working. |
+| Metric export              | `qallm.metrics_export` (per-session + cross-session, JSON/CSV)        | Working. |
+| Profile evaluation         | `qallm.profiles` + `qallm.evaluation`                                 | Working. Framework-agnostic by design. |
+| FAIRness indicators        | `qallm.fairness` + evaluators in `qallm.evaluation`                   | Working. Four indicators across project root and source AST. |
+| Judge                      | `qallm.judge`: models, comparator, prompts, strategies               | Working. |
+| Improvement strategies     | `qallm.judge.strategies`: Strict, Lexicographic, Model                | Working. Model falls back to Strict on LLM error. |
+| Cost estimation            | `qallm.cost` (price table from `qallm.llm.base.MODEL_RATES`)         | Working. |
+| Budget enforcement         | `qallm.orchestrator` round-boundary check via `BudgetState.check()`   | Working. Five caps with ceilings. |
+| Loop / orchestration       | `qallm.orchestrator` (judge + lineage + abandoned + budget)           | Working. |
+| Lineage and abandoned log  | `qallm.utils.reporter`                                               | Working. |
+| Canonical JSON + views     | `qallm.utils.reporter` + `qallm.utils.views` (markdown + HTML)        | Working. Per-unit lineage / abandoned dirs, each with the round artefacts; `report.md` and `report.html` from `summary.json`. |
+| Web UI                     | `qallm.api` + `web/frontend`                                          | Working. Drives the loop end to end; live verification timeline, gap dashboard, confirm/verify/export actions. |
+| HumanEval experiment       | `qallm.experiments` + `scripts/run_humaneval.py`                     | Working. Driver against `bigcode/humanevalpack`; user guide at `docs/experiments/humaneval.md`. |
 
-## 12. Next steps
+## 12. Implementation status and next steps
 
-All design questions are resolved. The implementation roadmap below is the basis for the project backlog; each item is one focused, reviewable PR.
+The workflow described above is implemented and working on `dev`: all four
+stages, the feedback loop with judge and budget enforcement, test-suite
+persistence, the five EVERSE dimensions, and the static-vs-execution layer
+(gap analysis, per-finding confirm/refute, verified-fix checking, and metric
+export). The module map in section 11 is the authoritative status per
+component. The HumanEval validation harness is in place and run on demand via
+`scripts/run_humaneval.py`.
 
-1. ~~Extend verification for test-suite persistence per section 4.5.~~ **Done.** Two-axis configurable strategy (`test_stability` x `generation_policy`) with three meaningful modes. New `qallm.verification.test_persistence` module, 250 lines plus 22 tests. CLI flags `--test-stability` and `--generation-policy`. `summary.json` records the mode. Section 4.5.
-2. ~~Build the judge module (`qallm.judge`) with the three improvement strategies.~~ **Done.** New `qallm.judge` package: `models.py`, `comparator.py`, `prompts.py`, `strategies.py`. Three strategies (Strict, Lexicographic, Model). ModelJudge falls back to Strict on LLM error, parse failure, or `error` field on response. Every JudgeVerdict stores both the structured numerical comparison and (for Model) the LLM's free-text reasoning. 31 tests. FAIRness is omitted from the default Lexicographic priority until NEW-04 ships.
-3. ~~Wire reliability indicators in `qallm.evaluation` to actual verification output.~~ **Done.** Both `qallm.verification.pass_rate` and `qallm.verification.bugs` now read `context["verification_sessions"]: list[TestGenerationSession]`. Added a `final_pass_rate` property on the session model. 12 new tests; all 126 prior tests still pass.
-4. ~~Add FAIRness indicators (`qallm.fairness`): licence, citation, README, docstrings.~~ **Done.** New module `qallm.fairness` with four evaluators registered in `qallm.evaluation`. `QualityDimension.FAIRNESS` added to the enum. `IMPLEMENTATION_DEFAULT` profile extended to five dimensions. Default Lexicographic priority updated to include FAIRness at the end. The README indicator uses section validation with synonyms (description / installation / usage); the docstring-coverage indicator counts public symbols by default and is configurable via context. 40 new tests; 230 total.
-5. ~~Add budget enforcement in the orchestrator: rounds, tokens, time, cost.~~ **Done.** Five caps with ceilings (rounds 5/10, tokens 500k/2M, seconds 1800/3600, round-seconds 600/1200, cost $5/$25). Reuses the existing `MODEL_RATES` table in `qallm.llm.base`. New module `qallm.cost` with `BudgetCaps`, `BudgetState`, and `HaltReason`. CLI flags `--max-tokens`, `--max-seconds`, `--max-round-seconds`, `--max-cost-usd`. Halt reason recorded in `summary.json`. 20 new tests, 159 tests total.
-6. ~~Extend the orchestrator loop per section 3.~~ **Done.** The orchestrator now drives a per-unit lineage with accept/abandon decisions. New `LineageEntry`, `AbandonedEntry`, and `UnitTrack` dataclasses; round-1 unconditional acceptance; round N>=2 calls the configured judge, with REGRESSION reverting to the unit's parent and IMPROVEMENT/NO_CHANGE extending its lineage. CLI flag `--judge-strategy` (strict | lexicographic | model), default lexicographic. `summary.json` gains a per-unit `tracks` field plus `rounds_accepted_total` and `rounds_abandoned_total` aggregates. 9 new integration tests with stubbed collaborators.
-7. ~~Extend the reporter with lineage, abandoned-variant logging, canonical `summary.json`, and the markdown/HTML views (section 10).~~ **Done.** New `QualityReporter` API: `save_baseline` and `save_round_artefacts(..., accepted=...)`. Six files per round per unit: `source.py`, `static.json`, `verification.json`, `profile.json`, `judge.json`, `tests/`. Accepted variants land in `lineage/round_NN/<unit>/`; rejected in `abandoned/round_NN/<unit>/`. New `qallm.utils.views` produces `report.md` and `report.html` from `summary.json`; both are written automatically at session end. Per-unit directory names escape path separators and colons. The orchestrator's old fan-out save calls were replaced with a single per-unit save after the judge decision. 29 new tests; 266 total.
-8. ~~Update the web UI auto mode to drive the new loop.~~ **Done.** The API's verification handler now calls `orch.run()` (the v3 loop) and returns the full surface (tracks, judge verdicts, halt reason, budget) alongside the legacy `functions` list. The upload endpoint accepts `judge_strategy`, `test_stability`, `generation_policy`, budget caps (`max_tokens`, `max_seconds`, `max_round_seconds`, `max_cost_usd`), and separate `repair_model` / `testgen_model`. The orchestrator gained `repair_llm_type`, `repair_model_name`, `testgen_llm_type`, `testgen_model_name` parameters; the `LLMRepairAgent` and `VerificationManager` each get their own LLM instance when these are set. UploadScreen has an Advanced panel exposing the full v1 surface; ResultsScreen replaces RLScreen with per-unit lineage and abandoned views, halt-reason badges, and budget consumed. 19 new tests; 287 total.
-9. ~~HumanEval validation experiment (section 9.5).~~ **Done.** New `qallm.experiments` package with four modules: dataset loader (BigCode `bigcode/humanevalpack`, Python subset), metric primitives (bug-detection and repair-success definitions with real-pytest subprocess verification), JSONL-streamed runner with crash-resumability and per-problem error capture, and markdown report generator with Wilcoxon pairwise significance. CLI entrypoint at `scripts/run_humaneval.py` parameterised over models, strategies, sample size, seed, rounds, oracle, and judge strategy. User guide at `docs/experiments/humaneval.md`. 50 new tests; 337 total. Production run is gated behind manual CLI invocation to control cost.
-10. ~~Auto-mode user documentation.~~ **Done.** User guide at `docs/web-ui-automode.md` covers when to choose manual vs auto, what auto mode actually does step by step, how to read each section of the Results screen, and common troubleshooting. Also: hotfix for the `'str' object has no attribute 'value'` crash in `_build_summary` (the orchestrator now coerces `stage` to `LifecycleStage` in `__init__` whether it arrives as enum or plain string from the API). 4 new regression tests; 341 total.
+The remaining work is empirical rather than architectural:
 
-Approximate total: 10 to 15 hours of focused implementation work for items 1 through 8, plus the HumanEval experiment which is its own piece of work.
+1. Wire the batch experiment runner to emit the three execution-based metrics
+   (verification gap, confirmation, verified-fix) across a whole dataset, so
+   one run produces the aggregate figures for the thesis evaluation.
+2. Run the full-scale experiments on Li's dataset (2,796 notebooks, 277
+   projects) using the EVERSE profile.
+
+Out of scope for v1: Usability, Performance, and Compatibility indicators;
+languages other than Python; cross-project lineage.
 
 ## 13. Quality frameworks: EVERSE as one demonstrator among three
 
