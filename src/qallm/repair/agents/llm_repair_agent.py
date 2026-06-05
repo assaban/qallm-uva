@@ -135,14 +135,14 @@ Source Code:
                 text = "\n".join(blocks)
             else:
                 lines = text.splitlines()
-                text = "\n".join(l for l in lines if not l.strip().startswith(BT))
+                text = "\n".join(line for line in lines if not line.strip().startswith(BT))
         return text.strip()
 
     @staticmethod
     def _validate_compile(code: str, filename: str) -> tuple[bool, str | None]:
         """Check if code compiles. Returns (is_valid, error_message)."""
         try:
-            result = compile(code, filename, "exec")
+            compile(code, filename, "exec")
             return True, None
         except SyntaxError as e:
             return False, f"SyntaxError at line {e.lineno}: {e.msg}"
