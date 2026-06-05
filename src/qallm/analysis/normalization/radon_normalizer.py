@@ -64,11 +64,15 @@ class RadonNormalizer(ToolNormalizer):
         return findings
 
     def _severity_from_cc(self, cc: int) -> str:
-        if cc >= 20: return "CRITICAL"
-        if cc >= 15: return "HIGH"
+        if cc >= 20:
+            return "CRITICAL"
+        if cc >= 15:
+            return "HIGH"
         return "MEDIUM"
 
     def _severity_from_mi(self, mi: float) -> str:
-        if mi < 40: return "CRITICAL"
-        if mi < 60: return "HIGH"
+        if mi < 40:
+            return "CRITICAL"
+        if mi < 60:
+            return "HIGH"
         return "MEDIUM"

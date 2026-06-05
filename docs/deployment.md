@@ -228,3 +228,23 @@ Visit `http://localhost:8000` and the integrated UI loads. No CORS issues becaus
 - Sharing the project with reviewers who can clone the repo and run `docker compose up`.
 
 The split-deployment instructions in this document exist for completeness and as a deployment guide if anyone (you or a future user) wants to take QALLM beyond the thesis. They are not needed for the thesis itself.
+
+## Continuous integration and staging deploys
+
+### CI (quality gate)
+
+`.github/workflows/ci.yml` runs on every push and pull request to `dev` and `main`. It installs the package, lints `src/qallm` with ruff, and runs the full test suite on Python 3.10 and 3.12. It does **not** deploy anything and has no access to any server: it is purely a merge gate, so a red run means do not merge. Deployment is deliberately kept separate from CI so that no external system (GitHub Actions, tokens) can reach the research VM.
+
+### Staging deploy (manual, on the VM)
+
+The staging server tracks a branch (default `dev`) and is updated by hand with `scripts/deploy.sh`, run on the VM after a merge:
+
+```
+cd ~/qallm-uva
+./scripts/deploy.sh                  # deploy the tracked branch (dev)
+QALLM_BRANCH=main ./scripts/deploy.sh   # deploy a different branch or tag
+```
+
+The script fast-forwards the tracked branch, rebuilds the image, restarts the container, prunes the old image, and polls `/api/health` so a broken deploy fails loudly. It refuses to run if the working tree has uncommitted changes or if `.env` is missing, both of which would otherwise cause silent or confusing failures on a shared box.
+
+This is the recommended model for a dev/staging VM: the test gate is automated, the deploy is a single auditable command, and nothing outside the VM holds credentials to it. If QALLM later becomes a longer-lived service under a single owner, full push-to-deploy can be revisited then, weighing the convenience against giving a CI runner SSH access to the infrastructure.

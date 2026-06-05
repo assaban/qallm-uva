@@ -1,0 +1,43 @@
+name: CI
+
+# Quality gate only: install, lint, and run the test suite on every push and
+# pull request to dev or main. This workflow does NOT deploy anywhere; it has
+# no access to the staging VM. Deployment stays manual via scripts/deploy.sh,
+# so nothing here can reach UvA infrastructure.
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install the package and its dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Lint with ruff
+        run: |
+          pip install ruff
+          ruff check src/qallm
+
+      - name: Run the test suite
+        run: pytest -q --tb=short
