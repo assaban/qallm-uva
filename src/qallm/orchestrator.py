@@ -79,7 +79,7 @@ from qallm.llm.transcript import (
 from qallm.profiles import IMPLEMENTATION_DEFAULT, QualityProfile
 from qallm.utils.reporter import QualityReporter
 from qallm.verification.models import OracleType, TestedCodeUnit
-from test_persistence import TestStabilityConfig
+from qallm.verification.test_persistence import TestStabilityConfig
 from qallm.verification.verification_manager import VerificationManager
 from qallm.analysis.analysis_manager import AnalysisManager
 from qallm.repair.repair_manager import RepairManager
@@ -710,6 +710,8 @@ class QALLMOrchestrator:
             # sync with the profile definition without us inventing fields.
             "profile": self.profile.to_dict(),
             "units_analyzed": len(units),
+            "units_skipped": len(self.ingestion_manager.skipped),
+            "skipped_units": self.ingestion_manager.skipped,
             "functions_verified": len(sessions_data),
             "rounds_accepted_total": total_accepted,
             "rounds_abandoned_total": total_abandoned,
