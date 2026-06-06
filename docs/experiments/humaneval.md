@@ -27,27 +27,27 @@ If you see `ModuleNotFoundError: No module named 'datasets'`, the extras were no
 ```
 python scripts/run_humaneval.py \
     --output runs/heval_2026-05-23 \
-    --models openai:gpt-4o-mini,ollama:gemma3:4b \
-    --strategies rl,oneshot,hypothesis \
+    --models fedllm:gpt-oss-120b,ollama:gemma3:4b \
+    --strategies feedback,oneshot,hypothesis \
     --rounds 5 \
     --seed 42
 ```
 
-This runs all 164 problems against both models with all three strategies. Roughly 982 QALLM runs (the `hypothesis` strategy is identical across models so its second model run is a no-op for cost, but does re-run).
+This runs all 164 problems against both models with all three strategies. Roughly 982 QALLM runs (the `hypothesis` strategy is identical across models so its second model run is a no-op for cost, but does re-run). The strategy name `feedback` is the current name for the iterative-feedback verifier; `rl` is still accepted as a back-compat alias.
 
 For a pilot, restrict the sample:
 
 ```
 python scripts/run_humaneval.py \
     --output runs/heval_pilot \
-    --models openai:gpt-4o-mini \
-    --strategies rl \
+    --models fedllm:gpt-oss-120b \
+    --strategies feedback \
     --sample-size 20 \
     --rounds 3 \
     --seed 42
 ```
 
-A 20-problem pilot with RL on gpt-4o-mini typically costs $1-3 USD and runs in 30-60 minutes.
+A 20-problem pilot with the feedback strategy on a hosted model typically runs in 30-60 minutes. Cost depends on the provider: FedLLM (EGI) is free for VO users, so a FedLLM run costs nothing; a paid OpenAI model on the same pilot is roughly $1-3 USD.
 
 ## Cost and time estimates
 

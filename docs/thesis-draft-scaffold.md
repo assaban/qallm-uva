@@ -152,7 +152,10 @@ Purpose: answer the research questions with the metrics, honestly.
 Dataset: [Li's 2,796 notebooks from 277 projects, or the subset used.]
 Models: [which, and why]. Quality profile(s): [which]. Budget caps: [values].
 Procedure: for each unit, run the pipeline; record the per-session metrics;
-aggregate. [State exactly what was run, so it is reproducible.]
+aggregate. [State exactly what was run, so it is reproducible.] The exact
+commands, environment, and reporting checklist are in the reproducible
+experiment protocol (docs/experiments/protocol.md); this section reports the
+results of following it.
 
 ### 5.2 RQ1: the verification gap
 
