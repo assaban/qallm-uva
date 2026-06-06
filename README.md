@@ -354,6 +354,8 @@ To keep one source of truth, each document owns a domain. When they overlap, the
 | Verification oracles | [`docs/oracles.md`](docs/oracles.md) | none |
 | Methodology decisions | [`docs/methodology-decisions.md`](docs/methodology-decisions.md) | none |
 | Thesis structure and metric definitions | [`docs/thesis-draft-scaffold.md`](docs/thesis-draft-scaffold.md) | none |
+| Reproducible experiment protocol (both tracks) | [`docs/experiments/protocol.md`](docs/experiments/protocol.md) | none |
+| HumanEvalFix experiment detail | [`docs/experiments/humaneval.md`](docs/experiments/humaneval.md) | none |
 | Production deployment (split FE/API, CORS, TLS, ops) | [`docs/deployment.md`](docs/deployment.md) | quickstart only, links out |
 | Auto-mode web UI behaviour | [`docs/web-ui-automode.md`](docs/web-ui-automode.md) | none |
 | Jupyter `%%qallm` magic | [`docs/jupyter-magic.md`](docs/jupyter-magic.md) | none |
