@@ -10,6 +10,12 @@ class Settings:
     OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 
+    # FedLLM (EGI federated LLM inference): an OpenAI-compatible API.
+    # https://docs.egi.eu/documentation/803/users/ai/fedllm/
+    FEDLLM_API_KEY: str | None = os.getenv("FEDLLM_API_KEY")
+    FEDLLM_BASE_URL: str = os.getenv("FEDLLM_BASE_URL", "https://llm.ai.egi.eu/v1")
+    FEDLLM_MODEL: str = os.getenv("FEDLLM_MODEL", "gpt-oss-120b")
+
     ANTHROPIC_API_KEY: str | None = os.getenv("ANTHROPIC_API_KEY")
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 

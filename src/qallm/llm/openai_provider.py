@@ -27,25 +27,35 @@ class OpenAIModel(LLMModel):
     def is_configured(self) -> bool:
         return bool(settings.OPENAI_API_KEY)
 
+    def _provider_label(self) -> str:
+        """Provider tag recorded on responses. Overridable by subclasses."""
+        return "openai"
+
+    def _build_client(self):
+        """Construct the OpenAI-compatible client. Overridable by subclasses
+        that point at a different OpenAI-compatible endpoint (e.g. FedLLM)."""
+        import openai
+        return openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+
     def chat(self, system: str, user: str, tracker: TokenTracker | None = None) -> LLMResponse:
         from qallm.llm.transcript import timer
 
+        label = self._provider_label()
         if not self.is_configured():
-            resp = LLMResponse(content="", provider="openai", model=self._model_id,
-                               error="OPENAI_API_KEY not configured")
+            resp = LLMResponse(content="", provider=label, model=self._model_id,
+                               error=f"{label} API key not configured")
             self._capture(system, user, resp, 0.0)
             return resp
 
         if tracker and tracker.remaining <= 0:
-            resp = LLMResponse(content="", provider="openai", model=self._model_id,
+            resp = LLMResponse(content="", provider=label, model=self._model_id,
                                error=f"Token budget exhausted ({tracker.budget} tokens used)")
             self._capture(system, user, resp, 0.0)
             return resp
 
         with timer() as t:
             try:
-                import openai
-                client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+                client = self._build_client()
 
                 kwargs: dict = {
                     "model": self._model_id,
@@ -69,11 +79,11 @@ class OpenAIModel(LLMModel):
                     input_tokens=usage.prompt_tokens if usage else 0,
                     output_tokens=usage.completion_tokens if usage else 0,
                     model=response.model,
-                    provider="openai",
+                    provider=label,
                 )
             except Exception as e:
-                logger.error("OpenAI API error [%s]: %s", self._model_id, e)
-                resp = LLMResponse(content="", provider="openai", model=self._model_id, error=str(e))
+                logger.error("%s API error [%s]: %s", label, self._model_id, e)
+                resp = LLMResponse(content="", provider=label, model=self._model_id, error=str(e))
 
         if tracker:
             tracker.record(resp)
