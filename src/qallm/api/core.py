@@ -93,6 +93,8 @@ MODEL_CATALOG = [
     {"id": "openai:gpt-5.4",          "provider": "openai",    "model": "gpt-5.4",          "label": "OpenAI / gpt-5.4"},
     {"id": "anthropic:claude-haiku-4.5", "provider": "anthropic", "model": "claude-haiku-4-5-20251001", "label": "Anthropic / Claude Haiku 4.5"},
     {"id": "anthropic:claude-sonnet-4",  "provider": "anthropic", "model": "claude-sonnet-4-20250514",  "label": "Anthropic / Claude Sonnet 4"},
+    {"id": "fedllm:gpt-oss-120b",      "provider": "fedllm",    "model": "gpt-oss-120b",      "label": "FedLLM / gpt-oss-120b (EGI)"},
+    {"id": "fedllm:gpt-oss-20b",       "provider": "fedllm",    "model": "gpt-oss-20b",       "label": "FedLLM / gpt-oss-20b (EGI)"},
 ]
 
 
@@ -104,6 +106,8 @@ def check_model_available(entry: dict) -> bool:
         return bool(settings.ANTHROPIC_API_KEY)
     elif provider == "ollama":
         return bool(settings.OLLAMA_BASE_URL)
+    elif provider == "fedllm":
+        return bool(settings.FEDLLM_API_KEY)
     return False
 
 
@@ -115,7 +119,7 @@ def parse_model_id(model_id: str) -> tuple[str, str]:
     if ":" in model_id and not model_id.startswith("gemma"):
         # provider:model format (but not ollama names like gemma3:4b)
         parts = model_id.split(":", 1)
-        if parts[0] in ("openai", "anthropic", "ollama"):
+        if parts[0] in ("openai", "anthropic", "ollama", "fedllm"):
             return parts[0], parts[1]
 
     for entry in MODEL_CATALOG:

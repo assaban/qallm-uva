@@ -69,6 +69,7 @@ from qallm.llm.anthropic_provider import AnthropicModel
 from qallm.llm.base import LLMModel, TokenTracker
 from qallm.llm.ollama_provider import OllamaModel
 from qallm.llm.openai_provider import OpenAIModel
+from qallm.llm.fedllm_provider import FedLLMModel
 from qallm.llm.transcript import (
     TranscriptRecorder,
     active_recorder,
@@ -78,7 +79,7 @@ from qallm.llm.transcript import (
 from qallm.profiles import IMPLEMENTATION_DEFAULT, QualityProfile
 from qallm.utils.reporter import QualityReporter
 from qallm.verification.models import OracleType, TestedCodeUnit
-from qallm.verification.test_persistence import TestStabilityConfig
+from test_persistence import TestStabilityConfig
 from qallm.verification.verification_manager import VerificationManager
 from qallm.analysis.analysis_manager import AnalysisManager
 from qallm.repair.repair_manager import RepairManager
@@ -97,6 +98,7 @@ LLM_PROVIDERS = {
     "ollama": OllamaModel,
     "openai": OpenAIModel,
     "anthropic": AnthropicModel,
+    "fedllm": FedLLMModel,
 }
 
 

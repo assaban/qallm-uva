@@ -223,7 +223,7 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
           </select>
           {selectedModel && !selectedModel.available && (
             <p className="text-xs text-red-500">
-              Set {selectedModel.provider === "openai" ? "OPENAI_API_KEY" : selectedModel.provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OLLAMA_BASE_URL"} to enable this model.
+              Set {({ openai: "OPENAI_API_KEY", anthropic: "ANTHROPIC_API_KEY", ollama: "OLLAMA_BASE_URL", fedllm: "FEDLLM_API_KEY" }[selectedModel.provider]) ?? "the provider's API key"} to enable this model.
             </p>
           )}
         </div>
