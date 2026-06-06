@@ -1,4 +1,5 @@
 import os
+import logging
 import tempfile
 import zipfile
 from pathlib import Path
@@ -7,6 +8,9 @@ import git  # Requires pip install gitpython
 
 from qallm.common.model import CodeUnit
 from qallm.ingestion.ingestion_model import NotebookAdapter
+from qallm.ingestion.triviality import assess_triviality
+
+logger = logging.getLogger(__name__)
 
 
 class IngestionManager:
@@ -14,9 +18,20 @@ class IngestionManager:
 
     def __init__(self):
         self.nb_adapter = NotebookAdapter()
+        # Units skipped as non-analyzable, recorded for auditability and
+        # reporting (e.g. "N files skipped, nothing to verify").
+        self.skipped: list[dict] = []
 
     def collect(self, source: str) -> List[CodeUnit]:
-        """Collects units from single files, directories, ZIPs, or GitHub URLs."""
+        """Collect analyzable units from files, directories, ZIPs, or git URLs.
+
+        Units with nothing to analyze (empty or import-only files, the bare
+        __init__.py case) are filtered out so they do not consume analysis,
+        test-generation, and LLM-repair resources or skew the metrics.
+        """
+        return self._filter_trivial(self._collect_raw(source))
+
+    def _collect_raw(self, source: str) -> List[CodeUnit]:
         if source.startswith(("http://", "https://")):
             return self._handle_git(source)
 
@@ -31,6 +46,25 @@ class IngestionManager:
             with open(path, 'r') as f:
                 return [CodeUnit(f.read(), 0, path)]
         return []
+
+    def _filter_trivial(self, units: List[CodeUnit]) -> List[CodeUnit]:
+        kept: List[CodeUnit] = []
+        for unit in units:
+            verdict = assess_triviality(unit.source_code)
+            if verdict.is_trivial:
+                self.skipped.append({
+                    "path": str(unit.original_path),
+                    "cell_index": unit.cell_index,
+                    "reason": verdict.reason,
+                })
+                logger.info("Skipping non-analyzable unit %s (cell %s): %s",
+                            unit.original_path, unit.cell_index, verdict.reason)
+            else:
+                kept.append(unit)
+        if self.skipped:
+            logger.info("Ingestion skipped %d non-analyzable unit(s); kept %d.",
+                        len(self.skipped), len(kept))
+        return kept
 
     def _handle_git(self, url: str) -> List[CodeUnit]:
         tmp_dir = tempfile.mkdtemp()
