@@ -128,8 +128,21 @@ def _profile_verdict() -> ProfileVerdict:
 # ---------- constructor ----------
 
 
-def test_reporter_creates_run_directory(tmp_path: Path):
+def test_reporter_does_not_create_dir_on_construction(tmp_path: Path):
+    # Regression: constructing a reporter must NOT create the session
+    # directory. The orchestrator builds a reporter in its own constructor,
+    # so eager creation left an empty directory on disk for every orchestrator
+    # built but never run (e.g. ingest-only probes), producing bursts of empty
+    # session folders. The directory must appear only on the first write.
     r = _reporter(tmp_path)
+    assert not r.report_dir.exists()
+    assert r.report_dir.name == "test"
+
+
+def test_reporter_creates_run_directory_on_first_write(tmp_path: Path):
+    r = _reporter(tmp_path)
+    assert not r.report_dir.exists()
+    r._ensure_dir()
     assert r.report_dir.exists()
     assert r.report_dir.is_dir()
     assert r.report_dir.name == "test"

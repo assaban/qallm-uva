@@ -80,6 +80,15 @@ class QualityReporter:
         # to a timestamp so concurrent sessions don't collide.
         self.run_id = run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
         self.report_dir = Path(base_dir) / self.run_id
+        # The directory is created lazily, on the first artefact write, NOT
+        # here. Constructing a reporter (which the orchestrator does in its
+        # own constructor) must not leave an empty session directory on disk
+        # if the run never produces anything, e.g. an ingest-only probe or a
+        # run that fails before the baseline. Every write path calls
+        # _ensure_dir() first.
+
+    def _ensure_dir(self) -> None:
+        """Create the session directory on first use. Idempotent."""
         self.report_dir.mkdir(parents=True, exist_ok=True)
 
     # ----- baseline -----
@@ -89,6 +98,7 @@ class QualityReporter:
 
         Returns the directory the artefacts were written to.
         """
+        self._ensure_dir()
         baseline_dir = self.report_dir / "round_00_baseline"
         baseline_dir.mkdir(parents=True, exist_ok=True)
         stem = analysed.code_unit.original_path.stem
@@ -131,6 +141,7 @@ class QualityReporter:
 
         Returns the directory written to.
         """
+        self._ensure_dir()
         bucket = "lineage" if accepted else "abandoned"
         # Per-unit subdirectories let multi-unit sessions co-exist within
         # lineage/round_N/ without filename collisions.
