@@ -84,6 +84,8 @@ def get_state(sid: str) -> dict:
 
 # ─── Model catalog ──────────────────────────────────────────────────
 MODEL_CATALOG = [
+    {"id": "fedllm:gpt-oss-120b",      "provider": "fedllm",    "model": "gpt-oss-120b",      "label": "FedLLM / gpt-oss-120b (EGI)"},
+    {"id": "fedllm:gpt-oss-20b",       "provider": "fedllm",    "model": "gpt-oss-20b",       "label": "FedLLM / gpt-oss-20b (EGI)"},
     {"id": "ollama:gemma4:e4b",         "provider": "ollama",    "model": "gemma4:e4b",        "label": "Ollama / Effective 4B (E4B) (local)"},
     {"id": "ollama:gemma3:4b",         "provider": "ollama",    "model": "gemma3:4b",        "label": "Ollama / Gemma3 4B (local)"},
     {"id": "ollama:gemma2",            "provider": "ollama",    "model": "gemma2",           "label": "Ollama / Gemma2 (local)"},
@@ -93,8 +95,6 @@ MODEL_CATALOG = [
     {"id": "openai:gpt-5.4",          "provider": "openai",    "model": "gpt-5.4",          "label": "OpenAI / gpt-5.4"},
     {"id": "anthropic:claude-haiku-4.5", "provider": "anthropic", "model": "claude-haiku-4-5-20251001", "label": "Anthropic / Claude Haiku 4.5"},
     {"id": "anthropic:claude-sonnet-4",  "provider": "anthropic", "model": "claude-sonnet-4-20250514",  "label": "Anthropic / Claude Sonnet 4"},
-    {"id": "fedllm:gpt-oss-120b",      "provider": "fedllm",    "model": "gpt-oss-120b",      "label": "FedLLM / gpt-oss-120b (EGI)"},
-    {"id": "fedllm:gpt-oss-20b",       "provider": "fedllm",    "model": "gpt-oss-20b",       "label": "FedLLM / gpt-oss-20b (EGI)"},
 ]
 
 
