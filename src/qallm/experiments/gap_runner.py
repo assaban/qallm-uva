@@ -6,13 +6,13 @@ turning the per-session work described in the experiment protocol into one
 command. Results stream to JSONL so a long run is resumable, and a final
 aggregate JSON and per-session CSV are written for the thesis.
 
-Scope: this runner produces the verification-gap rate (RQ1), which is derived
-purely from each session's persisted artefacts and needs no extra LLM calls.
-The confirmation rate (RQ2) and verified-fix rate (RQ3) require the on-demand
-confirm/refute and verify-fixes steps, which are per-function and LLM-driven;
-the per-session metric record here leaves those fields null, and the export
-plumbing (qallm.metrics_export) already carries them, so a later pass can fill
-them in without changing this file's output shape.
+Scope: by default this runner produces the verification-gap rate (RQ1),
+which is derived purely from each session's persisted artefacts and needs no
+extra LLM calls. With confirm=True (the --confirm CLI flag) it also runs
+confirm/refute (RQ2) and verify-fixes (RQ3) per session, reconstructing their
+inputs from the same artefacts (see qallm.experiments.confirm_verify); those
+steps make LLM calls, so they are opt-in. All three rates flow through the
+same per-session record and aggregate.
 """
 
 from __future__ import annotations
@@ -47,6 +47,7 @@ class GapExperimentConfig:
     judge_strategy: str = "lexicographic"
     stage: str = "implementation"
     pattern: str = "*.ipynb"  # which files in the dataset to run
+    confirm: bool = False     # also run confirm/refute + verify-fixes (RQ2/RQ3); costs LLM calls
 
     def to_manifest(self) -> dict:
         return {
@@ -59,6 +60,7 @@ class GapExperimentConfig:
             "judge_strategy": self.judge_strategy,
             "stage": self.stage,
             "pattern": self.pattern,
+            "confirm": self.confirm,
         }
 
 
@@ -182,12 +184,27 @@ def _run_one(
             if report_dir and os.path.isdir(report_dir) else []
         )
         session_id = os.path.basename(report_dir) if report_dir else str(input_path)
+
+        confirm_summary = None
+        verify_summary = None
+        if config.confirm and report_dir and os.path.isdir(report_dir):
+            # RQ2/RQ3: reconstruct inputs from disk and run confirm + verify.
+            # Uses the orchestrator's own test-gen LLM and token tracker.
+            from qallm.experiments.confirm_verify import confirm_and_verify_from_dir
+            cv = confirm_and_verify_from_dir(
+                report_dir,
+                testgen_llm=getattr(orch, "testgen_llm", None) or getattr(orch, "llm", None),
+                tracker=getattr(orch, "tracker", None),
+            )
+            confirm_summary = cv["confirm_summary"]
+            verify_summary = cv["verify_summary"]
+
         m = build_session_metrics(
             session_id=session_id,
             summary=summary,
             gap_rounds=gap_rounds,
-            confirm_summary=None,   # RQ2/RQ3 not run in this batch pass
-            verify_summary=None,
+            confirm_summary=confirm_summary,
+            verify_summary=verify_summary,
         )
         return {"input": str(input_path), "metrics": m.to_dict(), "error": None}
     except Exception as e:  # one bad notebook should not sink the run

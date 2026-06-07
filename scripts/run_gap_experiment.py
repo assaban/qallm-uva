@@ -50,6 +50,9 @@ def main() -> None:
                         choices=["initialization", "implementation", "publication"])
     parser.add_argument("--pattern", default="*.ipynb",
                         help="Glob for dataset files (default *.ipynb; use *.py for scripts).")
+    parser.add_argument("--confirm", action="store_true",
+                        help="Also run confirm/refute (RQ2) and verify-fixes (RQ3) per "
+                             "session. Makes extra LLM calls; off by default.")
     parser.add_argument("--log-level", default="INFO",
                         choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     args = parser.parse_args()
@@ -68,6 +71,7 @@ def main() -> None:
         judge_strategy=args.judge_strategy,
         stage=args.stage,
         pattern=args.pattern,
+        confirm=args.confirm,
     )
     result = run_gap_experiment(config)
 
@@ -78,6 +82,11 @@ def main() -> None:
     print(f"Verification gap rate: {rate if rate is not None else 'n/a (no denominator)'}")
     print(f"Execution-only bugs: {agg.get('total_execution_only_bugs')}   "
           f"Confirmed findings: {agg.get('total_confirmed_findings')}")
+    if args.confirm:
+        cr = agg.get("confirmation_rate")
+        vr = agg.get("verified_fix_rate")
+        print(f"Confirmation rate: {cr if cr is not None else 'n/a'}   "
+              f"Verified-fix rate: {vr if vr is not None else 'n/a'}")
     print(f"Outputs in: {args.output}")
 
 
