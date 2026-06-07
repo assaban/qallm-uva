@@ -232,3 +232,63 @@ def build_gap_report(
     report.execution_only_functions.sort()
 
     return report
+
+
+def compute_gap_rounds_from_dir(report_dir: str) -> list[dict]:
+    """Per-round gap dicts from a session's persisted round artefacts.
+
+    Reads each round's source.py, static.json, and verification.json from the
+    session's report directory (lineage/ accepted and abandoned/ rejected
+    variants), classifies findings per unit, and merges per round. Pure disk
+    reading with no API dependency, so it is usable by the web layer and by
+    batch experiment runners alike.
+    """
+    import json
+    import os
+
+    def _read_json(path: str):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                return json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def _read_text(path: str) -> str:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                return fh.read()
+        except OSError:
+            return ""
+
+    reports: dict[int, GapReport] = {}
+    for bucket in ("lineage", "abandoned"):
+        bucket_dir = os.path.join(report_dir, bucket)
+        if not os.path.isdir(bucket_dir):
+            continue
+        for round_name in sorted(os.listdir(bucket_dir)):
+            round_path = os.path.join(bucket_dir, round_name)
+            if not os.path.isdir(round_path):
+                continue
+            try:
+                round_no = int(round_name.replace("round_", ""))
+            except ValueError:
+                continue
+            for unit_seg in sorted(os.listdir(round_path)):
+                unit_dir = os.path.join(round_path, unit_seg)
+                if not os.path.isdir(unit_dir):
+                    continue
+                source = _read_text(os.path.join(unit_dir, "source.py"))
+                findings = _read_json(os.path.join(unit_dir, "static.json")) or []
+                verification = _read_json(os.path.join(unit_dir, "verification.json"))
+                if not source and not findings:
+                    continue
+                unit_report = build_gap_report(round_no, source, findings, verification)
+                merged = reports.setdefault(round_no, GapReport(round=round_no))
+                merged.findings.extend(unit_report.findings)
+                merged.execution_only_functions.extend(
+                    unit_report.execution_only_functions
+                )
+
+    for rep in reports.values():
+        rep.execution_only_functions = sorted(set(rep.execution_only_functions))
+    return [reports[k].to_dict() for k in sorted(reports)]
