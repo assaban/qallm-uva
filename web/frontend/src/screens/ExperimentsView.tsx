@@ -205,7 +205,8 @@ function CatalogPanel({ onLaunched }: { onLaunched: () => void }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [sampleSize, setSampleSize] = useState<string>("10");
   const [strategies, setStrategies] = useState<string[]>(["feedback", "oneshot"]);
-  const [model, setModel] = useState("openai:gpt-4o-mini");
+  const [model, setModel] = useState("fedllm:gpt-oss-120b");
+  const [models, setModels] = useState<{ id: string; label: string; available: boolean }[]>([]);
   const [rounds, setRounds] = useState("3");
   const [progressRunId, setProgressRunId] = useState<string | null>(null);
   const [progress, setProgress] = useState<import("../api").ExperimentProgress | null>(null);
@@ -215,6 +216,16 @@ function CatalogPanel({ onLaunched }: { onLaunched: () => void }) {
   useEffect(() => {
     let alive = true;
     api.listExperimentCatalog().then((r) => alive && setSpecs(r.experiments)).catch(() => {});
+    // Populate the model dropdown from the same catalog the pipeline uses, so
+    // the user selects a model rather than typing its id.
+    api.getModels().then((r) => {
+      if (!alive) return;
+      setModels(r.models);
+      // Keep the default if present; otherwise fall back to the first model.
+      if (r.models.length && !r.models.some((m) => m.id === "fedllm:gpt-oss-120b")) {
+        setModel(r.models[0].id);
+      }
+    }).catch(() => {});
     // Resume: a run launched earlier keeps going server-side. On mount, ask
     // which run (if any) is still running and reattach its progress, so the
     // user sees it after navigating away and back.
@@ -299,10 +310,10 @@ function CatalogPanel({ onLaunched }: { onLaunched: () => void }) {
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 font-semibold text-indigo-800">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
-              Experiment running in the background · {progress.completed}/{progress.total}
+              Experiment running in the background · {progress.completed}/{progress.total} tasks
             </span>
             <span className="text-indigo-600">
-              {progress.bug_detected} bugs · {progress.repair_successful} repaired{progress.errored ? ` · ${progress.errored} errored` : ""}
+              {progress.bug_detected} bugs found · {progress.repair_successful} repaired{progress.errored ? ` · ${progress.errored} errored` : ""}
             </span>
           </div>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-200">
@@ -344,7 +355,14 @@ function CatalogPanel({ onLaunched }: { onLaunched: () => void }) {
                     <input value={sampleSize} onChange={(e) => setSampleSize(e.target.value)} placeholder="blank = all 164" className="mt-1 w-full rounded-lg border p-2 text-sm" />
                   </label>
                   <label className="text-xs text-slate-600">Model
-                    <input value={model} onChange={(e) => setModel(e.target.value)} className="mt-1 w-full rounded-lg border p-2 text-sm" />
+                    <select value={model} onChange={(e) => setModel(e.target.value)} className="mt-1 w-full rounded-lg border p-2 text-sm">
+                      {models.length === 0 && <option value={model}>{model}</option>}
+                      {models.map((m) => (
+                        <option key={m.id} value={m.id} disabled={!m.available}>
+                          {m.label}{m.available ? "" : " (unavailable)"}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label className="text-xs text-slate-600">Rounds
                     <input value={rounds} onChange={(e) => setRounds(e.target.value)} className="mt-1 w-full rounded-lg border p-2 text-sm" />
@@ -377,7 +395,7 @@ function CatalogPanel({ onLaunched }: { onLaunched: () => void }) {
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-semibold text-slate-700">
-                        {progress.status === "running" ? "Running" : progress.status === "done" ? "Complete" : "Failed"} · {progress.completed}/{progress.total}
+                        {progress.status === "running" ? "Running" : progress.status === "done" ? "Complete" : "Failed"} · {progress.completed}/{progress.total} tasks
                       </span>
                       <span className="text-slate-500">
                         {progress.bug_detected} bugs · {progress.repair_successful} repaired{progress.errored ? ` · ${progress.errored} errored` : ""}
