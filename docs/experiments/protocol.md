@@ -225,18 +225,19 @@ from these artefacts and is always available after a run.
 
 ### 6.3 Confirm/refute and verify-fixes
 
-The confirmation and verified-fix rates require the on-demand steps, which use
-the LLM and so are not run automatically:
+The confirmation (RQ2) and verified-fix (RQ3) rates require generating and
+running targeted tests, which use the LLM, so they are opt-in.
 
-- Confirm/refute: `POST /api/session/{id}/confirm-findings` (or the "Run
-  confirm/refute" action in the web UI gap panel).
-- Verify fixes: `POST /api/session/{id}/verify-fixes` with the confirmed
-  findings (or the "Verify fixes" action).
+For a whole dataset in one command, pass `--confirm` to the batch runner
+(section 6.6); it runs confirm/refute and verify-fixes for every session,
+reconstructing their inputs from the persisted artefacts, and folds all three
+rates into the aggregate. This is the recommended path for the thesis.
 
-These record their summaries on the session so the export includes the
-confirmation and verified-fix rates. Run them for every session that
-contributes those two metrics, or report clearly that a given table reports
-the gap rate only.
+For a single session interactively, the web UI gap panel offers "Run
+confirm/refute" and "Verify fixes" actions (backed by
+`POST /api/session/{id}/confirm-findings` and
+`POST /api/session/{id}/verify-fixes`), useful for inspecting one notebook in
+detail.
 
 ### 6.4 Export and aggregate
 
@@ -264,6 +265,30 @@ For each reported number, record: commit hash, provider and model(s), strategy,
 oracle, rounds, judge, seed (where applicable), dataset subset and size,
 `units_skipped`, and whether confirm/verify were run. State which rates are
 null (no denominator) rather than presenting them as zero.
+
+### 6.6 One command for the whole track
+
+`scripts/run_gap_experiment.py` runs the whole verification-gap track over a
+dataset and writes `results.jsonl` (resumable), `aggregate.json`,
+`metrics.csv`, and `manifest.json`.
+
+```
+# RQ1 only (free, no extra LLM calls): the verification-gap rate
+python scripts/run_gap_experiment.py \
+    --dataset data/li_notebooks --output runs/gap_full \
+    --llm fedllm --rounds 5
+
+# All three metrics (RQ1 + RQ2 + RQ3): adds confirm/refute and verify-fixes
+python scripts/run_gap_experiment.py \
+    --dataset data/li_notebooks --output runs/gap_full_confirmed \
+    --llm fedllm --rounds 5 --confirm
+```
+
+With `--confirm`, the runner reconstructs the confirm/refute and verify-fixes
+inputs from each session's artefacts (round 0 source for confirmation, the
+final accepted source for verified fixes), so one invocation yields all three
+aggregate rates. Without it, only the gap rate is computed. The aggregate is
+count-weighted across sessions.
 
 ## 7. Threats to validity
 
