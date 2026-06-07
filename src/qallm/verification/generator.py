@@ -20,7 +20,10 @@ from qallm.verification.prompts import (
     build_feedback_prompt
 )
 from qallm.verification.sandbox import CodeExtractor
-from qallm.verification.test_validator import strip_unsatisfied_fixture_tests
+from qallm.verification.test_validator import (
+    strip_unsatisfied_fixture_tests,
+    strip_incoherent_oracle_tests,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +137,29 @@ class TestGenerator:
                     validation_error = (
                         "All generated tests requested undefined fixtures "
                         f"({', '.join(discarded)}); nothing left to run."
+                    )
+
+        # Drop tests whose oracle is evaluated at a different input than the
+        # function under test: such a failure is an artifact of the test, not
+        # a defect in the code, so letting it run would record a false bug and
+        # undermine the validity of the execution-based verdict. Conservative:
+        # only unambiguous constant-vs-constant mismatches are removed.
+        if is_valid:
+            stripped_code, incoherent = strip_incoherent_oracle_tests(
+                test_code, func.name
+            )
+            if incoherent:
+                logger.warning(
+                    "Discarded %d test(s) for %s with an oracle evaluated at a "
+                    "different input than the call (false-bug risk): %s",
+                    len(incoherent), func.name, ", ".join(incoherent),
+                )
+                test_code = stripped_code
+                is_valid, validation_error = _validate_test_code(test_code)
+                if not is_valid:
+                    validation_error = (
+                        "All generated tests had incoherent oracles "
+                        f"({', '.join(incoherent)}); nothing left to run."
                     )
 
         if not is_valid:

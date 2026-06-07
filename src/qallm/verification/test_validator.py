@@ -174,3 +174,157 @@ def strip_unsatisfied_fixture_tests(code: str) -> tuple[str, list[str]]:
     except Exception:  # noqa: BLE001 - unparse should not fail, but be safe
         return code, []
     return rewritten, sorted(to_remove)
+
+
+# ── Incoherent-oracle detection ──────────────────────────────────────────
+#
+# A generated test can run without error yet assert something meaningless,
+# the most common form being an oracle evaluated at a different input than the
+# function under test (FUT). For example:
+#
+#     def test_large():
+#         n = 1000
+#         result = complex_branching(n)
+#         assert result == _expected_total(100)   # oracle uses 100, not n=1000
+#
+# This produces a *false* BUG: a failure that is an artifact of the test, not a
+# defect in the code. That directly threatens the validity of QALLM's
+# execution-based verdicts (a reported bug must be a property of the code, not
+# of a malformed test). We therefore detect and drop such tests before they
+# run, deterministically and conservatively.
+#
+# Conservatism is the priority: we flag ONLY the unambiguous case where, in a
+# single equality/inequality comparison, the FUT is invoked (directly, or via a
+# local variable assigned from a FUT call) with one constant input, and a
+# module-local oracle helper is invoked with a DIFFERENT constant input. We do
+# not attempt to judge whether an expected literal value is "correct" in
+# general (undecidable, and would risk discarding good tests). Unrelated
+# production functions are not treated as oracles, only helpers defined in the
+# test module itself.
+
+
+def _module_local_oracle_helpers(tree: ast.Module, fut_name: str) -> set[str]:
+    """Module-local functions that look like oracle helpers.
+
+    Any function defined at module level in the test file that is neither the
+    function under test nor a test_* function is a candidate oracle helper
+    (commonly a ``_expected_*`` reimplementation of the expected result).
+    """
+    helpers: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name != fut_name and not node.name.startswith("test_"):
+                helpers.add(node.name)
+    return helpers
+
+
+def _first_arg_literal(call: ast.Call, const_binds: dict[str, object]) -> object | None:
+    """The first positional argument of ``call`` as a constant, if knowable.
+
+    Resolves a direct literal, or a local variable previously bound to a
+    literal. Returns None when the argument is not a simple constant (so we
+    only ever compare known-constant against known-constant).
+    """
+    if not call.args:
+        return None
+    arg = call.args[0]
+    if isinstance(arg, ast.Constant):
+        return arg.value
+    if isinstance(arg, ast.Name) and arg.id in const_binds:
+        return const_binds[arg.id]
+    return None
+
+
+def find_incoherent_oracle_tests(code: str, fut_name: str) -> dict[str, tuple[object, object]]:
+    """Map test name -> (fut_input, oracle_input) for incoherent-oracle tests.
+
+    A test is incoherent when, in one comparison, the function under test is
+    fed one constant input and a module-local oracle helper is fed a different
+    constant input. Only such tests are returned; everything else is left for
+    execution to judge.
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return {}
+
+    oracle_helpers = _module_local_oracle_helpers(tree, fut_name)
+    if not oracle_helpers:
+        return {}
+
+    flagged: dict[str, tuple[object, object]] = {}
+    for fn in tree.body:
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if not fn.name.startswith("test_"):
+            continue
+
+        const_binds: dict[str, object] = {}
+        fut_arg_of: dict[str, object] = {}  # local var -> FUT input that produced it
+        for node in ast.walk(fn):
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 \
+                    and isinstance(node.targets[0], ast.Name):
+                target = node.targets[0].id
+                value = node.value
+                if isinstance(value, ast.Constant):
+                    const_binds[target] = value.value
+                elif isinstance(value, ast.Call) and isinstance(value.func, ast.Name) \
+                        and value.func.id == fut_name:
+                    lit = _first_arg_literal(value, const_binds)
+                    if lit is not None:
+                        fut_arg_of[target] = lit
+
+        for cmp in ast.walk(fn):
+            if not isinstance(cmp, ast.Compare):
+                continue
+            fut_inputs: set[object] = set()
+            oracle_inputs: set[object] = set()
+            for operand in [cmp.left, *cmp.comparators]:
+                if isinstance(operand, ast.Call) and isinstance(operand.func, ast.Name):
+                    if operand.func.id == fut_name:
+                        lit = _first_arg_literal(operand, const_binds)
+                        if lit is not None:
+                            fut_inputs.add(lit)
+                    elif operand.func.id in oracle_helpers:
+                        lit = _first_arg_literal(operand, const_binds)
+                        if lit is not None:
+                            oracle_inputs.add(lit)
+                elif isinstance(operand, ast.Name) and operand.id in fut_arg_of:
+                    fut_inputs.add(fut_arg_of[operand.id])
+            mismatches = [(f, o) for f in fut_inputs for o in oracle_inputs if f != o]
+            if mismatches:
+                flagged[fn.name] = mismatches[0]
+                break
+
+    return flagged
+
+
+def strip_incoherent_oracle_tests(code: str, fut_name: str) -> tuple[str, list[str]]:
+    """Remove tests whose oracle is evaluated at a different input than the FUT.
+
+    Same contract as ``strip_unsatisfied_fixture_tests``: returns the rewritten
+    code and the sorted list of removed test names, preserving every other
+    top-level statement. Returns the code unchanged on parse failure or when
+    nothing needs removing.
+    """
+    flagged = find_incoherent_oracle_tests(code, fut_name)
+    if not flagged:
+        return code, []
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return code, []
+
+    to_remove = set(flagged.keys())
+    tree.body = [
+        node for node in tree.body
+        if not (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name in to_remove
+        )
+    ]
+    try:
+        rewritten = ast.unparse(tree)
+    except Exception:  # noqa: BLE001 - unparse should not fail, but be safe
+        return code, []
+    return rewritten, sorted(to_remove)
