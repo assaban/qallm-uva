@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 
 from fastapi import APIRouter, HTTPException
 
@@ -45,6 +46,43 @@ def _read_json(path: str):
 def _is_session_dir(path: str) -> bool:
     """A session directory is one that has a summary.json."""
     return os.path.isfile(os.path.join(path, "summary.json"))
+
+
+def _dir_has_any_file(path: str) -> bool:
+    """True if the directory tree contains at least one regular file."""
+    for _root, _dirs, files in os.walk(path):
+        if files:
+            return True
+    return False
+
+
+def prune_empty_sessions(sessions_dir: str | None = None) -> list[str]:
+    """Remove session directories that contain no files at all.
+
+    A run that was constructed but never wrote artefacts (e.g. an old probe,
+    or a run that failed before the baseline) can leave an empty directory.
+    This conservatively removes ONLY directories with no regular file anywhere
+    inside, so a directory holding any artefact is never touched. Returns the
+    list of removed directory names.
+    """
+    base = sessions_dir or _sessions_dir()
+    if not os.path.isdir(base):
+        return []
+    removed: list[str] = []
+    for name in sorted(os.listdir(base)):
+        path = os.path.join(base, name)
+        if not os.path.isdir(path):
+            continue
+        if _dir_has_any_file(path):
+            continue  # holds artefacts; never remove
+        try:
+            shutil.rmtree(path)
+            removed.append(name)
+        except OSError as e:
+            logger.warning("Could not remove empty session dir %s: %s", path, e)
+    if removed:
+        logger.info("Pruned %d empty session director(ies).", len(removed))
+    return removed
 
 
 def _summarise(session_id: str, summary: dict) -> dict:
@@ -136,3 +174,14 @@ async def get_session_report(session_id: str):
             return {"id": session_id, "markdown": fh.read()}
     except OSError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/api/library/prune-empty")
+async def prune_empty():
+    """Remove session directories that contain no artefacts at all.
+
+    Conservative housekeeping: only directories with no file anywhere inside
+    are removed, so nothing holding results is ever touched.
+    """
+    removed = prune_empty_sessions()
+    return {"removed": removed, "count": len(removed)}

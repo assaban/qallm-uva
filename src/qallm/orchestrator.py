@@ -724,6 +724,7 @@ class QALLMOrchestrator:
             "tracks": tracks_dict,
             "sessions": sessions_data,
         }
+        self.reporter._ensure_dir()
         summary_path = self.reporter.report_dir / "summary.json"
         summary_path.write_text(
             json.dumps(summary, indent=2, default=str), encoding="utf-8"
