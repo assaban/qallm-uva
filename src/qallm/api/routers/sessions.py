@@ -24,6 +24,7 @@ from qallm.api.core import (
     sessions,
 )
 from qallm.orchestrator import QALLMOrchestrator
+from qallm.ingestion.ingestion_manager import IngestionManager
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +186,13 @@ async def ingest_source(req: dict):
 
     session_id = str(uuid.uuid4())
     try:
+        # Ingestion has no dependency on the orchestrator (no LLM, no
+        # reporter): collect with a standalone IngestionManager. The
+        # orchestrator, configured for the downstream analyse/repair stages,
+        # is built once and stored on session state. Building it is cheap
+        # (LLM clients are created lazily on first use, not here), so this
+        # keeps ingestion decoupled without delaying the later stages.
+        units = IngestionManager().collect(source_path)
         orchestrator = QALLMOrchestrator(
             stage=req.get("stage", "implementation"),
             strategy=req.get("strategy", "rl"),
@@ -194,7 +202,6 @@ async def ingest_source(req: dict):
             rounds=req.get("rounds", 5),
             tags=req.get("tags") or [],
         )
-        units = orchestrator.ingestion_manager.collect(source_path)
 
         sessions[session_id] = {
             "orchestrator": orchestrator,
