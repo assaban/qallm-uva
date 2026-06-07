@@ -33,6 +33,10 @@ boundary conditions.
 6. Every test must contain at least one assert statement or pytest.raises.
 7. Do not use external libraries beyond pytest and the standard library.
 8. Do not mock the function under test; call it directly.
+9. If a test computes an expected value with a helper, that helper MUST be \
+called with the SAME input you passed to the function under test. Never \
+compare the result for one input against the expected value for a different \
+input (e.g. result of f(1000) must not be compared to expected(100)).
 """
 
 

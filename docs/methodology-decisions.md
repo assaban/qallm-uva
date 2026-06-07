@@ -58,3 +58,28 @@ When a methodology decision is made, append a new section as `MD-NNN: short titl
 9. **Implications**: for the pilot, for the thesis chapters, for future work.
 
 Decisions are append-only. To overturn a decision, add a new entry that explicitly references the one it overrides; do not edit the old entry.
+
+---
+
+## MD-002: Drop incoherent-oracle tests before execution (false-BUG prevention)
+
+1. **Date / context**: arose from a report where a generated test fired a spurious failure: it called the function under test with `n = 1000` but compared the result against an oracle helper evaluated at `100`.
+
+2. **Decision**: before a generated test suite is executed, deterministically remove any test whose oracle is evaluated at a different constant input than the function under test (FUT), and add a prompt rule discouraging the LLM from producing them.
+
+3. **What it was before**: generated tests were validated only for unsatisfiable fixtures (setup errors). A test that ran but asserted against a mismatched-input oracle would fail and be counted as a BUG.
+
+4. **Why we changed it**: this is a soundness requirement for the central claim. QALLM's contribution is that execution-based verification is a trustworthy corrective to the false confidence of static analysis. If execution itself fires on malformed oracles, the verification-gap and confirmation rates inflate with false bugs, defects attributed to the code that are actually artifacts of the test. A reported bug must be a property of the code under test, not of the test. Removing these tests keeps the bug counts (and hence all three metrics) sound.
+
+5. **Alternatives considered**:
+   - *Quarantine and flag rather than drop*: preserves more information but adds reporting surface and risk; deferred. Dropping is the conservative, easily-defended move.
+   - *Try to detect wrong expected values in general*: undecidable, and would risk discarding good tests. Rejected. We flag ONLY the unambiguous constant-vs-constant input mismatch between the FUT and a module-local oracle helper.
+   - *Prompt-only prevention*: necessary but not sufficient (probabilistic). Used in addition to the deterministic strip.
+
+6. **Cost impact**: negligible; one extra AST pass per generated suite, no extra LLM calls.
+
+7. **Implementation**: `find_incoherent_oracle_tests` / `strip_incoherent_oracle_tests` in `src/qallm/verification/test_validator.py`; wired into `TestGenerator.generate` in `src/qallm/verification/generator.py` alongside fixture stripping; prompt rule 9 in `src/qallm/verification/prompts.py`.
+
+8. **Test coverage**: `tests/test_incoherent_oracle.py` (11 cases): flags intermediate-variable and inline mismatches; never flags same-input tests, weak assertions, unrelated production functions, non-constant inputs, or helperless suites; safe on syntax errors.
+
+9. **Implications**: makes the bug-count denominators sound, which strengthens RQ1 (verification gap) and RQ2 (confirmation) against the examiner question "how do you know your execution-found bugs are real and not test artifacts?". The threats-to-validity section should cite this as a deliberate conservative filter. The number of tests dropped this way is itself a small reportable measure of generated-test quality.
