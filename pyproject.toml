@@ -15,6 +15,7 @@ dependencies = [
     "hypothesis",
     "pytest",
     "pytest-cov",
+    "pytest-asyncio",
     "pytest-json-report",
     "coverage",
     "scipy",
@@ -43,6 +44,14 @@ jupyter = [
 
 [project.scripts]
 qallm = "qallm.run_qallm:main"
+
+[tool.pytest.ini_options]
+# auto: async test functions are run by pytest-asyncio without each needing an
+# explicit @pytest.mark.asyncio decorator. The async tests in tests/test_jobs.py
+# and tests/test_api_jobs.py rely on this; under the default "strict" mode they
+# would be skipped or errored, so this setting is required for them to run.
+asyncio_mode = "auto"
+testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
