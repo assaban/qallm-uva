@@ -148,6 +148,13 @@ Across sessions, rates are recomputed from summed counts (count-weighted), not
 averaged, so a session with one finding does not weigh equally with a session
 with fifty. `aggregate_sessions` in `qallm.metrics_export` does this.
 
+Each aggregate rate also carries a bootstrap 95% confidence interval
+(`confidence_intervals` in the aggregate output). The interval is computed by
+resampling sessions with replacement (sessions are the independent unit, since
+findings cluster within them) and recomputing the pooled rate, so the headline
+figures are reported as a point estimate with an interval rather than a bare
+number. Report the interval alongside each rate in the results chapter.
+
 ## 5. HumanEvalFix track (summary)
 
 Full detail in `docs/experiments/humaneval.md`. In brief:
