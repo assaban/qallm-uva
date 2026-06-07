@@ -75,10 +75,14 @@ def wilcoxon_test(x: list[float], y: list[float], alpha: float = 0.05) -> dict:
     stat, p_val = wilcoxon(x_filtered, y_filtered)
     delta, delta_interp = cliffs_delta(x, y)
 
+    # Coerce NumPy scalars to native Python types: scipy returns numpy floats
+    # and `p_val < alpha` is a numpy bool, neither of which is JSON
+    # serialisable. The API and metrics export return this dict, so native
+    # types are required.
     return {
         "statistic": round(float(stat), 4),
         "p_value": round(float(p_val), 6),
-        "significant": p_val < alpha,
+        "significant": bool(p_val < alpha),
         "cliffs_delta": delta,
         "effect_size": delta_interp,
         "n_pairs": len(pairs),
