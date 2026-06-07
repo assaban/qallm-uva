@@ -262,3 +262,50 @@ class TestOriginalOnlyFiltering:
             ]
             assert "_helper" not in called_func_names
             assert called_func_names == ["add"]
+
+
+class TestSessionSourceRefresh:
+    """The reused per-function session reflects each round's actual source.
+
+    Regression: a function whose body was repaired but whose session is
+    reused across rounds used to keep its round-0 source_code forever, so the
+    report's "Function under test" showed the original (pre-repair) code every
+    round even though the code on disk was correctly repaired.
+    """
+
+    def test_reused_session_source_updates_after_repair(self, tmp_path):
+        path = tmp_path / "demo.py"
+        original_source = "def f(x):\n    return eval(x)\n"
+        repaired_source = "def f(x):\n    return ast.literal_eval(x)\n"
+
+        vm = _make_verification_manager()
+
+        # Round 1 runs against the original source.
+        unit_r1 = _build_repaired_unit(original_source, original_source, path)
+        # Round 2 runs against the repaired source for the same function.
+        unit_r2 = _build_repaired_unit(original_source, repaired_source, path)
+
+        with patch.object(vm.generator, "generate") as fake_gen, \
+             patch("qallm.verification.verification_manager.run_tests") as fake_run:
+            fake_gen.return_value = MagicMock(
+                test_code="def test_dummy(): pass", is_valid=True,
+                generation_error=None, oracle="crash", model="stub",
+                provider="stub",
+            )
+            fake_run.return_value = MagicMock(
+                stdout="", stderr="", execution_error=None,
+                tests_passed=1, tests_failed=0, tests_errored=0,
+                coverage_percent=100.0, bugs_found=0,
+            )
+
+            vm.verify(unit_r1, round_number=1)
+            key = vm.store.make_key(path, 0, "f")
+            session_after_r1 = vm.store.get_or_create_record(key, "f").session
+            assert "eval(x)" in session_after_r1.source_code
+
+            vm.verify(unit_r2, round_number=2)
+            session_after_r2 = vm.store.get_or_create_record(key, "f").session
+            # Same persisted session, but its source now reflects round 2.
+            assert session_after_r2 is session_after_r1
+            assert "ast.literal_eval(x)" in session_after_r2.source_code
+            assert "return eval(x)" not in session_after_r2.source_code

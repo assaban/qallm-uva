@@ -180,6 +180,16 @@ class VerificationManager:
                 self.store.attach_session(key, session)
             else:
                 session = record.session
+                # The session persists across rounds, but the source it
+                # describes does not: after a repair, this round runs against
+                # the repaired source. Refresh it so the per-round
+                # verification record (and the report's "Function under test"
+                # view) reflects the code actually tested this round, not the
+                # round-0 snapshot frozen at session creation. Without this,
+                # a function whose body changed but whose tests did not run
+                # again would display its original (pre-repair) source every
+                # round.
+                session.source_code = source
 
             module_name = f"source_{path.stem}_c{unit.cell_index}"
 
