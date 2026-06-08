@@ -8,6 +8,7 @@ from qallm.experiments.gap_runner import (
     GapExperimentConfig,
     run_gap_experiment,
     _discover_inputs,
+    _default_orchestrator_factory,
 )
 
 
@@ -129,3 +130,29 @@ def test_error_isolated_per_input(tmp_path):
     assert len(result.per_session) == 1     # the good one
     assert len(result.errors) == 1          # the bad one, isolated
     assert "kernel exploded" in result.errors[0]["error"]
+
+
+def test_default_orchestrator_factory_constructs(tmp_path):
+    """The real factory must construct a QALLMOrchestrator without kwarg
+    mismatches.
+
+    Regression: the factory passed rounds_per_function= but the constructor
+    takes rounds=, so every real run failed at construction. The other tests
+    use a fake factory and never exercised this path. This builds the real
+    orchestrator (no network: construction creates no LLM clients) and checks
+    the config is applied.
+    """
+    config = GapExperimentConfig(
+        dataset_dir=tmp_path,
+        output_dir=tmp_path / "out",
+        llm_type="openai",      # construction does not call the API
+        strategy="feedback",
+        rounds=3,
+        oracle="crash",
+        judge_strategy="lexicographic",
+        stage="implementation",
+    )
+    orch = _default_orchestrator_factory(config)
+    assert orch is not None
+    # The rounds value should have been accepted and applied.
+    assert orch.rounds == 3

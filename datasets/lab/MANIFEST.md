@@ -17,7 +17,7 @@ The fixtures are organised by what they exercise. Findings below were verified
 against the actual analyzers (Bandit, Radon) and by executing the code, so this
 manifest is an answer key, not an aspiration.
 
-## reliability_gap.py — the verification gap (RQ1)
+## reliability_gap.py: the verification gap (RQ1)
 
 Lint-clean, low-complexity functions that are wrong at runtime. Static analysis
 passes them; execution should find the defect.
@@ -33,7 +33,7 @@ passes them; execution should find the defect.
 Expected: static analysis reports no reliability bug; execution-based
 verification finds defects in all five. These drive the verification-gap rate.
 
-## security_findings.py — confirmation (RQ2)
+## security_findings.py: confirmation (RQ2)
 
 Code Bandit flags. Execution decides which are genuinely reachable.
 
@@ -47,7 +47,7 @@ Expected: security findings present; confirm/refute corroborates the eval and
 shell cases, and `build_query` exercises the path where a finding has no
 execution oracle.
 
-## complexity_findings.py — not execution testable
+## complexity_findings.py: not execution testable
 
 Findings about source structure, not behaviour. The code is correct.
 
@@ -59,7 +59,7 @@ Findings about source structure, not behaviour. The code is correct.
 Expected: complexity/maintainability findings present; no runtime bug; these
 classify as not execution testable, exercising that branch.
 
-## clean_control.py — negative control
+## clean_control.py: negative control
 
 Correct, simple, secure functions. A sound pipeline finds nothing here.
 

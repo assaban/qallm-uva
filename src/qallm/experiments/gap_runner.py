@@ -83,7 +83,7 @@ def _default_orchestrator_factory(config: GapExperimentConfig):
         strategy=config.strategy,
         llm_type=config.llm_type,
         model_name=config.model_name,
-        rounds_per_function=config.rounds,
+        rounds=config.rounds,
         oracle=config.oracle,
         judge_strategy=config.judge_strategy,
         stage=config.stage,
