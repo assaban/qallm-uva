@@ -72,3 +72,32 @@ def test_resolve_finds_readme_via_some_root():
 
 def test_resolve_returns_none_for_missing():
     assert docs_mod._resolve("docs/this-does-not-exist-xyz.md") is None
+
+
+# ── mermaid rendering ──
+
+def test_mermaid_block_becomes_renderable_pre():
+    # ```mermaid fences must become <pre class="mermaid"> with UNescaped source,
+    # which is what mermaid.js renders. Escaped source inside <code> would show
+    # as text (the original bug: diagrams not displayed).
+    md = "# T\n\n```mermaid\ngraph TD\n  A --> B\n```\n"
+    out = docs_mod._render(md)
+    assert '<pre class="mermaid">' in out
+    assert "A --> B" in out          # arrow unescaped
+    assert "--&gt;" not in out       # not HTML-escaped
+
+
+def test_non_mermaid_code_stays_escaped_and_highlighted():
+    # Ordinary fenced code must keep its language class and stay escaped.
+    md = "```python\nx = 1 < 2\n```\n"
+    out = docs_mod._render(md)
+    assert 'class="language-python"' in out
+    assert "1 &lt; 2" in out
+
+
+def test_readme_mermaid_blocks_are_converted():
+    # The README ships mermaid diagrams; the rendered endpoint must expose them
+    # as renderable blocks, not escaped code.
+    html = client.get("/api/docs/readme").json()["html"]
+    if "mermaid" in html:   # README has at least one diagram
+        assert '<pre class="mermaid">' in html
