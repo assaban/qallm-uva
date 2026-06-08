@@ -48,6 +48,11 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip install --upgrade pip \
     && pip install ".[experiments]"
+# Ship the docs tree so the in-app Docs tab can render it. The docs router
+# resolves files relative to the working directory (this WORKDIR), among
+# other candidate roots. Placed after the install so it does not bust the
+# dependency layer cache.
+COPY docs ./docs
 #RUN pip install --no-cache-dir --upgrade pip \
 #    && pip install --no-cache-dir ".[experiments]" \
 
