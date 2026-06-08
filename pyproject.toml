@@ -27,6 +27,7 @@ dependencies = [
     "uvicorn[standard]",
     "python-multipart",
     "httpx",
+    "markdown",
 ]
 
 [project.optional-dependencies]

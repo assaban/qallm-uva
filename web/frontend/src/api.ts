@@ -778,3 +778,11 @@ export async function datasetToPipeline(id: string, params: {
 }): Promise<{ session_id: string; experiment_id: string; n_files: number; directory: string }> {
   return post(`/api/experiment-catalog/${encodeURIComponent(id)}/to-pipeline`, params);
 }
+
+export async function listDocs(): Promise<{ docs: { id: string; title: string; path: string }[] }> {
+  return req<{ docs: { id: string; title: string; path: string }[] }>("/api/docs");
+}
+
+export async function getDoc(docId: string): Promise<{ id: string; title: string; html: string }> {
+  return req<{ id: string; title: string; html: string }>(`/api/docs/${encodeURIComponent(docId)}`);
+}

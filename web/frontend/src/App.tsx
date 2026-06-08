@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Shield, FlaskConical, Library, Sparkles } from "lucide-react";
+import { Shield, FlaskConical, Library, Sparkles, BookOpen } from "lucide-react";
 import StepRail from "./components/StepRail";
 import { NextBar } from "./components/Shared";
 import { useSession } from "./hooks/useSession";
@@ -13,6 +13,7 @@ import ResultsScreen from "./screens/ResultsScreen";
 import ExperimentsView from "./screens/ExperimentsView";
 import SessionsView from "./screens/SessionsView";
 import AboutView from "./screens/AboutView";
+import DocsView from "./screens/DocsView";
 
 const STEPS_MANUAL = 6;
 const STEPS_AUTO = 4;
@@ -20,7 +21,7 @@ const STEPS_AUTO = 4;
 export default function App() {
   const { state, patch, setStep } = useSession();
   const [mode, setMode] = useState<"manual" | "auto">("manual");
-  const [view, setView] = useState<"pipeline" | "experiments" | "sessions" | "about">("pipeline");
+  const [view, setView] = useState<"pipeline" | "experiments" | "sessions" | "about" | "docs">("pipeline");
   const autoRunner = useAutoRunner(state, patch, setStep);
 
   // Called by UploadScreen after successful upload. We accept the
@@ -135,6 +136,12 @@ export default function App() {
           >
             <Sparkles className="h-3.5 w-3.5" /> The Gap
           </button>
+          <button
+            onClick={() => setView("docs")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium ${view === "docs" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+          >
+            <BookOpen className="h-3.5 w-3.5" /> Docs
+          </button>
         </div>
         {/* Step navigation: locked while an auto run is in flight to
             prevent the user from disrupting the pipeline. Once the run
@@ -152,6 +159,10 @@ export default function App() {
         ) : view === "sessions" ? (
           <div className="min-h-[400px]">
             <SessionsView />
+          </div>
+        ) : view === "docs" ? (
+          <div className="min-h-[400px]">
+            <DocsView />
           </div>
         ) : (
           <>
