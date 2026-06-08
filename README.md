@@ -355,6 +355,7 @@ To keep one source of truth, each document owns a domain. When they overlap, the
 | Methodology decisions | [`docs/thesis/methodology-decisions.md`](docs/thesis/methodology-decisions.md) | none |
 | Thesis structure and metric definitions | [`docs/thesis/thesis-draft-scaffold.md`](docs/thesis/thesis-draft-scaffold.md) | none |
 | Reproducible experiment protocol (both tracks) | [`docs/experiments/protocol.md`](docs/experiments/protocol.md) | none |
+| Full experiment run outline (ordered, with commands) | [`docs/experiments/run-outline.md`](docs/experiments/run-outline.md) | none |
 | Project roadmap (priorities and rationale) | [`docs/thesis/roadmap.md`](docs/thesis/roadmap.md) | none |
 | Running experiments directly (venv setup) | [`docs/guides/running-experiments.md`](docs/guides/running-experiments.md) | none |
 | Interactive verification-gap explainer (standalone, shareable) | [`docs/showcase/verification-gap-explainer.html`](docs/showcase/verification-gap-explainer.html) | none |
