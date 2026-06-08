@@ -16,6 +16,13 @@ class TruffleHogAnalyzer(StaticCodeAnalyzer):
     def tool_name(self) -> str:
         return "trufflehog"
 
+    def get_normalizer(self):
+        # No dedicated normalizer; findings are mapped by map_result_to_report.
+        # Implemented so the class satisfies the StaticCodeAnalyzer ABC and can
+        # be instantiated (it previously could not, an abstract method was
+        # missing), matching how RuffAnalyzer leaves its normalizer unset.
+        return None
+
     def analyze(self, unit: CodeUnit) -> RawToolResult:
         """
         Executes TruffleHog by writing the code unit to a temporary directory
