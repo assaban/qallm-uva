@@ -118,3 +118,65 @@ def test_wilcoxon_alpha_threshold_respected():
     assert strict["significant"] is False
     lenient = wilcoxon_test(x, y, alpha=0.05)
     assert lenient["significant"] is True
+
+
+# ── bootstrap confidence interval for count-weighted rates ──
+
+from qallm.stats import bootstrap_rate_ci  # noqa: E402
+
+
+def test_bootstrap_point_matches_pooled_rate():
+    # 3 sessions; pooled rate = (1+2+3)/(2+4+6) = 6/12 = 0.5
+    res = bootstrap_rate_ci([1, 2, 3], [2, 4, 6])
+    assert res["point"] == 0.5
+    assert res["n_sessions"] == 3
+
+
+def test_bootstrap_ci_brackets_point():
+    num = [1, 2, 0, 3, 1, 2, 1, 0, 2, 1]
+    den = [2, 4, 2, 5, 3, 4, 2, 2, 4, 3]
+    res = bootstrap_rate_ci(num, den)
+    assert res["ci_low"] <= res["point"] <= res["ci_high"]
+    assert 0.0 <= res["ci_low"] <= 1.0
+    assert 0.0 <= res["ci_high"] <= 1.0
+
+
+def test_bootstrap_is_deterministic_with_seed():
+    num = [1, 2, 0, 3, 1, 2]
+    den = [2, 4, 2, 5, 3, 4]
+    a = bootstrap_rate_ci(num, den, seed=7)
+    b = bootstrap_rate_ci(num, den, seed=7)
+    assert a == b
+
+
+def test_bootstrap_zero_denominator_returns_none_point():
+    res = bootstrap_rate_ci([0, 0], [0, 0])
+    assert res["point"] is None
+    assert res["ci_low"] is None
+
+
+def test_bootstrap_single_session_is_degenerate():
+    res = bootstrap_rate_ci([1], [2])
+    assert res["point"] == 0.5
+    assert res["ci_low"] == res["ci_high"] == 0.5
+    assert "note" in res
+
+
+def test_bootstrap_complete_certainty_tight_interval():
+    # Every session is a pure gap (num == den): rate must be 1.0 with a
+    # degenerate-to-tight interval since every resample also gives 1.0.
+    res = bootstrap_rate_ci([2, 3, 1, 4], [2, 3, 1, 4])
+    assert res["point"] == 1.0
+    assert res["ci_low"] == 1.0 and res["ci_high"] == 1.0
+
+
+def test_bootstrap_mismatched_lengths_raises():
+    import pytest as _pytest
+    with _pytest.raises(ValueError):
+        bootstrap_rate_ci([1, 2], [1])
+
+
+def test_bootstrap_result_is_json_serialisable():
+    import json
+    res = bootstrap_rate_ci([1, 2, 3], [2, 4, 6])
+    json.dumps(res)  # must not raise

@@ -156,6 +156,12 @@ class AggregateMetrics:
     total_not_fixed: int = 0
     total_cost_usd: float = 0.0
     per_session: list[dict] = field(default_factory=list)
+    # Per-session (numerator, denominator) pairs for each rate, captured from
+    # the typed SessionMetrics so the bootstrap CI does not depend on the
+    # lossy per-session dict (which omits some counts).
+    _gap_pairs: list[tuple[int, int]] = field(default_factory=list)
+    _conf_pairs: list[tuple[int, int]] = field(default_factory=list)
+    _fix_pairs: list[tuple[int, int]] = field(default_factory=list)
 
     @property
     def verification_gap_rate(self) -> float | None:
@@ -174,6 +180,29 @@ class AggregateMetrics:
         return _rate(self.total_verified_fixed,
                      self.total_verified_fixed + self.total_not_fixed)
 
+    def confidence_intervals(self) -> dict[str, Any]:
+        """Bootstrap 95% CIs for the three rates, resampling by session.
+
+        Sessions are the independent unit (findings cluster within them), so
+        the CI is computed by resampling sessions with replacement and
+        recomputing each pooled rate. Gives the headline figures an interval
+        rather than a bare point estimate.
+        """
+        from qallm.stats import bootstrap_rate_ci
+
+        gap_num = [p[0] for p in self._gap_pairs]
+        gap_den = [p[1] for p in self._gap_pairs]
+        conf_num = [p[0] for p in self._conf_pairs]
+        conf_den = [p[1] for p in self._conf_pairs]
+        fix_num = [p[0] for p in self._fix_pairs]
+        fix_den = [p[1] for p in self._fix_pairs]
+
+        return {
+            "verification_gap_rate": bootstrap_rate_ci(gap_num, gap_den),
+            "confirmation_rate": bootstrap_rate_ci(conf_num, conf_den),
+            "verified_fix_rate": bootstrap_rate_ci(fix_num, fix_den),
+        }
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "n_sessions": self.n_sessions,
@@ -186,6 +215,7 @@ class AggregateMetrics:
             "total_verified_fixed": self.total_verified_fixed,
             "total_not_fixed": self.total_not_fixed,
             "verified_fix_rate": self.verified_fix_rate,
+            "confidence_intervals": self.confidence_intervals(),
             "total_cost_usd": round(self.total_cost_usd, 6),
             "per_session": self.per_session,
         }
@@ -204,6 +234,13 @@ def aggregate_sessions(sessions: list[SessionMetrics]) -> AggregateMetrics:
         agg.total_not_fixed += (s.not_fixed or 0)
         agg.total_cost_usd += s.cost_usd
         agg.per_session.append(s.to_dict())
+        # Capture per-session (numerator, denominator) for the bootstrap CIs.
+        eo, cf = s.execution_only_bugs, s.confirmed_findings
+        agg._gap_pairs.append((eo, eo + cf))
+        c, r = (s.confirmed or 0), (s.refuted or 0)
+        agg._conf_pairs.append((c, c + r))
+        vf, nf = (s.verified_fixed or 0), (s.not_fixed or 0)
+        agg._fix_pairs.append((vf, vf + nf))
     return agg
 
 

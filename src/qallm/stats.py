@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import csv
 import logging
+import random
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -259,3 +260,96 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def bootstrap_rate_ci(
+    numerators: list[int],
+    denominators: list[int],
+    confidence: float = 0.95,
+    n_resamples: int = 2000,
+    seed: int = 42,
+) -> dict:
+    """Bootstrap a confidence interval for a count-weighted rate.
+
+    A rate like the verification gap is a ratio of summed counts across
+    sessions (sum(numerators) / sum(denominators)). The right resampling unit
+    is the SESSION, not the individual finding: findings cluster within
+    sessions, so resampling sessions with replacement and recomputing the
+    pooled rate each time yields a CI that respects that clustering. A
+    per-finding bootstrap would understate the interval.
+
+    Args:
+        numerators: per-session numerator counts (e.g. execution-only bugs).
+        denominators: per-session denominator counts (e.g. confirmed +
+            execution-only), paired with numerators by index.
+        confidence: e.g. 0.95 for a 95% percentile interval.
+        n_resamples: number of bootstrap resamples.
+        seed: for reproducibility.
+
+    Returns a dict with point, ci_low, ci_high, confidence, n_sessions, and
+    method, or point=None when the total denominator is zero (no data to rate).
+    """
+    if len(numerators) != len(denominators):
+        raise ValueError("numerators and denominators must have equal length")
+
+    n = len(numerators)
+    total_denom = sum(denominators)
+    if n == 0 or total_denom == 0:
+        return {
+            "point": None,
+            "ci_low": None,
+            "ci_high": None,
+            "confidence": confidence,
+            "n_sessions": n,
+            "method": "bootstrap_percentile_session_resample",
+        }
+
+    point = sum(numerators) / total_denom
+
+    # A single session cannot yield an interval; report the point only.
+    if n == 1:
+        return {
+            "point": round(point, 4),
+            "ci_low": round(point, 4),
+            "ci_high": round(point, 4),
+            "confidence": confidence,
+            "n_sessions": n,
+            "method": "bootstrap_percentile_session_resample",
+            "note": "Single session; interval is degenerate.",
+        }
+
+    rng = random.Random(seed)
+    rates: list[float] = []
+    indices = range(n)
+    for _ in range(n_resamples):
+        num_sum = 0
+        den_sum = 0
+        for _ in range(n):
+            j = rng.choice(indices)
+            num_sum += numerators[j]
+            den_sum += denominators[j]
+        if den_sum > 0:
+            rates.append(num_sum / den_sum)
+
+    if not rates:
+        return {
+            "point": round(point, 4),
+            "ci_low": None,
+            "ci_high": None,
+            "confidence": confidence,
+            "n_sessions": n,
+            "method": "bootstrap_percentile_session_resample",
+        }
+
+    rates.sort()
+    alpha = 1.0 - confidence
+    lo_idx = int((alpha / 2.0) * len(rates))
+    hi_idx = min(len(rates) - 1, int((1.0 - alpha / 2.0) * len(rates)))
+    return {
+        "point": round(point, 4),
+        "ci_low": round(rates[lo_idx], 4),
+        "ci_high": round(rates[hi_idx], 4),
+        "confidence": confidence,
+        "n_sessions": n,
+        "method": "bootstrap_percentile_session_resample",
+    }

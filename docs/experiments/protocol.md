@@ -7,8 +7,6 @@ persisted artefacts and the commands here. It records the environment, the
 exact inputs, what each metric measures and its formula, how to run each
 experiment, and how results are exported and aggregated.
 
-Dashes are avoided as punctuation throughout, per the project convention.
-
 ## 1. What is being evaluated, and the claim
 
 QALLM treats each static finding as a hypothesis and uses execution to
@@ -147,6 +145,13 @@ verified_fix_rate = verified_fixed / (verified_fixed + not_fixed)
 Across sessions, rates are recomputed from summed counts (count-weighted), not
 averaged, so a session with one finding does not weigh equally with a session
 with fifty. `aggregate_sessions` in `qallm.metrics_export` does this.
+
+Each aggregate rate also carries a bootstrap 95% confidence interval
+(`confidence_intervals` in the aggregate output). The interval is computed by
+resampling sessions with replacement (sessions are the independent unit, since
+findings cluster within them) and recomputing the pooled rate, so the headline
+figures are reported as a point estimate with an interval rather than a bare
+number. Report the interval alongside each rate in the results chapter.
 
 ## 5. HumanEvalFix track (summary)
 
