@@ -47,6 +47,7 @@ build it on top of the new API.
 from __future__ import annotations
 
 import json
+import uuid
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from pathlib import Path
@@ -76,9 +77,14 @@ class QualityReporter:
     """
 
     def __init__(self, base_dir: str = "outputs/reports", run_id: Optional[str] = None) -> None:
-        # Allow run_id override for deterministic test directories; default
-        # to a timestamp so concurrent sessions don't collide.
-        self.run_id = run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Allow run_id override for deterministic test directories. The default
+        # is "{timestamp}_{short-uuid}", the same shape the web upload/analyse
+        # paths use, so every session directory has a consistent name and two
+        # sessions started in the same second never collide (a plain timestamp
+        # collided when several runs launched together).
+        self.run_id = run_id or (
+            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        )
         self.report_dir = Path(base_dir) / self.run_id
         # The directory is created lazily, on the first artefact write, NOT
         # here. Constructing a reporter (which the orchestrator does in its

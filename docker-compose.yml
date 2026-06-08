@@ -1,9 +1,11 @@
 # QALLM container stack.
 #
-# Default:                docker compose up           # API only
+# Default:                docker compose up           # API + SonarQube
 # With local LLM:         docker compose --profile with-ollama up
-# With SonarQube:         docker compose --profile sonarqube up
 # Rebuild after changes:  docker compose up --build
+#
+# SonarQube is part of the default stack (no flag). Ollama stays optional
+# behind the with-ollama profile, since it is local compute you opt into.
 #
 # Configuration lives in .env. Copy .env.example to .env first and fill
 # in at least one LLM API key (or use the ollama profile for local
@@ -30,6 +32,9 @@ services:
       - .env
     environment:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      # SonarQube runs in this stack by default; point the api at it. Set
+      # SONARQUBE_TOKEN in .env after generating one to activate analysis.
+      - SONARQUBE_URL=${SONARQUBE_URL:-http://sonarqube:9000}
     volumes:
       - ./outputs:/home/qallm/app/outputs
       - ./uploads:/home/qallm/app/uploads
@@ -70,17 +75,14 @@ services:
 #      - ollama-models:/root/.ollama
 #    restart: unless-stopped
 
-  # Optional SonarQube server for higher-fidelity static analysis. Skipped
-  # by default; activate with:
-  #     docker compose --profile sonarqube up
-  # Then open http://localhost:${SONARQUBE_PORT:-9000} (admin/admin on
-  # first login), generate a token, and set SONARQUBE_URL and
-  # SONARQUBE_TOKEN in .env so the api service picks SonarQube up. When
-  # both run in this stack, set SONARQUBE_URL=http://sonarqube:9000.
+  # SonarQube server for higher-fidelity static analysis. Part of the
+  # default stack (no profile flag): `docker compose up` starts it. On first
+  # login open http://localhost:${SONARQUBE_PORT:-9000} (admin/admin),
+  # generate a token, and set SONARQUBE_TOKEN in .env so the api picks it up.
+  # SONARQUBE_URL defaults to the in-stack service (set on the api below).
   sonarqube:
     image: sonarqube:community
     container_name: qallm-sonarqube
-    profiles: ["sonarqube"]
     ports:
       - "${SONARQUBE_PORT:-9000}:9000"
     environment:

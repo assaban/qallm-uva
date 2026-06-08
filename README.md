@@ -41,7 +41,7 @@ QALLM evaluates the five EVERSE dimensions below through the default `IMPLEMENTA
 
 The mapping is materialised in [`src/qallm/profiles.py`](src/qallm/profiles.py) as a `QualityProfile` selecting indicators per dimension for a given lifecycle stage (initialization, implementation, publication, as defined by the EOSC software lifecycle).
 
-This table is a summary. The authoritative discussion of why EVERSE is the v1 demonstrator, how it relates to ISO/IEC 25010, FAIR4RS, and SonarQube, and how to add other framework profiles, lives in [`docs/workflow-design.md`](docs/workflow-design.md) section 13. If this table and that document ever disagree, the document is correct.
+This table is a summary. The authoritative discussion of why EVERSE is the v1 demonstrator, how it relates to ISO/IEC 25010, FAIR4RS, and SonarQube, and how to add other framework profiles, lives in [`docs/architecture/workflow-design.md`](docs/architecture/workflow-design.md) section 13. If this table and that document ever disagree, the document is correct.
 
 ## The four-stage pipeline
 
@@ -155,7 +155,7 @@ Three metrics fall out of this, each produced per session and aggregated count-w
 | **Confirmation rate** | Of static findings execution could test, how many did it reproduce? | confirmed / (confirmed + refuted) |
 | **Verified-fix rate** | Of confirmed findings re-tested after repair, how many were provably fixed? | verified_fixed / (verified_fixed + not_fixed) |
 
-Rates are null (not zero) when their denominator is empty, so an absent measurement is never read as a measured absence. Errored and discarded tests are excluded from all defect counts: only a test that ran and failed is evidence of a defect. These metrics are exported per session as JSON and CSV, and rolled up across the session library, the evidence pipeline behind the thesis evaluation. The on-demand confirm/refute and verify-fixes actions, the gap dashboard, and the metric exports are all surfaced in the web UI. The reasoning behind this layer is in [`docs/surpassing-static-analysers.md`](docs/surpassing-static-analysers.md).
+Rates are null (not zero) when their denominator is empty, so an absent measurement is never read as a measured absence. Errored and discarded tests are excluded from all defect counts: only a test that ran and failed is evidence of a defect. These metrics are exported per session as JSON and CSV, and rolled up across the session library, the evidence pipeline behind the thesis evaluation. The on-demand confirm/refute and verify-fixes actions, the gap dashboard, and the metric exports are all surfaced in the web UI. The reasoning behind this layer is in [`docs/concepts/surpassing-static-analysers.md`](docs/concepts/surpassing-static-analysers.md).
 
 ## Quality profiles
 
@@ -300,7 +300,7 @@ Open <http://localhost:5173>. Vite proxies `/api/*` to the FastAPI process autom
 
 ### Deployment to a shared server
 
-The Docker Compose stack above is the unit of deployment, and serving the frontend and API from one process (the default) is the simplest production setup. For a hardened deployment, splitting the frontend from the API behind a reverse proxy with HTTPS, CORS, and TLS, plus the operational considerations (in-memory sessions, upload handling, where API cost is incurred), is documented in full in [`docs/deployment.md`](docs/deployment.md), which is the source of truth for deployment. See `.env.example` for the variables you provide in either setup.
+The Docker Compose stack above is the unit of deployment, and serving the frontend and API from one process (the default) is the simplest production setup. For a hardened deployment, splitting the frontend from the API behind a reverse proxy with HTTPS, CORS, and TLS, plus the operational considerations (in-memory sessions, upload handling, where API cost is incurred), is documented in full in [`docs/guides/deployment.md`](docs/guides/deployment.md), which is the source of truth for deployment. See `.env.example` for the variables you provide in either setup.
 
 ## Repository layout
 
@@ -346,23 +346,23 @@ To keep one source of truth, each document owns a domain. When they overlap, the
 | Topic | Owner | This README |
 | --- | --- | --- |
 | What QALLM is, quickstart, CLI | This README | full |
-| What QALLM *does* (the loop, judge, budget, outputs, methodology) | [`docs/workflow-design.md`](docs/workflow-design.md) | one-paragraph summary, links out |
-| Quality frameworks (EVERSE, ISO/IEC 25010, FAIR4RS, SonarQube) | [`docs/workflow-design.md`](docs/workflow-design.md) section 13 | summary table, links out |
-| Static-vs-execution strategy (gap, confirm/refute, verified fixes) | [`docs/surpassing-static-analysers.md`](docs/surpassing-static-analysers.md) | summary section, links out |
-| Run mechanics (rounds, FROZEN+GROW, ERROR vs BUG) | [`docs/run-mechanics-and-diagnostics.md`](docs/run-mechanics-and-diagnostics.md) | none |
-| SonarQube integration and setup | [`docs/sonarqube-integration.md`](docs/sonarqube-integration.md) | none |
-| Verification oracles | [`docs/oracles.md`](docs/oracles.md) | none |
-| Methodology decisions | [`docs/methodology-decisions.md`](docs/methodology-decisions.md) | none |
-| Thesis structure and metric definitions | [`docs/thesis-draft-scaffold.md`](docs/thesis-draft-scaffold.md) | none |
+| What QALLM *does* (the loop, judge, budget, outputs, methodology) | [`docs/architecture/workflow-design.md`](docs/architecture/workflow-design.md) | one-paragraph summary, links out |
+| Quality frameworks (EVERSE, ISO/IEC 25010, FAIR4RS, SonarQube) | [`docs/architecture/workflow-design.md`](docs/architecture/workflow-design.md) section 13 | summary table, links out |
+| Static-vs-execution strategy (gap, confirm/refute, verified fixes) | [`docs/concepts/surpassing-static-analysers.md`](docs/concepts/surpassing-static-analysers.md) | summary section, links out |
+| Run mechanics (rounds, FROZEN+GROW, ERROR vs BUG) | [`docs/architecture/run-mechanics-and-diagnostics.md`](docs/architecture/run-mechanics-and-diagnostics.md) | none |
+| SonarQube integration and setup | [`docs/guides/sonarqube-integration.md`](docs/guides/sonarqube-integration.md) | none |
+| Verification oracles | [`docs/concepts/oracles.md`](docs/concepts/oracles.md) | none |
+| Methodology decisions | [`docs/thesis/methodology-decisions.md`](docs/thesis/methodology-decisions.md) | none |
+| Thesis structure and metric definitions | [`docs/thesis/thesis-draft-scaffold.md`](docs/thesis/thesis-draft-scaffold.md) | none |
 | Reproducible experiment protocol (both tracks) | [`docs/experiments/protocol.md`](docs/experiments/protocol.md) | none |
-| Project roadmap (priorities and rationale) | [`docs/roadmap.md`](docs/roadmap.md) | none |
-| Running experiments directly (venv setup) | [`docs/running-experiments.md`](docs/running-experiments.md) | none |
-| Interactive verification-gap explainer (standalone, shareable) | [`docs/verification-gap-explainer.html`](docs/verification-gap-explainer.html) | none |
+| Project roadmap (priorities and rationale) | [`docs/thesis/roadmap.md`](docs/thesis/roadmap.md) | none |
+| Running experiments directly (venv setup) | [`docs/guides/running-experiments.md`](docs/guides/running-experiments.md) | none |
+| Interactive verification-gap explainer (standalone, shareable) | [`docs/showcase/verification-gap-explainer.html`](docs/showcase/verification-gap-explainer.html) | none |
 | HumanEvalFix experiment detail | [`docs/experiments/humaneval.md`](docs/experiments/humaneval.md) | none |
-| Production deployment (split FE/API, CORS, TLS, ops) | [`docs/deployment.md`](docs/deployment.md) | quickstart only, links out |
-| Auto-mode web UI behaviour | [`docs/web-ui-automode.md`](docs/web-ui-automode.md) | none |
-| Jupyter `%%qallm` magic | [`docs/jupyter-magic.md`](docs/jupyter-magic.md) | none |
-| Web UI history views (Experiments, Sessions) | [`docs/web-ui-history.md`](docs/web-ui-history.md) | none |
+| Production deployment (split FE/API, CORS, TLS, ops) | [`docs/guides/deployment.md`](docs/guides/deployment.md) | quickstart only, links out |
+| Auto-mode web UI behaviour | [`docs/architecture/web-ui-automode.md`](docs/architecture/web-ui-automode.md) | none |
+| Jupyter `%%qallm` magic | [`docs/guides/jupyter-magic.md`](docs/guides/jupyter-magic.md) | none |
+| Web UI history views (Experiments, Sessions) | [`docs/architecture/web-ui-history.md`](docs/architecture/web-ui-history.md) | none |
 
 ## Status
 
