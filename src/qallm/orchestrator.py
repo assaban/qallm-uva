@@ -125,6 +125,7 @@ class QALLMOrchestrator:
             run_id: str | None = None,
             reporter: QualityReporter | None = None,
             tags: list[str] | None = None,
+            artefact_retention: str = "full",
     ) -> None:
         """Construct the orchestrator.
 
@@ -168,7 +169,10 @@ class QALLMOrchestrator:
             self.reporter = reporter
         else:
             effective_run_id = run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.reporter = QualityReporter("outputs/quality_reporter", effective_run_id)
+            self.reporter = QualityReporter(
+                "outputs/quality_reporter", effective_run_id,
+                artefact_retention=artefact_retention,
+            )
 
         self.stage = stage if isinstance(stage, LifecycleStage) else LifecycleStage(stage)
         # Canonicalise the verifier name. ``rl`` is a legacy alias for the
@@ -723,6 +727,15 @@ class QALLMOrchestrator:
             "test_persistence": self.verification_manager.get_stability_summary(),
             "tracks": tracks_dict,
             "sessions": sessions_data,
+            # Absolute path to this run's output directory, so batch runners
+            # can locate per-round artefacts (full retention) or just read the
+            # gap data below (metrics_only).
+            "report_dir": str(self.reporter.report_dir),
+            # When artefacts are not written per round (metrics_only
+            # retention), the gap data is accumulated in memory and persisted
+            # here so the gap rate stays computable from summary.json alone.
+            "gap_rounds": self.reporter.gap_rounds,
+            "artefact_retention": self.reporter.artefact_retention,
         }
         self.reporter._ensure_dir()
         summary_path = self.reporter.report_dir / "summary.json"
