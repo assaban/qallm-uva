@@ -7,8 +7,6 @@ persisted artefacts and the commands here. It records the environment, the
 exact inputs, what each metric measures and its formula, how to run each
 experiment, and how results are exported and aggregated.
 
-Dashes are avoided as punctuation throughout, per the project convention.
-
 ## 1. What is being evaluated, and the claim
 
 QALLM treats each static finding as a hypothesis and uses execution to

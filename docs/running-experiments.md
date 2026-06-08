@@ -6,8 +6,6 @@ simpler to run QALLM directly in a Python virtual environment on the machine,
 so you can point at local notebook directories and watch progress in the
 terminal. This is the setup for that path.
 
-Dashes are avoided as punctuation per the project convention.
-
 ## One-time setup
 
 From the repository root:

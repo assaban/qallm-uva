@@ -6,9 +6,6 @@ and where the supporting evidence comes from in the QALLM system. Placeholders
 in [brackets] mark numbers to be filled from real runs. The point is a
 foundation that is honest about what has been shown and what has not.
 
-Throughout, dashes are avoided as punctuation per the author's convention;
-commas, semicolons, and colons are used instead.
-
 ---
 
 ## Abstract
