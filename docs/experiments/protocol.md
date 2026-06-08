@@ -320,6 +320,6 @@ count-weighted across sessions.
 | Metric definitions (code) | `src/qallm/metrics_export.py` |
 | Per-session metrics endpoint | `GET /api/session/{id}/metrics[.csv]` |
 | Cross-session aggregate | `GET /api/metrics/aggregate` |
-| Run mechanics (rounds, FROZEN+GROW, ERROR vs BUG) | `docs/run-mechanics-and-diagnostics.md` |
-| Methodology decisions | `docs/methodology-decisions.md` |
-| Thesis structure | `docs/thesis-draft-scaffold.md` |
+| Run mechanics (rounds, FROZEN+GROW, ERROR vs BUG) | `docs/architecture/run-mechanics-and-diagnostics.md` |
+| Methodology decisions | `docs/thesis/methodology-decisions.md` |
+| Thesis structure | `docs/thesis/thesis-draft-scaffold.md` |

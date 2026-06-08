@@ -3,7 +3,7 @@
 This module predated the EVERSE profile system. The authoritative way to
 evaluate code against a quality standard is now
 :func:`qallm.evaluation.evaluate_profile` driven by a
-:class:`qallm.profiles.QualityProfile`. See ``docs/workflow-design.md``.
+:class:`qallm.profiles.QualityProfile`. See ``docs/architecture/workflow-design.md``.
 
 The former ``LifecycleNormalizer`` (a hardcoded-threshold evaluator) has
 been removed; it was superseded by the profile system and was no longer

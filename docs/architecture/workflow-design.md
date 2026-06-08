@@ -173,7 +173,7 @@ The first shipped behaviour ran *static analysis only* at round 0 and unconditio
 1. The verification-gap claim could only be measured against the first repair, not the original code. "X% of code that passes static analysis contains runtime defects" cannot be defended if you never ran tests against the original.
 2. Round 1's unconditional acceptance meant a regression in round 1 against the original was indistinguishable from a true improvement. The judge was bypassed on the first repair.
 
-This was filed as an open methodology question and tracked here as `(a) static-only` vs `(b) analyse + verify`. Option (b) is now adopted; option (a) is no longer in the codebase. See `docs/methodology-decisions.md` for the dated record.
+This was filed as an open methodology question and tracked here as `(a) static-only` vs `(b) analyse + verify`. Option (b) is now adopted; option (a) is no longer in the codebase. See `docs/thesis/methodology-decisions.md` for the dated record.
 
 ## 4.5 Test stability across the lineage
 

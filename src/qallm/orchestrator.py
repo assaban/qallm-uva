@@ -36,7 +36,7 @@ Running verification on the original code at round 0 makes the
 analysis, how many had a runtime defect detectable by execution-based
 testing? Without round 0 verification, that question can only be
 answered against the *first repair* of the code, not the original. See
-docs/workflow-design.md section 4 and docs/methodology-decisions.md
+docs/architecture/workflow-design.md section 4 and docs/thesis/methodology-decisions.md
 for the full rationale.
 """
 
