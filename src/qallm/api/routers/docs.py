@@ -22,8 +22,10 @@ genuinely absent.
 
 from __future__ import annotations
 
+import html as _html
 import logging
 import os
+import re as _re
 from pathlib import Path
 
 import markdown
@@ -94,9 +96,27 @@ _DOCS: dict[str, tuple[str, str]] = {
 
 _MD_EXTENSIONS = ["fenced_code", "tables", "toc", "sane_lists"]
 
+# fenced_code renders ```mermaid blocks as
+#   <pre><code class="language-mermaid">graph TD...</code></pre>
+# with the source HTML-escaped, which mermaid.js cannot parse. Rewrite those
+# to <pre class="mermaid">graph TD...</pre> with the source unescaped, which is
+# the shape mermaid.run() looks for. Only mermaid blocks are touched; ordinary
+# code blocks are left escaped and highlighted as before.
+_MERMAID_BLOCK = _re.compile(
+    r'<pre><code class="language-mermaid">(.*?)</code></pre>',
+    _re.DOTALL,
+)
+
+
+def _mermaidify(rendered_html: str) -> str:
+    def repl(m: "_re.Match[str]") -> str:
+        source = _html.unescape(m.group(1))
+        return f'<pre class="mermaid">{source}</pre>'
+    return _MERMAID_BLOCK.sub(repl, rendered_html)
+
 
 def _render(md_text: str) -> str:
-    return markdown.markdown(md_text, extensions=_MD_EXTENSIONS)
+    return _mermaidify(markdown.markdown(md_text, extensions=_MD_EXTENSIONS))
 
 
 @router.get("/api/docs")

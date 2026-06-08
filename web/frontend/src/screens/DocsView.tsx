@@ -9,7 +9,7 @@
  * typography plugin.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BookOpen } from "lucide-react";
 import * as api from "../api";
 
@@ -25,6 +25,7 @@ export default function DocsView() {
   const [html, setHtml] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const contentRef = useRef<HTMLElement | null>(null);
 
   // Load the doc list once, then select the first (README).
   useEffect(() => {
@@ -55,6 +56,29 @@ export default function DocsView() {
       .catch((e) => { if (alive) { setError(String(e)); setLoading(false); } });
     return () => { alive = false; };
   }, [activeId]);
+
+  // After the rendered HTML lands in the DOM, turn any <pre class="mermaid">
+  // blocks into diagrams. Mermaid is large and only needed here, so it is
+  // dynamically imported (and initialised once) the first time a doc with a
+  // diagram is shown, keeping it out of the main bundle. Guarded so a
+  // malformed diagram does not break the rest of the page.
+  useEffect(() => {
+    if (loading || error || !contentRef.current) return;
+    const blocks = contentRef.current.querySelectorAll<HTMLElement>("pre.mermaid");
+    if (blocks.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const mermaid = (await import("mermaid")).default;
+        if (cancelled) return;
+        mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "strict" });
+        await mermaid.run({ nodes: Array.from(blocks) });
+      } catch (e) {
+        if (!cancelled) console.error("Mermaid render failed:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [html, loading, error]);
 
   return (
     <div className="mx-auto flex max-w-5xl gap-6">
@@ -98,6 +122,7 @@ export default function DocsView() {
         )}
         {!loading && !error && (
           <article
+            ref={contentRef}
             className="qallm-doc rounded-2xl border border-slate-200 bg-white p-8"
             dangerouslySetInnerHTML={{ __html: html }}
           />
@@ -122,6 +147,7 @@ const docStyles = `
 .qallm-doc code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 0.3rem; font-size: 0.85em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .qallm-doc pre { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 0.6rem; overflow-x: auto; margin: 0.9rem 0; }
 .qallm-doc pre code { background: transparent; color: inherit; padding: 0; }
+.qallm-doc pre.mermaid { background: transparent; color: inherit; padding: 0.5rem 0; text-align: center; }
 .qallm-doc table { border-collapse: collapse; margin: 1rem 0; width: 100%; font-size: 0.875rem; }
 .qallm-doc th, .qallm-doc td { border: 1px solid #e2e8f0; padding: 0.4rem 0.7rem; text-align: left; }
 .qallm-doc th { background: #f8fafc; font-weight: 600; }
