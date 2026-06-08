@@ -41,3 +41,53 @@ jobs:
 
       - name: Run the test suite
         run: pytest -q --tb=short
+
+  # Smoke-test the BUILT artifact, not just the source. Several past bugs
+  # rendered fine in an editable dev install but broke in the packaged image
+  # (a non-editable pip install changes __file__ paths, docs/ was not copied,
+  # a frontend library was missing). This job builds the image, starts the
+  # api, and curls the endpoints that depend on packaging being correct, so
+  # that whole class of "works in dev, breaks in the container" is caught in
+  # CI. It builds only; it never touches the staging VM.
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t qallm:ci .
+
+      - name: Start the api container
+        run: |
+          docker run -d --name qallm-ci -p 8000:8000 qallm:ci
+          # Wait for the app to come up (up to ~60s).
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/api/health >/dev/null 2>&1; then
+              echo "api is up"; break
+            fi
+            sleep 2
+          done
+
+      - name: Smoke-test packaged endpoints
+        run: |
+          set -e
+          # Health.
+          curl -fsS http://localhost:8000/api/health | tee /dev/stderr | grep -q online
+          # Models catalogue (depends on the packaged core, not the repo).
+          curl -fsS http://localhost:8000/api/verification/models | tee /dev/stderr | grep -q '"id"'
+          # Docs list must be non-empty in the container (this caught the
+          # "No docs found" packaging bug: docs/ not copied, wrong __file__).
+          docs_json=$(curl -fsS http://localhost:8000/api/docs)
+          echo "$docs_json"
+          echo "$docs_json" | grep -q '"readme"'
+          # README must render to HTML (markdown dependency present).
+          curl -fsS http://localhost:8000/api/docs/readme | grep -q '<h1'
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs qallm-ci || true
+
+      - name: Tear down
+        if: always()
+        run: docker rm -f qallm-ci || true
