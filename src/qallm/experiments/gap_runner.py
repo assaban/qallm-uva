@@ -48,6 +48,10 @@ class GapExperimentConfig:
     stage: str = "implementation"
     pattern: str = "*.ipynb"  # which files in the dataset to run
     confirm: bool = False     # also run confirm/refute + verify-fixes (RQ2/RQ3); costs LLM calls
+    # Batch runs default to metrics_only: skip the per-unit round directories
+    # (thousands of small files across a dataset) and keep the gap data in
+    # summary.json. Pass "full" to retain every variant's provenance.
+    artefact_retention: str = "metrics_only"
 
     def to_manifest(self) -> dict:
         return {
@@ -77,6 +81,23 @@ def _discover_inputs(dataset_dir: Path, pattern: str) -> list[Path]:
     return sorted(dataset_dir.rglob(pattern))
 
 
+def _effective_retention(config: GapExperimentConfig) -> str:
+    """Resolve retention, accounting for confirm's disk dependency.
+
+    confirm/refute and verify-fixes reconstruct their inputs from the on-disk
+    round_0 artefacts, so metrics_only (which does not write them) is
+    incompatible with --confirm. When both are requested, full retention wins
+    and the caller is told why.
+    """
+    if config.confirm and config.artefact_retention == "metrics_only":
+        logger.info(
+            "artefact_retention=metrics_only is incompatible with --confirm "
+            "(confirm/verify read per-round artefacts from disk); using 'full'."
+        )
+        return "full"
+    return config.artefact_retention
+
+
 def _default_orchestrator_factory(config: GapExperimentConfig):
     from qallm.orchestrator import QALLMOrchestrator
     return QALLMOrchestrator(
@@ -86,6 +107,7 @@ def _default_orchestrator_factory(config: GapExperimentConfig):
         rounds=config.rounds,
         oracle=config.oracle,
         judge_strategy=config.judge_strategy,
+        artefact_retention=_effective_retention(config),
         stage=config.stage,
     )
 
@@ -179,10 +201,15 @@ def _run_one(
         orch = orchestrator_factory(config)
         summary = orch.run(str(input_path))
         report_dir = summary.get("report_dir")
-        gap_rounds = (
-            compute_gap_rounds_from_dir(report_dir)
-            if report_dir and os.path.isdir(report_dir) else []
-        )
+        # Prefer gap rounds persisted in the summary (metrics_only retention,
+        # where per-round artefacts are not on disk). Fall back to reading the
+        # per-round directories when running with full retention.
+        if summary.get("gap_rounds"):
+            gap_rounds = summary["gap_rounds"]
+        elif report_dir and os.path.isdir(report_dir):
+            gap_rounds = compute_gap_rounds_from_dir(report_dir)
+        else:
+            gap_rounds = []
         session_id = os.path.basename(report_dir) if report_dir else str(input_path)
 
         confirm_summary = None

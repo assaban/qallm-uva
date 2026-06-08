@@ -422,3 +422,98 @@ class TestUnitSegmentCleanNames:
         assert out.name == "count_chars.py__0"
         # And it's short.
         assert len(out.name) < 30
+
+
+# ---------- artefact retention: metrics_only ----------
+
+def _tested_with_bug(unit: CodeUnit, function_name: str = "f") -> TestedCodeUnit:
+    """A TestedCodeUnit whose single session has a failing test (a bug)."""
+    from qallm.repair.repair_model import RepairedCodeUnit, RepairResult
+
+    repaired_result = RepairResult(
+        file_path=str(unit.original_path),
+        repaired_source=unit.source_code,
+        explanation="stub",
+        compiles=True,
+    )
+    repaired = RepairedCodeUnit(
+        analysis_result=AnalysedCodeUnit(code_unit=unit, findings=[], raw_tool_results=[]),
+        repaired_result=repaired_result,
+    )
+    session = TestGenerationSession(
+        function_name=function_name, source_code=unit.source_code,
+        oracle="crash", model="stub", total_rounds=1,
+    )
+    session.rounds.append(RoundResult(
+        round_number=1,
+        generated_test=GeneratedTest(
+            function_name=function_name, oracle="crash",
+            test_code="def test_f(): assert f() == 1", is_valid=True,
+            generation_error=None, model="stub", provider="stub",
+            input_tokens=0, output_tokens=0,
+        ),
+        execution=ExecutionResult(passed=0, failed=1, total=1, coverage_percent=100.0),
+        reward=RewardBreakdown(total=0.0),
+        cumulative_coverage=100.0,
+        cumulative_bugs=1,
+    ))
+    return TestedCodeUnit(repaired_unit=repaired, sessions=[session])
+
+
+def test_metrics_only_rejects_bad_value(tmp_path: Path):
+    with pytest.raises(ValueError):
+        QualityReporter(base_dir=str(tmp_path), run_id="r", artefact_retention="bogus")
+
+
+def test_metrics_only_writes_no_round_dirs_but_keeps_gap(tmp_path: Path):
+    src = "def f():\n    return 0\n"  # returns 0; the test expects 1 -> a bug
+    unit = _code_unit(tmp_path / "src", source=src, name="f.py")
+    tested = _tested_with_bug(unit)
+
+    r = QualityReporter(base_dir=str(tmp_path), run_id="mo",
+                        artefact_retention="metrics_only")
+    out = r.save_round_artefacts(
+        round_number=0, unit_id="f.py::0", code_unit=unit,
+        analysed=_analysed(unit), tested=tested,
+        profile_verdict=_profile_verdict(), judge_verdict_dict=None, accepted=True,
+    )
+    # No per-unit round directory was written.
+    assert not (out / "lineage" / "round_00").exists()
+    assert not (out / "abandoned").exists()
+    # But the gap data was accumulated in memory.
+    assert len(r.gap_rounds) == 1
+    assert r.gap_rounds[0]["round"] == 0
+    # The function has an execution-found bug and no static finding -> gap.
+    assert "f" in r.gap_rounds[0]["execution_only_functions"]
+
+
+def test_metrics_only_gap_matches_full_retention(tmp_path: Path):
+    """The whole point: metrics_only must yield the same gap as full."""
+    from qallm.analysis.gap_analysis import compute_gap_rounds_from_dir
+
+    src = "def f():\n    return 0\n"
+    unit = _code_unit(tmp_path / "src", source=src, name="f.py")
+
+    # full retention: write artefacts, then read gap from disk
+    r_full = QualityReporter(base_dir=str(tmp_path / "full"), run_id="full",
+                             artefact_retention="full")
+    r_full.save_round_artefacts(
+        round_number=0, unit_id="f.py::0", code_unit=unit,
+        analysed=_analysed(unit), tested=_tested_with_bug(unit),
+        profile_verdict=_profile_verdict(), judge_verdict_dict=None, accepted=True,
+    )
+    disk_gap = compute_gap_rounds_from_dir(str(r_full.report_dir))
+
+    # metrics_only: gap accumulated in memory, no disk artefacts
+    r_mo = QualityReporter(base_dir=str(tmp_path / "mo"), run_id="mo",
+                           artefact_retention="metrics_only")
+    r_mo.save_round_artefacts(
+        round_number=0, unit_id="f.py::0", code_unit=unit,
+        analysed=_analysed(unit), tested=_tested_with_bug(unit),
+        profile_verdict=_profile_verdict(), judge_verdict_dict=None, accepted=True,
+    )
+    mem_gap = r_mo.gap_rounds
+
+    # Same execution-only functions in the same round -> same gap signal.
+    assert disk_gap[0]["execution_only_functions"] == mem_gap[0]["execution_only_functions"]
+    assert disk_gap[0]["round"] == mem_gap[0]["round"]

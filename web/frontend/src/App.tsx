@@ -97,7 +97,7 @@ export default function App() {
                 </span>
               )}
             </div>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Quality Assessment of AI-Generated Code</h1>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Execution-Based Code Quality Assessment</h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-500">Baseline, then LLM repair and execution-based verification across budget-capped rounds, judged against a quality model.</p>
           </div>
           {state.sessionId && (

@@ -76,7 +76,12 @@ class QualityReporter:
     The orchestrator constructs one per run.
     """
 
-    def __init__(self, base_dir: str = "outputs/reports", run_id: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        base_dir: str = "outputs/reports",
+        run_id: Optional[str] = None,
+        artefact_retention: str = "full",
+    ) -> None:
         # Allow run_id override for deterministic test directories. The default
         # is "{timestamp}_{short-uuid}", the same shape the web upload/analyse
         # paths use, so every session directory has a consistent name and two
@@ -86,6 +91,24 @@ class QualityReporter:
             f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
         )
         self.report_dir = Path(base_dir) / self.run_id
+        # Artefact retention controls how much per-round provenance is written.
+        #   "full"         : write every variant's source/static/verification/
+        #                    tests under lineage/ and abandoned/ (default; best
+        #                    for interactive single runs and deep inspection).
+        #   "metrics_only" : skip those per-unit round directories (the bulk of
+        #                    the disk footprint on large batch runs) but still
+        #                    accumulate the gap data in memory so the gap rate
+        #                    remains computable from summary.json. Use for big
+        #                    dataset experiments where per-file provenance for
+        #                    thousands of units is neither needed nor wanted.
+        if artefact_retention not in ("full", "metrics_only"):
+            raise ValueError(
+                f"artefact_retention must be 'full' or 'metrics_only', "
+                f"got {artefact_retention!r}"
+            )
+        self.artefact_retention = artefact_retention
+        # Gap rounds accumulated in memory when retention skips disk artefacts.
+        self.gap_rounds: list[dict] = []
         # The directory is created lazily, on the first artefact write, NOT
         # here. Constructing a reporter (which the orchestrator does in its
         # own constructor) must not leave an empty session directory on disk
@@ -96,6 +119,28 @@ class QualityReporter:
     def _ensure_dir(self) -> None:
         """Create the session directory on first use. Idempotent."""
         self.report_dir.mkdir(parents=True, exist_ok=True)
+
+    def _accumulate_gap_round(self, round_dict: dict) -> None:
+        """Merge one unit's gap report into the in-memory per-round totals.
+
+        Used in metrics_only retention, where per-unit round directories are
+        not written. Multiple units can contribute to the same round, so
+        findings and execution-only functions are merged by round number,
+        matching how compute_gap_rounds_from_dir merges across unit
+        subdirectories on disk.
+        """
+        rno = round_dict.get("round")
+        existing = next((r for r in self.gap_rounds if r.get("round") == rno), None)
+        if existing is None:
+            self.gap_rounds.append(round_dict)
+            return
+        existing.setdefault("findings", []).extend(round_dict.get("findings", []))
+        eo = existing.setdefault("execution_only_functions", [])
+        eo.extend(round_dict.get("execution_only_functions", []))
+        existing["execution_only_functions"] = sorted(set(eo))
+        # Refresh the summary counts to match the merged lists.
+        summary = existing.setdefault("summary", {})
+        summary["execution_only"] = len(existing["execution_only_functions"])
 
     # ----- baseline -----
 
@@ -149,6 +194,21 @@ class QualityReporter:
         """
         self._ensure_dir()
         bucket = "lineage" if accepted else "abandoned"
+
+        if self.artefact_retention == "metrics_only":
+            # Skip the per-unit round directory (the bulk of the disk
+            # footprint), but still compute the gap data this round would
+            # have contributed, so the gap rate stays computable from
+            # summary.json without re-reading any files. Mirrors exactly what
+            # compute_gap_rounds_from_dir would derive from the on-disk
+            # source.py/static.json/verification.json for this unit.
+            from qallm.analysis.gap_analysis import build_gap_report
+            verification = [_session_dict(s) for s in tested.sessions]
+            unit_report = build_gap_report(
+                round_number, code_unit.source_code, analysed.findings, verification
+            )
+            self._accumulate_gap_round(unit_report.to_dict())
+            return self.report_dir
         # Per-unit subdirectories let multi-unit sessions co-exist within
         # lineage/round_N/ without filename collisions.
         round_dir = (

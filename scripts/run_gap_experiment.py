@@ -53,6 +53,13 @@ def main() -> None:
     parser.add_argument("--confirm", action="store_true",
                         help="Also run confirm/refute (RQ2) and verify-fixes (RQ3) per "
                              "session. Makes extra LLM calls; off by default.")
+    parser.add_argument("--retention", default="metrics_only",
+                        choices=["full", "metrics_only"],
+                        help="Artefact retention. 'metrics_only' (default) skips the "
+                             "per-unit round directories and keeps the gap data in "
+                             "summary.json, far less disk on large datasets. 'full' "
+                             "writes every variant's provenance. --confirm forces 'full' "
+                             "since it reads per-round artefacts from disk.")
     parser.add_argument("--log-level", default="INFO",
                         choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     args = parser.parse_args()
@@ -72,6 +79,7 @@ def main() -> None:
         stage=args.stage,
         pattern=args.pattern,
         confirm=args.confirm,
+        artefact_retention=args.retention,
     )
     result = run_gap_experiment(config)
 

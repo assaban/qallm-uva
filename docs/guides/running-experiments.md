@@ -53,6 +53,14 @@ python scripts/run_gap_experiment.py \
     --llm fedllm --rounds 5 --confirm
 ```
 
+By default a batch gap run uses `--retention metrics_only`: it keeps the gap
+data in `summary.json` and skips the per-unit round directories, which is far
+less disk on a large dataset (those directories are one folder per code unit
+per round). Pass `--retention full` to keep every variant's provenance for
+deep inspection. Note `--confirm` forces `full` automatically, because
+confirm/refute and verify-fixes reconstruct their inputs from the per-round
+artefacts on disk.
+
 HumanEvalFix validation track:
 
 ```
