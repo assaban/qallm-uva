@@ -20,6 +20,7 @@ Requires: requests, beautifulsoup4 (install with: pip install requests beautiful
 """
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -68,15 +69,34 @@ def fetch(term: str, pages: int, output: Path) -> int:
                 print(f"  exists, skipping: {repo_name}")
                 continue
             try:
+                # Disable all interactive credential prompts: private or
+                # removed repos otherwise hang the crawl waiting on a username
+                # and password at the terminal. With these set, git fails fast
+                # and the repo is recorded as failed and skipped. A timeout
+                # also guards against a slow or stuck clone.
+                env = {
+                    **os.environ,
+                    "GIT_TERMINAL_PROMPT": "0",
+                    "GIT_ASKPASS": "echo",
+                    "GIT_SSH_COMMAND": "ssh -oBatchMode=yes",
+                }
                 subprocess.run(
                     ["git", "clone", "--depth", "1", href, str(dest)],
-                    check=True, capture_output=True,
+                    check=True, capture_output=True, env=env, timeout=180,
                 )
                 cloned += 1
                 print(f"  cloned: {repo_name}")
+            except subprocess.TimeoutExpired:
+                failed += 1
+                print(f"  failed (timeout): {repo_name}")
             except subprocess.CalledProcessError as e:
                 failed += 1
-                print(f"  failed: {repo_name}: {e}")
+                # Note auth failures distinctly so the cause is obvious.
+                stderr = (e.stderr or b"").decode("utf-8", "replace")
+                if "Authentication" in stderr or "could not read Username" in stderr:
+                    print(f"  failed (private/auth, skipped): {repo_name}")
+                else:
+                    print(f"  failed: {repo_name}: {e}")
 
     print(
         f"\nDone. term={term!r} pages={pages} cloned={cloned} failed={failed} "
