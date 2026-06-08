@@ -30,6 +30,7 @@ from pathlib import Path
 
 import markdown
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import HTMLResponse
 
 logger = logging.getLogger(__name__)
 
@@ -86,12 +87,19 @@ def _resolve(rel: str) -> Path | None:
 
 # The curated set surfaced in the UI. Keys are stable ids used by the
 # frontend; values are (title, path-relative-to-a-doc-root). README first.
-_DOCS: dict[str, tuple[str, str]] = {
-    "readme": ("Overview (README)", "README.md"),
-    "workflow": ("How QALLM works", "docs/architecture/workflow-design.md"),
-    "surpassing": ("Why execution beats static analysis", "docs/concepts/surpassing-static-analysers.md"),
-    "running-experiments": ("Running experiments", "docs/guides/running-experiments.md"),
-    "roadmap": ("Roadmap", "docs/thesis/roadmap.md"),
+# Each entry: id -> (title, repo-relative path, kind). "md" docs are rendered
+# to HTML inline in the Docs tab; "html" docs are complete standalone pages
+# (their own <style>, layout) and are opened in a new tab via the raw endpoint
+# rather than injected inline, where their full-page markup would clash with
+# the app shell.
+_DOCS: dict[str, tuple[str, str, str]] = {
+    "readme": ("Overview (README)", "README.md", "md"),
+    "workflow": ("How QALLM works", "docs/architecture/workflow-design.md", "md"),
+    "surpassing": ("Why execution beats static analysis", "docs/concepts/surpassing-static-analysers.md", "md"),
+    "running-experiments": ("Running experiments", "docs/guides/running-experiments.md", "md"),
+    "roadmap": ("Roadmap", "docs/thesis/roadmap.md", "md"),
+    "overview-page": ("QALLM overview (page)", "docs/showcase/qallm-overview.html", "html"),
+    "gap-explainer": ("The verification gap (interactive)", "docs/showcase/verification-gap-explainer.html", "html"),
 }
 
 _MD_EXTENSIONS = ["fenced_code", "tables", "toc", "sane_lists"]
@@ -125,12 +133,13 @@ def list_docs() -> dict:
 
     Only docs whose file is found under some candidate root are returned, so a
     layout missing the docs tree simply shows fewer entries (README should be
-    present in every layout).
+    present in every layout). Each item carries its kind ("md" rendered inline,
+    "html" opened in a new tab via /api/docs/{id}/raw).
     """
     items = []
-    for doc_id, (title, rel) in _DOCS.items():
+    for doc_id, (title, rel, kind) in _DOCS.items():
         if _resolve(rel) is not None:
-            items.append({"id": doc_id, "title": title, "path": rel})
+            items.append({"id": doc_id, "title": title, "path": rel, "kind": kind})
     if not items:
         # Surface the failure: every layout should at least find the README.
         logger.warning(
@@ -142,11 +151,20 @@ def list_docs() -> dict:
 
 @router.get("/api/docs/{doc_id}")
 def get_doc(doc_id: str) -> dict:
-    """Return one doc rendered to HTML."""
+    """Return one Markdown doc rendered to HTML.
+
+    For "html" docs (complete standalone pages) use /api/docs/{doc_id}/raw
+    instead; this endpoint reports that so the frontend can route correctly.
+    """
     entry = _DOCS.get(doc_id)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"Unknown doc: {doc_id}")
-    title, rel = entry
+    title, rel, kind = entry
+    if kind != "md":
+        raise HTTPException(
+            status_code=400,
+            detail=f"{doc_id} is a standalone page; use /api/docs/{doc_id}/raw",
+        )
     path = _resolve(rel)
     if path is None:
         raise HTTPException(status_code=404, detail=f"Doc not found: {rel}")
@@ -155,3 +173,23 @@ def get_doc(doc_id: str) -> dict:
     except OSError as e:
         raise HTTPException(status_code=500, detail=f"Could not read {rel}: {e}")
     return {"id": doc_id, "title": title, "html": _render(text)}
+
+
+@router.get("/api/docs/{doc_id}/raw", response_class=HTMLResponse)
+def get_doc_raw(doc_id: str) -> HTMLResponse:
+    """Serve a standalone HTML doc verbatim (for the showcase pages).
+
+    These are complete documents with their own styling, so they are served
+    as-is to be opened in a new tab rather than injected into the app shell.
+    """
+    entry = _DOCS.get(doc_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"Unknown doc: {doc_id}")
+    _title, rel, _kind = entry
+    path = _resolve(rel)
+    if path is None:
+        raise HTTPException(status_code=404, detail=f"Doc not found: {rel}")
+    try:
+        return HTMLResponse(content=path.read_text(encoding="utf-8"))
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Could not read {rel}: {e}")

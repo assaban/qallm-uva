@@ -25,9 +25,26 @@ def test_list_docs_includes_readme():
 
 
 def test_listed_docs_all_exist_and_render():
+    # md docs render via /api/docs/{id}; html docs are served raw and 400 on
+    # the markdown endpoint by design (the frontend opens them in a new tab).
     for d in client.get("/api/docs").json()["docs"]:
-        r = client.get(f"/api/docs/{d['id']}")
-        assert r.status_code == 200, d["id"]
+        if d.get("kind") == "html":
+            assert client.get(f"/api/docs/{d['id']}").status_code == 400
+            assert client.get(f"/api/docs/{d['id']}/raw").status_code == 200
+        else:
+            assert client.get(f"/api/docs/{d['id']}").status_code == 200, d["id"]
+
+
+def test_each_listed_doc_has_a_kind():
+    for d in client.get("/api/docs").json()["docs"]:
+        assert d.get("kind") in ("md", "html")
+
+
+def test_showcase_html_served_verbatim():
+    # The standalone showcase pages are served as full HTML documents.
+    r = client.get("/api/docs/overview-page/raw")
+    assert r.status_code == 200
+    assert r.text.lstrip().startswith("<!DOCTYPE")
 
 
 def test_get_readme_renders_html():

@@ -786,3 +786,9 @@ export async function listDocs(): Promise<{ docs: { id: string; title: string; p
 export async function getDoc(docId: string): Promise<{ id: string; title: string; html: string }> {
   return req<{ id: string; title: string; html: string }>(`/api/docs/${encodeURIComponent(docId)}`);
 }
+
+// URL for a standalone HTML doc, served verbatim (opened in a new tab).
+// Relative so it works behind the reverse proxy regardless of host/port.
+export function docRawUrl(docId: string): string {
+  return `/api/docs/${encodeURIComponent(docId)}/raw`;
+}

@@ -17,6 +17,7 @@ interface DocMeta {
   id: string;
   title: string;
   path: string;
+  kind?: "md" | "html";
 }
 
 export default function DocsView() {
@@ -26,6 +27,7 @@ export default function DocsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const contentRef = useRef<HTMLElement | null>(null);
+  const activeKind = docs.find((d) => d.id === activeId)?.kind ?? "md";
 
   // Load the doc list once, then select the first (README).
   useEffect(() => {
@@ -45,9 +47,13 @@ export default function DocsView() {
     return () => { alive = false; };
   }, []);
 
-  // Fetch the active doc's HTML whenever the selection changes.
+  // Fetch the active doc's HTML whenever the selection changes. Standalone
+  // "html" docs are not fetched here, they open in a new tab via the raw
+  // endpoint, so only "md" docs are rendered inline.
   useEffect(() => {
     if (!activeId) return;
+    const meta = docs.find((d) => d.id === activeId);
+    if (meta?.kind === "html") { setHtml(""); setLoading(false); setError(null); return; }
     let alive = true;
     setLoading(true);
     setError(null);
@@ -55,7 +61,7 @@ export default function DocsView() {
       .then((r) => { if (alive) { setHtml(r.html); setLoading(false); } })
       .catch((e) => { if (alive) { setError(String(e)); setLoading(false); } });
     return () => { alive = false; };
-  }, [activeId]);
+  }, [activeId, docs]);
 
   // After the rendered HTML lands in the DOM, turn any <pre class="mermaid">
   // blocks into diagrams. Mermaid is large and only needed here, so it is
@@ -120,7 +126,22 @@ export default function DocsView() {
         {loading && !error && (
           <div className="animate-pulse text-sm text-slate-400">Loading…</div>
         )}
-        {!loading && !error && (
+        {!loading && !error && activeKind === "html" && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-8">
+            <p className="text-sm text-slate-600">
+              This is a standalone page with its own layout. Open it in a new tab:
+            </p>
+            <a
+              href={activeId ? api.docRawUrl(activeId) : "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
+            >
+              <BookOpen className="h-3.5 w-3.5" /> Open {docs.find((d) => d.id === activeId)?.title}
+            </a>
+          </div>
+        )}
+        {!loading && !error && activeKind !== "html" && (
           <article
             ref={contentRef}
             className="qallm-doc rounded-2xl border border-slate-200 bg-white p-8"
