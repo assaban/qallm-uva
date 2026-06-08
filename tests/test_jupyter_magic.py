@@ -81,3 +81,43 @@ def test_load_extension_registers_magic():
         J.load_ipython_extension(fake_ipython)
     assert "fn" in captured
     assert "_qallm_magic" in fake_ipython.user_ns
+
+
+def test_failing_test_extracted_from_first_failing_round():
+    from qallm.jupyter import _failing_test_for_session
+    session = {
+        "function_name": "divide",
+        "rounds": [
+            {"execution": {"failed": 0, "passed": 1}, "generated_test": {"test_code": "ok"}},
+            {"execution": {"failed": 1, "passed": 0}, "generated_test": {"test_code": "def test_x(): assert divide(1,0)==0"}},
+        ],
+    }
+    code = _failing_test_for_session(session)
+    assert code is not None
+    assert "divide(1,0)" in code
+
+
+def test_no_failing_test_when_all_pass():
+    from qallm.jupyter import _failing_test_for_session
+    session = {"rounds": [{"execution": {"failed": 0, "passed": 2}, "generated_test": {"test_code": "ok"}}]}
+    assert _failing_test_for_session(session) is None
+
+
+def test_summary_html_shows_verification_gap_with_failing_test():
+    from qallm.jupyter import _summary_html
+    summary = {
+        "source": "cell.py", "strategy": "feedback", "model": "stub",
+        "sessions": [{
+            "function_name": "divide", "final_bugs": 1, "final_coverage": 100.0,
+            "rounds": [{"execution": {"failed": 1}, "generated_test": {"test_code": "def test_divide(): assert divide(1,0)==0"}}],
+        }],
+    }
+    html_out = _summary_html(summary)
+    assert "Verification gap found" in html_out
+    assert "test_divide" in html_out
+
+
+def test_summary_html_no_gap_block_when_clean():
+    from qallm.jupyter import _summary_html
+    summary = {"sessions": [{"function_name": "add", "final_bugs": 0, "rounds": []}]}
+    assert "Verification gap found" not in _summary_html(summary)

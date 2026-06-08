@@ -95,6 +95,23 @@ def _make_arg_parser():
     return p
 
 
+def _failing_test_for_session(session: dict) -> str | None:
+    """The test code from the first round whose execution had a failure.
+
+    This is the concrete proof of a verification-gap bug: a test that ran and
+    failed against code that static analysis passed. Surfacing it inline is
+    the point, the researcher sees exactly what breaks, in their own notebook.
+    """
+    for rnd in session.get("rounds", []) or []:
+        execution = rnd.get("execution") or {}
+        if (execution.get("failed") or 0) > 0:
+            gen = rnd.get("generated_test") or {}
+            code = gen.get("test_code")
+            if code:
+                return code
+    return None
+
+
 def _summary_html(summary: dict) -> str:
     """Render a compact, readable HTML summary of a run for the notebook."""
     cost = summary.get("cost", {}) or {}
@@ -115,8 +132,9 @@ def _summary_html(summary: dict) -> str:
         for k, v in rows
     )
     # Per-function coverage / bugs, if present.
+    sessions = summary.get("sessions", []) or []
     fn_rows = ""
-    for s in summary.get("sessions", []) or []:
+    for s in sessions:
         name = html.escape(str(s.get("function_name", "?")))
         cov = s.get("final_coverage")
         bugs = s.get("final_bugs")
@@ -132,11 +150,41 @@ def _summary_html(summary: dict) -> str:
         f"<table style='font-size:13px;margin-top:4px'>{fn_rows}</table></div>"
         if fn_rows else ""
     )
+
+    # The verification gap, made tangible: for each function with a bug, show
+    # the failing test that proves it. This is the exciting part for a
+    # notebook user, static analysis passed this code, execution did not.
+    gap_block = ""
+    gap_items = ""
+    for s in sessions:
+        if not (s.get("final_bugs") or 0):
+            continue
+        test_code = _failing_test_for_session(s)
+        if not test_code:
+            continue
+        name = html.escape(str(s.get("function_name", "?")))
+        gap_items += (
+            f"<div style='margin-top:10px'>"
+            f"<div style='font-size:13px;color:#0f172a'>"
+            f"<span style='font-family:monospace;font-weight:600'>{name}</span> "
+            f"passed static analysis but a generated test fails at runtime:</div>"
+            f"<pre style='margin:6px 0 0;padding:10px 12px;background:#0f172a;color:#e2e8f0;"
+            f"border-radius:8px;font-size:12px;overflow-x:auto'>{html.escape(test_code.strip())}</pre>"
+            f"</div>"
+        )
+    if gap_items:
+        gap_block = (
+            "<div style='margin-top:12px;border-top:1px solid #e2e8f0;padding-top:10px'>"
+            "<div style='font-size:12px;color:#b91c1c;text-transform:uppercase;"
+            "letter-spacing:.05em;font-weight:600'>Verification gap found</div>"
+            f"{gap_items}</div>"
+        )
+
     return (
         "<div style='border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;"
         "font-family:system-ui,-apple-system,sans-serif;max-width:560px'>"
         "<div style='font-weight:700;color:#4f46e5;margin-bottom:8px'>QALLM run complete</div>"
-        f"<table style='font-size:13px'>{body}</table>{fn_block}"
+        f"<table style='font-size:13px'>{body}</table>{fn_block}{gap_block}"
         "<div style='margin-top:8px;font-size:11px;color:#94a3b8'>"
         "Bugs found by execution, not static analysis. Full artefacts saved to the session directory.</div>"
         "</div>"

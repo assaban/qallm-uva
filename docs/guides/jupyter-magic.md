@@ -109,3 +109,13 @@ Sessions tab.
   notebook.
 - Results render as inline HTML in the notebook, with a plain-text
   fallback where rich display is unavailable.
+
+## The verification gap, inline
+
+When a run finds a runtime defect in a function that static analysis passed,
+the inline summary shows a "Verification gap found" block with the actual
+generated test that fails against that function. This is the point of QALLM
+made tangible in the notebook: the researcher sees not just a bug count but
+the concrete, runnable test that proves their code is wrong even though the
+linter was happy. Clean functions produce no such block, so the gap section
+only appears when there is a real gap to show.
