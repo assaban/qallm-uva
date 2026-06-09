@@ -116,13 +116,28 @@ def build_session_metrics(
         tokens=int(cost.get("total_tokens", 0) or 0),
     )
 
-    # Verification gap, aggregated across rounds (matches the UI card).
-    exec_only = sum(int(r.get("summary", {}).get("execution_only", 0) or 0)
-                    for r in gap_rounds)
-    confirmed_findings = sum(
-        int(r.get("summary", {}).get("confirmed", 0) or 0) for r in gap_rounds
-    )
-    findings = sum(len(r.get("findings", []) or []) for r in gap_rounds)
+    # Verification gap: a property of the ORIGINAL code (round 0). Use the
+    # round-0 gap report only, not a sum across rounds. Summing double-counted
+    # the same functions and folded in repair-round test noise, which on clean
+    # code produced false-positive "bugs" (the lab clean_control case). Round 0
+    # is the baseline pass over the original code, exactly what the gap asks
+    # about; repair rounds inform RQ3 (verified fixes), not the gap count.
+    def _round_no(r: dict) -> int:
+        return int(r.get("round", r.get("round_number", 0)) or 0)
+
+    baseline_round = None
+    if gap_rounds:
+        baseline_round = min(gap_rounds, key=_round_no)
+    if baseline_round is not None:
+        exec_only = int(baseline_round.get("summary", {}).get("execution_only", 0) or 0)
+        confirmed_findings = int(
+            baseline_round.get("summary", {}).get("confirmed", 0) or 0
+        )
+        findings = len(baseline_round.get("findings", []) or [])
+    else:
+        exec_only = 0
+        confirmed_findings = 0
+        findings = 0
     m.static_findings = findings
     m.confirmed_findings = confirmed_findings
     m.execution_only_bugs = exec_only

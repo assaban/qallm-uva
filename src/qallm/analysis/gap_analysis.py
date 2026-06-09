@@ -161,11 +161,19 @@ def _function_for_line(spans: list[FunctionSpan], line: int) -> str | None:
 
 
 def _executions_from_verification(verification: list | None) -> dict[str, FunctionExecution]:
-    """Map function name -> execution outcome from a round's verification.json.
+    """Map function name -> execution outcome for the gap measurement.
 
-    Reads the last round of each function's session (the final state that
-    round), counting tests that ran (passed/failed) vs errored, mirroring
-    the bug-detail summary used elsewhere.
+    The verification gap is a property of the ORIGINAL code: does it have a
+    runtime defect that static analysis missed? That is a round-0 question. So
+    this reads the BASELINE round (the lowest round_number, the original code
+    before any repair), not the final round.
+
+    Reading the final round was wrong: under the GROW policy, later rounds
+    accumulate generated tests, some flaky or incorrect, whose failures against
+    a repaired variant were being counted as gap bugs. On a clean function
+    (identical code across rounds, since repair is skipped with no findings)
+    that produced false positives, the lab clean_control reporting bugs it
+    does not have.
     """
     out: dict[str, FunctionExecution] = {}
     if not verification:
@@ -174,7 +182,13 @@ def _executions_from_verification(verification: list | None) -> dict[str, Functi
         rounds = session.get("rounds") or []
         if not rounds:
             continue
-        execution = (rounds[-1].get("execution") or {})
+        # Select the baseline round: the lowest round_number, falling back to
+        # the first element if round_number is absent.
+        baseline = min(
+            rounds,
+            key=lambda r: r.get("round_number", 0) if isinstance(r, dict) else 0,
+        )
+        execution = (baseline.get("execution") or {})
         name = session.get("function") or session.get("function_name") or "?"
         passed = int(execution.get("passed", 0) or 0)
         failed = int(execution.get("failed", 0) or 0)
