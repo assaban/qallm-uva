@@ -86,10 +86,17 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    # Persist a log to disk (<output>/run.log) so a long run under screen/tmux
+    # can be tailed live and inspected later, not lost to console scrollback.
+    from pathlib import Path as _Path
+    _log_path = _Path(args.output) / "run.log"
+    _log_path.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=getattr(logging, args.log_level),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[logging.StreamHandler(), logging.FileHandler(_log_path, encoding="utf-8")],
     )
+    logging.getLogger(__name__).info("Logging to %s", _log_path)
 
     from qallm.experiments.humaneval_runner import (
         ExperimentConfig, run_experiment,
