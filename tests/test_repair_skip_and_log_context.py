@@ -74,3 +74,58 @@ def test_unit_context_shortens_path():
     assert current_unit_label() == "[unit 1/10 deep.py::5] "
     clear_unit_context()
     assert current_unit_label() == ""
+
+
+# ── repair on verification failure (Observation 2) ──
+
+def test_runtime_failure_triggers_repair_with_zero_findings():
+    from qallm.repair.repair_model import VerificationFailure
+    agent = MagicMock()
+    repaired = MagicMock()
+    repaired.repaired_source = "def f():\n    return 2\n"
+    repaired.compiles = True
+    agent.repair.return_value = repaired
+    mgr = RepairManager(repair_agent=agent, analyzer=MagicMock())
+
+    vf = [VerificationFailure(
+        function_name="f", failing_test="def test_f():\n    assert f() == 2",
+        error_excerpt="AssertionError",
+    )]
+    mgr.repair_code_unit(_analysed(findings=[]), verification_failures=vf)
+    # No static findings, but a runtime failure, so repair must run.
+    agent.repair.assert_called_once()
+    # And the request carries the verification failure.
+    req = agent.repair.call_args[0][0]
+    assert len(req.verification_failures) == 1
+    assert req.verification_failures[0].function_name == "f"
+
+
+def test_no_findings_and_no_runtime_still_skips():
+    agent = MagicMock()
+    mgr = RepairManager(repair_agent=agent, analyzer=MagicMock())
+    mgr.repair_code_unit(_analysed(findings=[]), verification_failures=[])
+    agent.repair.assert_not_called()
+
+
+def test_repair_prompt_includes_failing_test():
+    from qallm.repair.agents.llm_repair_agent import LLMRepairAgent
+    from qallm.repair.repair_model import RepairRequest, VerificationFailure
+
+    llm = MagicMock()
+    resp = MagicMock()
+    resp.content = "def f():\n    return 2\n"
+    resp.model = "stub"
+    llm.chat.return_value = resp
+    agent = LLMRepairAgent(llm=llm, tracker=MagicMock())
+    req = RepairRequest(
+        file_path="x.py", original_source="def f():\n    return 1\n",
+        current_findings=[],
+        verification_failures=[VerificationFailure(
+            "f", "def test_f():\n    assert f() == 2", "AssertionError: 1 != 2",
+        )],
+    )
+    agent.repair(req)
+    user_prompt = llm.chat.call_args[0][1]
+    assert "def test_f" in user_prompt
+    assert "Runtime verification failures" in user_prompt
+    assert "AssertionError" in user_prompt

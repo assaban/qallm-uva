@@ -89,13 +89,12 @@ graph LR
 
 ## Observation 2: repair on verification failure, not just static findings
 
-### Current behaviour
-Repair currently triggers on static findings, and (now) skips when there are
-zero. But a function can pass static analysis and still fail verification: a
-generated test that fails the ORIGINAL code at round 0 is exactly the
-verification gap, a logical flaw with no static finding. Today such a function
-is detected (it is the gap) but not necessarily routed to repair, because the
-repair trigger is finding-driven, not verification-driven.
+### Status: IMPLEMENTED
+
+### Current behaviour (before this change)
+Repair triggered on static findings only, and skipped when there were zero. A
+function could pass static analysis yet fail verification (a logical flaw), and
+that flaw was never routed to repair because the trigger was finding-driven.
 
 ### Intended behaviour (design)
 A function should be repaired when EITHER it has static findings OR round-0
@@ -114,11 +113,17 @@ graph TD
     Verify --> Judge[Judge vs parent: accept or abandon]
 ```
 
-This makes the gap actionable: the defects QALLM uniquely finds (runtime flaws
-static tools miss) become repair targets, which is the point of the pipeline
-and strengthens the RQ3 verified-fix story. This needs its own PR; the trigger
-lives in the orchestrator's per-unit flow and must thread the failing-test
-evidence into the repair request.
+### Implemented mechanism
+A function is repaired when it has static findings OR the previous round's
+verification found a runtime defect. The orchestrator captures per-function
+runtime failures after each verify (function name, the failing test, a short
+error excerpt) onto the unit track, and passes them into the next round's
+`repair_code_unit`. The repair-skip short-circuit now skips only when there are
+neither findings nor runtime failures. The repair agent's prompt includes the
+failing test as evidence, with an instruction to fix the code (not the test) so
+the test would pass. This needs its own PR; the trigger lives in the
+orchestrator's per-unit flow and threads the failing-test evidence into the
+repair request.
 
 ## Observation 3: per-function vs per-unit coverage and reward
 

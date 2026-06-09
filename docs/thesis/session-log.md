@@ -11,6 +11,29 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-09 (later, repair-on-verification-failure)
+
+### Delivered for review
+- **Repair on verification failure (`feature/repair-on-verification-failure`)**:
+  Observation 2. A function with no static finding but a runtime defect (a
+  logical flaw caught by a failing test) is now routed to repair. The
+  orchestrator captures per-function verification failures after each verify
+  and feeds the previous round's failures into the next round's repair;
+  RepairRequest gains a verification_failures field; the repair-skip
+  short-circuit skips only when there are neither findings nor runtime
+  failures; the repair agent prompt includes the failing test as evidence and
+  is told to fix the code, not the test.
+
+### Calibration status (post round-0 fix, from metrics.csv)
+- clean_control: 1 exec_only bug (target 0), one residual false positive.
+- complexity_findings: 0 (correct).
+- reliability_gap: 2 exec_only bugs (target ~5), now UNDER-counting; round-0
+  generated tests catch only 2 of 5 seeded bugs.
+- security_findings: 0 exec_only (static findings present, correct).
+- The gross over-counting is fixed; remaining gaps are round-0 test-generation
+  QUALITY (one false positive, three missed bugs), a precision/recall matter,
+  not a counting bug. Worth a focused look with the run.log next.
+
 ## 2026-06-09 (later, gap-at-round-0)
 
 ### Delivered for review

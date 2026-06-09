@@ -17,7 +17,10 @@ BT = chr(96) * 3
 
 SYSTEM_PROMPT = """
 You are a senior Python security and quality engineer.
-Fix the code to address ALL the provided static analysis findings with minimal changes.
+Fix the code to address ALL the provided issues with minimal changes. Issues
+come in two kinds: static analysis findings, and runtime verification failures
+(a generated test that failed when run against the code, evidence of a logical
+flaw that static analysis did not catch). Fix both kinds.
 
 Rules:
 1. Preserve external behavior unless a finding requires changing it for safety.
@@ -28,9 +31,11 @@ Rules:
 5. If a finding is a false positive or cannot be fixed safely, keep the
    original code unchanged and add a # noqa comment on the relevant line.
 6. Keep changes small and localized, fix only the reported issues.
-7. Return the COMPLETE corrected file. No explanations, no markdown fences,
+7. For a runtime failure, make the function behave correctly so the failing
+   test would pass; do not edit the test, fix the code under test.
+8. Return the COMPLETE corrected file. No explanations, no markdown fences,
    no partial snippets. Return the full file from first line to last line.
-8. Ensure all imports needed by your fixes are present at the top of the file.
+9. Ensure all imports needed by your fixes are present at the top of the file.
 """
 
 MAX_RETRIES = 1
@@ -48,12 +53,30 @@ class LLMRepairAgent(RepairAgent):
         findings_text = "\n".join([
             f"  [{f.severity}] {f.rule_id} (line {f.line}): {f.message}"
             for f in request.current_findings
-        ])
+        ]) or "  (none)"
+
+        # Runtime verification failures: a logical flaw with no static finding.
+        # Include the failing test so the agent can see the expected behaviour.
+        runtime_text = ""
+        if request.verification_failures:
+            blocks = []
+            for vf in request.verification_failures:
+                excerpt = (vf.error_excerpt or "").strip()
+                blocks.append(
+                    f"  Function `{vf.function_name}` fails this test:\n"
+                    f"{vf.failing_test}\n"
+                    + (f"  Error: {excerpt}\n" if excerpt else "")
+                )
+            runtime_text = (
+                "\n\nRuntime verification failures (logical flaws found by "
+                "execution, no static finding). Fix the function so the test "
+                "passes:\n" + "\n".join(blocks)
+            )
 
         user_prompt = f"""File: {request.file_path}
 
 Findings to fix:
-{findings_text}
+{findings_text}{runtime_text}
 
 Source Code:
 {request.original_source}

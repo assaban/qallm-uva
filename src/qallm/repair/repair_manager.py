@@ -34,31 +34,43 @@ class RepairManager:
     def repair_code_unit(
         self,
         analysed_code_unit: AnalysedCodeUnit,
-        persist_dir: Path | None = None
+        persist_dir: Path | None = None,
+        verification_failures: list | None = None,
     ) -> RepairedCodeUnit:
         """Uses Repair agents to repair the supplied code and results in RepairedCodeUnit instance.
-        The repaired code might or might not compile!"""
+        The repaired code might or might not compile!
 
-        logger.info(f"Repairing: ({len(analysed_code_unit.findings)}) findings ["
-                    f"File name: {analysed_code_unit.code_unit.original_path}")
+        ``verification_failures`` carries runtime defects found by execution
+        (logical flaws with no static finding). When present, repair runs even
+        with zero static findings, and the failing tests are passed to the
+        agent as evidence. This makes the verification gap actionable: the
+        runtime flaws QALLM uniquely finds become repair targets.
+        """
+        verification_failures = verification_failures or []
+        n_findings = len(analysed_code_unit.findings)
+        n_runtime = len(verification_failures)
+        logger.info(
+            "Repairing: (%d) findings, (%d) runtime failure(s) [File name: %s]",
+            n_findings, n_runtime, analysed_code_unit.code_unit.original_path,
+        )
 
         code_unit = analysed_code_unit.code_unit
         code_unit_path = str(code_unit.original_path.absolute())
 
-        # Nothing to repair: with zero findings there is no defect for the LLM
-        # to act on, so calling it is wasted budget (and was producing "Repair
-        # completed" lines for files that had no findings at all). Return an
-        # identity result (source unchanged, compiles, empty diff) without any
-        # LLM round-trip.
-        if not analysed_code_unit.findings:
+        # Nothing to repair: no static findings AND no runtime failures. With
+        # neither, there is no defect for the LLM to act on, so calling it is
+        # wasted budget. Return an identity result without any LLM round-trip.
+        # (Previously this skipped on findings alone, which missed logical
+        # flaws that have no static finding but do fail verification.)
+        if not analysed_code_unit.findings and not verification_failures:
             logger.info(
-                "Repair skipped: 0 findings [File name: %s]",
+                "Repair skipped: 0 findings, 0 runtime failures [File name: %s]",
                 code_unit.original_path,
             )
             identity = RepairResult(
                 file_path=code_unit_path,
                 repaired_source=code_unit.source_code,
-                explanation="no findings: repair skipped",
+                explanation="no findings or runtime failures: repair skipped",
                 compiles=True,
                 unified_diff="",
             )
@@ -68,6 +80,7 @@ class RepairManager:
             file_path=code_unit_path,
             original_source=code_unit.source_code,
             current_findings=analysed_code_unit.findings,
+            verification_failures=verification_failures,
         )
 
         repair_result = self.repair_agent.repair(request)
