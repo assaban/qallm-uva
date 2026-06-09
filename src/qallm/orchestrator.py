@@ -439,6 +439,42 @@ class QALLMOrchestrator:
             halt_reason=self.halt_reason.value if self.halt_reason else None,
         )
 
+    def _verification_failures_from(self, tested_unit) -> list:
+        """Extract per-function runtime failures from a tested unit.
+
+        For each function session whose latest round had a failing test, build
+        a VerificationFailure carrying the function name, the failing test
+        code, and a short error excerpt. These feed the next round's repair so
+        logical flaws with no static finding are still acted on. Best-effort:
+        any malformed session is skipped rather than breaking the run.
+        """
+        from qallm.repair.repair_model import VerificationFailure
+
+        failures: list = []
+        for session in getattr(tested_unit, "sessions", []) or []:
+            rounds = getattr(session, "rounds", None) or []
+            if not rounds:
+                continue
+            last = rounds[-1]
+            execution = getattr(last, "execution", None)
+            if execution is None or getattr(execution, "failed", 0) <= 0:
+                continue
+            gen = getattr(last, "generated_test", None)
+            test_code = getattr(gen, "test_code", "") if gen else ""
+            if not test_code:
+                continue
+            excerpt = ""
+            for d in getattr(execution, "test_details", []) or []:
+                if getattr(d, "status", "") in ("failed", "error"):
+                    excerpt = (getattr(d, "message", "") or "")[:300]
+                    break
+            failures.append(VerificationFailure(
+                function_name=getattr(session, "function_name", "?"),
+                failing_test=test_code,
+                error_excerpt=excerpt,
+            ))
+        return failures
+
     def _identity_repair(self, analysed) -> RepairedCodeUnit:
         """A no-op 'repair' whose output equals the input.
 
@@ -504,7 +540,12 @@ class QALLMOrchestrator:
             repaired = self._identity_repair(analysed)
         else:
             set_context(stage="repair", role="repair")
-            repaired = self.repair_manager.repair_code_unit(analysed)
+            # Pass the previous round's verification failures so logical flaws
+            # with no static finding (the verification gap) get repaired too.
+            repaired = self.repair_manager.repair_code_unit(
+                analysed,
+                verification_failures=track.last_verification_failures,
+            )
 
         # Step 3: verify. round_number=0 tells the stability store this is
         # the baseline round (where tests are generated under the default
@@ -530,6 +571,11 @@ class QALLMOrchestrator:
         self.current_function = None
         self.function_index = 0
         self.function_total = 0
+
+        # Capture this round's runtime failures so the NEXT round's repair can
+        # target logical flaws that have no static finding (the verification
+        # gap made actionable). Stored transiently on the track.
+        track.last_verification_failures = self._verification_failures_from(tested_unit)
 
         # Step 4: build the variant's ProfileVerdict.
         self.current_stage = "judge"

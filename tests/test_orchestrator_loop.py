@@ -171,7 +171,7 @@ def _wire_collaborators(
     # is the same CodeUnit it was asked to repair, so the orchestrator's
     # parent-vs-variant chain stays predictable.
     from qallm.repair.repair_model import RepairedCodeUnit, RepairResult
-    def _fake_repair(analysed):
+    def _fake_repair(analysed, *args, **kwargs):
         repaired_result = RepairResult(
             file_path=str(analysed.code_unit.original_path),
             repaired_source=analysed.code_unit.source_code,

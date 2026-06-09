@@ -30,6 +30,19 @@ class RepairedCodeUnit():
 
 
 @dataclass
+class VerificationFailure:
+    """Evidence of a runtime defect found by verification, not static analysis.
+
+    A logical flaw can pass every static analyser yet fail at execution. This
+    carries the failing test so repair can target the flaw even when there is
+    no static finding for it, the verification gap made actionable.
+    """
+    function_name: str
+    failing_test: str
+    error_excerpt: str = ""
+
+
+@dataclass
 class RepairRequest:
     """A bundle of findings grouped by the file they target."""
     file_path: str
@@ -37,6 +50,9 @@ class RepairRequest:
     current_findings: List[Finding]
     previous_findings: List[Finding] = field(default_factory=list)
     context_metadata: Dict[str, Any] = field(default_factory=dict)
+    # Runtime defects found by verification (logical flaws with no static
+    # finding). When present, repair acts on these too, not only findings.
+    verification_failures: List["VerificationFailure"] = field(default_factory=list)
 
 @dataclass
 class RepairResult:

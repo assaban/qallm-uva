@@ -68,6 +68,10 @@ class UnitTrack:
     unit_id: str  # stable identifier: f"{path}::{cell_index}"
     lineage: list[LineageEntry] = field(default_factory=list)
     abandoned: list[AbandonedEntry] = field(default_factory=list)
+    # Transient (not serialised): verification failures from the most recent
+    # round, fed into the NEXT round's repair so logical flaws with no static
+    # finding still get repaired. List of repair_model.VerificationFailure.
+    last_verification_failures: list = field(default_factory=list)
 
     @property
     def current_parent(self) -> Optional[LineageEntry]:
