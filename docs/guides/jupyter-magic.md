@@ -66,7 +66,7 @@ The magic accepts a subset of the `qallm` CLI options:
 | Option | Default | Meaning |
 |---|---|---|
 | `--strategy` | `feedback` | `hypothesis`, `oneshot`, or `feedback` |
-| `--llm` | `openai` | `openai`, `anthropic`, or `ollama` |
+| `--llm` | `fedllm` | `fedllm`, `openai`, `anthropic`, or `ollama` |
 | `--model` | (provider default) | specific model name |
 | `--rounds` | `3` | iterative feedback rounds |
 | `--oracle` | `crash` | `crash`, `property`, or `metamorphic` |
@@ -104,9 +104,10 @@ Sessions tab.
 
 ## Notes
 
-- The magic needs the LLM credentials the pipeline normally needs
-  (e.g. `OPENAI_API_KEY`), set in the environment before launching the
-  notebook.
+- The magic needs whatever credentials the configured provider requires,
+  set in the environment before launching the notebook. For the default
+  FedLLM provider this is `FEDLLM_API_KEY`; for OpenAI it is `OPENAI_API_KEY`,
+  and so on.
 - Results render as inline HTML in the notebook, with a plain-text
   fallback where rich display is unavailable.
 

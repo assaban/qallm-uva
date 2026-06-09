@@ -41,6 +41,7 @@ The mechanics and design record.
 - [`thesis/thesis-draft-scaffold.md`](thesis/thesis-draft-scaffold.md): the thesis structure and metric definitions.
 - [`thesis/methodology-decisions.md`](thesis/methodology-decisions.md): the dated, append-only record of methodology decisions (MD-001, MD-002, ...).
 - [`thesis/roadmap.md`](thesis/roadmap.md): priorities and rationale.
+- [`thesis/session-log.md`](thesis/session-log.md): append-only, dated record of what changed each session and what is outstanding (for cross-session continuity).
 
 ## showcase/ — shareable, self-contained pages
 

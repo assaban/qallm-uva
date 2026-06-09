@@ -84,7 +84,7 @@ def _make_arg_parser():
                    help="Path for the line magic; omitted for the cell magic.")
     p.add_argument("--strategy", default="feedback",
                    choices=["hypothesis", "oneshot", "feedback"])
-    p.add_argument("--llm", default="openai", choices=["openai", "anthropic", "ollama", "fedllm"])
+    p.add_argument("--llm", default="fedllm", choices=["openai", "anthropic", "ollama", "fedllm"])
     p.add_argument("--model", default=None)
     p.add_argument("--rounds", type=int, default=3)
     p.add_argument("--oracle", default="crash", choices=["crash", "property", "metamorphic"])

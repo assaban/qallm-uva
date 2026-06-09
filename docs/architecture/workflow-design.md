@@ -87,10 +87,10 @@ The diagram below traces a single QALLM session in detail: how each unit moves t
 
 ```mermaid
 flowchart TD
-    Start([CLI: qallm SOURCE --strategy rl --judge-strategy lexicographic]) --> Init[Construct orchestrator:<br/>BudgetCaps, TestStabilityConfig,<br/>VerificationManager, Judge]
+    Start([CLI: qallm SOURCE --strategy feedback --llm fedllm --judge-strategy lexicographic]) --> Init[Construct orchestrator:<br/>BudgetCaps, TestStabilityConfig,<br/>VerificationManager, Judge]
     Init --> Ingest[Ingestion: collect CodeUnits]
     Ingest --> Tracks[Initialise UnitTrack per unit:<br/>empty lineage, empty abandoned]
-    Tracks --> Baseline[Round 0 baseline:<br/>static analysis only<br/>round_00_baseline/]
+    Tracks --> Baseline[Round 0 baseline:<br/>analyse + execution-based verify<br/>round_00_baseline/]
 
     Baseline --> LoopHead[For each round r = 1..max_rounds]
     LoopHead --> BudgetStart[BudgetState.mark_round_start]

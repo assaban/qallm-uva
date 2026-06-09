@@ -29,6 +29,7 @@ def test_arg_parser_defaults_and_overrides():
     p = J._make_arg_parser()
     a = p.parse_args([])
     assert a.strategy == "feedback" and a.rounds == 3 and a.source is None
+    assert a.llm == "fedllm"  # FedLLM is QALLM's default provider
     b = p.parse_args(["file.py", "--strategy", "oneshot", "--rounds", "5"])
     assert b.source == "file.py" and b.strategy == "oneshot" and b.rounds == 5
 
