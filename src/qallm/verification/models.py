@@ -42,7 +42,7 @@ class FunctionInfo:
     filepath: str
 
 
-OracleType = Literal["crash", "property", "metamorphic"]
+OracleType = Literal["crash", "correctness", "property", "metamorphic"]
 
 
 @dataclass

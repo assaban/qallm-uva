@@ -87,7 +87,7 @@ def _make_arg_parser():
     p.add_argument("--llm", default="fedllm", choices=["openai", "anthropic", "ollama", "fedllm"])
     p.add_argument("--model", default=None)
     p.add_argument("--rounds", type=int, default=3)
-    p.add_argument("--oracle", default="crash", choices=["crash", "property", "metamorphic"])
+    p.add_argument("--oracle", default="crash", choices=["crash", "correctness", "property", "metamorphic"])
     p.add_argument("--stage", default="implementation",
                    choices=["draft", "implementation", "publication"])
     p.add_argument("--max-tokens", type=int, default=None, dest="max_tokens")

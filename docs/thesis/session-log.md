@@ -11,6 +11,32 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-09 (later, correctness oracle)
+
+### Diagnosis (from the pipeline artifacts)
+Calibration after the round-0 fix: clean_control 0 (good), but reliability_gap
+fell to 1 of 5 seeded bugs. The artifacts show why: the default CRASH oracle
+only checks "does not raise", but the reliability bugs are WRONG VALUES from
+non-crashing functions. The generated tests asserted isinstance(result, int)
+(type, not value) and even encoded the bug as expected (safe_divide test
+asserted ZeroDivisionError, which the docstring says should be a returned 0).
+Two causes: oracle-type mismatch (crash cannot catch wrong values) and
+implementation-biased generation (LLM asserts what the buggy code does).
+Full write-up: docs/experiments/reliability-oracle-findings.md.
+
+### Delivered for review
+- **Correctness oracle (`feature/correctness-oracle`)**: a new oracle type
+  whose prompt treats the DOCSTRING as the source of truth, warns the
+  implementation may be buggy, and demands exact-value assertions (not
+  isinstance/type checks). Wired into OracleType, the generator dispatch, and
+  all --oracle CLI choices. Crash oracle unchanged (still right for crash-class
+  defects).
+
+### Regression gate (re-run needed)
+Re-run lab calibration with --oracle correctness: expect reliability_gap -> ~5,
+clean_control -> 0, complexity_findings -> 0. This is the recall test for
+reliability defects.
+
 ## 2026-06-09 (later, repair-on-verification-failure)
 
 ### Delivered for review
