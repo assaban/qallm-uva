@@ -62,10 +62,23 @@ def main() -> None:
                              "since it reads per-round artefacts from disk.")
     parser.add_argument("--log-level", default="INFO",
                         choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    parser.add_argument("--log-file", default=None,
+                        help="Also write logs to this file (in addition to the "
+                             "console). Useful under screen/tmux where console "
+                             "scrollback is lost; tail -f it from another shell. "
+                             "Defaults to <output>/run.log when omitted.")
     args = parser.parse_args()
 
+    # Always persist a log to disk so a long run under screen/tmux can be
+    # inspected later and tailed live, not just watched in a console that
+    # scrolls away. Defaults to <output>/run.log.
+    log_path = Path(args.log_file) if args.log_file else Path(args.output) / "run.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    handlers = [logging.StreamHandler(), logging.FileHandler(log_path, encoding="utf-8")]
     logging.basicConfig(level=getattr(logging, args.log_level),
-                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+                        handlers=handlers)
+    logging.getLogger(__name__).info("Logging to %s", log_path)
 
     config = GapExperimentConfig(
         dataset_dir=Path(args.dataset),
