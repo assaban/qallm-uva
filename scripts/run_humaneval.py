@@ -71,7 +71,7 @@ def main() -> int:
         help="QALLM rounds per run (default 5).",
     )
     parser.add_argument(
-        "--oracle", default="crash", choices=["crash", "property", "metamorphic"],
+        "--oracle", default="crash", choices=["crash", "correctness", "property", "metamorphic"],
         help="Test oracle (default crash).",
     )
     parser.add_argument(

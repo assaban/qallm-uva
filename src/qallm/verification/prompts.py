@@ -40,6 +40,62 @@ input (e.g. result of f(1000) must not be compared to expected(100)).
 """
 
 
+def build_correctness_oracle_prompt(func: FunctionInfo) -> str:
+    """Build a user prompt for the correctness oracle.
+
+    The correctness oracle targets reliability defects: functions that do not
+    crash but return WRONG values. These are missed by the crash oracle (which
+    only checks for unhandled exceptions). The key design choices:
+
+    - Expected outputs are derived from the DOCSTRING / stated intent, never
+      from the implementation. The implementation may be buggy; asserting what
+      the code does would encode the bug as expected behaviour (the failure
+      mode seen on the lab set, e.g. a test asserting safe_divide(5, 0) raises,
+      when the docstring says it should return 0).
+    - Assertions must check exact VALUES for concrete inputs, not just types or
+      shapes (`assert f(0, 10) == 11`, not `assert isinstance(f(0, 10), int)`).
+    """
+    parts = [
+        "## Function under test\n",
+        f"```python\n{func.source}\n```\n",
+    ]
+
+    if func.docstring:
+        parts.append(f"## Specification (docstring, the SOURCE OF TRUTH)\n{func.docstring}\n")
+
+    if func.args:
+        arg_lines = []
+        for name, annotation in func.args:
+            arg_lines.append(
+                f"  {name}: {annotation}" if annotation
+                else f"  {name}: (no type annotation)"
+            )
+        parts.append("## Arguments\n" + "\n".join(arg_lines) + "\n")
+
+    parts.append(
+        "## Task\n"
+        "Generate pytest tests that check the function returns the CORRECT "
+        "VALUE according to the specification (docstring) above.\n\n"
+        "CRITICAL:\n"
+        "  - The implementation shown MAY BE WRONG. Derive every expected "
+        "value from the docstring / stated intent, NOT from what the code "
+        "appears to do. If the code contradicts the docstring, your test must "
+        "follow the docstring and therefore FAIL on the code.\n"
+        "  - Assert exact values for concrete inputs "
+        "(e.g. `assert f(0, 10) == 11`). Do NOT use `isinstance` or type/shape "
+        "checks as the only assertion; those pass on wrong values.\n"
+        "  - Pick inputs whose correct output you can determine from the "
+        "docstring and state that output explicitly in the assert.\n\n"
+        "Cover normal cases, boundaries, and any behaviour the docstring "
+        "promises for edge inputs (empty, zero, None). Use pytest.raises only "
+        "when the docstring explicitly says an exception is the correct "
+        "behaviour.\n\n"
+        "Return ONLY the complete test file. Start with imports."
+    )
+
+    return "\n".join(parts)
+
+
 def build_crash_oracle_prompt(func: FunctionInfo) -> str:
     """Build a user prompt for crash oracle test generation.
 

@@ -23,7 +23,7 @@ def main():
     parser.add_argument("--llm", default="openai", choices=["openai", "anthropic", "ollama", "fedllm"])
     parser.add_argument("--model", default=None, help="Specific model name (e.g. gpt-4o-mini)")
     parser.add_argument("--rounds", type=int, default=5, help="Iterative feedback rounds (default: 5)")
-    parser.add_argument("--oracle", default="crash", choices=["crash", "property", "metamorphic"])
+    parser.add_argument("--oracle", default="crash", choices=["crash", "correctness", "property", "metamorphic"])
     parser.add_argument("--stage", default="implementation",
                         choices=["initialization", "implementation", "publication"])
     parser.add_argument(

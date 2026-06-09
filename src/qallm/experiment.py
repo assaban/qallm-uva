@@ -229,7 +229,7 @@ def main():
     parser.add_argument("--input", required=True, help="Path to notebooks/source files")
     parser.add_argument("--models", default="gpt-4o-mini", help="Comma-separated model names")
     parser.add_argument("--rounds", type=int, default=5, help="RL feedback rounds")
-    parser.add_argument("--oracle", default="crash", choices=["crash", "property", "metamorphic"])
+    parser.add_argument("--oracle", default="crash", choices=["crash", "correctness", "property", "metamorphic"])
     parser.add_argument("--output", default="outputs/experiments", help="Output directory")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()

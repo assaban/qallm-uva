@@ -43,7 +43,7 @@ def main() -> None:
                         choices=["feedback", "rl", "oneshot", "hypothesis"])
     parser.add_argument("--rounds", type=int, default=5)
     parser.add_argument("--oracle", default="crash",
-                        choices=["crash", "property", "metamorphic"])
+                        choices=["crash", "correctness", "property", "metamorphic"])
     parser.add_argument("--judge-strategy", default="lexicographic",
                         choices=["strict", "lexicographic", "model"])
     parser.add_argument("--stage", default="implementation",
