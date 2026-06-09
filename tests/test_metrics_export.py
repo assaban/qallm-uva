@@ -103,3 +103,36 @@ def test_csv_has_stable_header_and_rows():
 def test_to_dict_keys_match_csv_columns():
     s1 = SessionMetrics("s1")
     assert set(s1.to_dict().keys()) == set(CSV_COLUMNS)
+
+
+def test_gap_measured_at_round_0_not_summed():
+    """The verification gap is a round-0 property. Later rounds (GROW test
+    noise, repair-round failures) must not be summed into the gap count.
+    Regression: clean code reported false bugs from accumulated round-N tests.
+    """
+    gap_rounds = [
+        # Round 0: the original code is clean (the true gap is 0).
+        {"round": 0, "findings": [],
+         "summary": {"execution_only": 0, "confirmed": 0}},
+        # Later rounds: accumulated flaky tests "fail" on the (unchanged) code.
+        {"round": 3, "findings": [],
+         "summary": {"execution_only": 2, "confirmed": 0}},
+        {"round": 5, "findings": [],
+         "summary": {"execution_only": 3, "confirmed": 0}},
+    ]
+    m = build_session_metrics("clean", _summary(), gap_rounds)
+    assert m.execution_only_bugs == 0   # round 0 only, not 0+2+3=5
+    assert m.verification_gap_rate is None  # no bugs, no findings -> no gap
+
+
+def test_gap_round_0_seeded_bugs_preserved():
+    """A genuinely buggy original (bugs present at round 0) is still counted;
+    the round-0 selection does not suppress real gap detection."""
+    gap_rounds = [
+        {"round": 0, "findings": [],
+         "summary": {"execution_only": 5, "confirmed": 0}},
+        {"round": 2, "findings": [],
+         "summary": {"execution_only": 8, "confirmed": 0}},
+    ]
+    m = build_session_metrics("reliability", _summary(), gap_rounds)
+    assert m.execution_only_bugs == 5   # the seeded bugs at round 0, not 5+8

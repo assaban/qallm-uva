@@ -11,7 +11,48 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
-## 2026-06-09
+## 2026-06-09 (later, gap-at-round-0)
+
+### Delivered for review
+- **Gap measured at round 0 (`fix/gap-measured-at-round-0`)**: the lab
+  calibration after Bug 2 still showed clean_control with 12 false bugs. Root
+  cause: the gap metric read the FINAL round (and summed execution_only across
+  ALL rounds), folding in GROW test noise from repair rounds. The gap is a
+  round-0 property of the ORIGINAL code. Fixed both paths:
+  `_executions_from_verification` reads the baseline (lowest round_number) round;
+  `build_session_metrics` takes execution_only from the round-0 gap report only,
+  not summed. Verified on the calibration shape: clean_control -> 0,
+  reliability_gap -> 5.
+- **Design doc** `docs/architecture/verification-repair-reward-design.md`:
+  source-of-truth analysis with diagrams for all five observations (repair on
+  verification failure, per-function vs per-unit coverage/reward, the unit-1/1
+  label, per-file sessions/traceability), and the round-0 gap fix.
+
+### OPEN items added this session (from the five observations)
+- **Repair on verification failure** (observation 2): a function with no static
+  findings but a round-0 runtime defect (logical flaw) should be routed to
+  repair using the failing test as evidence. Designed, not yet implemented; own
+  PR. Trigger lives in the orchestrator per-unit flow.
+- **Progress label** (observation 4): add file position in dataset (file 7/289)
+  and function position (fn 2/4) to the context; "unit 1/1" alone is
+  uninformative for single-unit .py files. Small, own PR.
+- **Session layout** (observation 5): keep one session per file (isolation is
+  valuable) but place session dirs under the run output
+  (runs/<name>/sessions/<file_stem>_<uuid>) and name them by file stem, so the
+  run-to-session link is visible. Persistence-path change; own PR; must keep
+  confirm/verify and the web UI working.
+- **Per-function vs per-unit (observation 3)**: DECISION recorded, no loop
+  change. Coverage/bugs stay per-function (correct granularity for RQ1/2/3 and
+  the reward loop); aggregation to unit/run happens only at reporting time.
+
+### Re-run after this merges
+Lab calibration is again the gate: clean_control -> ~0, complexity_findings ->
+~0, reliability_gap -> ~5. If those hold, the gap rate is trustworthy and ENVRI
+can run for the headline.
+
+---
+
+
 
 ### Merged this session (PRs in order)
 - Fetcher: never prompt for git credentials; per-clone timeout (private/removed
