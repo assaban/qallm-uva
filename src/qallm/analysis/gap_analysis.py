@@ -203,6 +203,19 @@ def build_gap_report(
 
     functions_with_finding: set[str] = set()
     for f in findings:
+        # findings may arrive as dicts (disk path: parsed from static.json) or
+        # as Finding dataclass objects (in-memory metrics_only path, which
+        # passes analysed.findings directly). Normalise to dict access so both
+        # work; previously the object path raised "'Finding' object has no
+        # attribute 'get'" on any unit that had static findings.
+        if not isinstance(f, dict):
+            f = {
+                "line": getattr(f, "line", 0),
+                "tool": getattr(f, "tool", "?"),
+                "severity": getattr(f, "severity", "?"),
+                "message": getattr(f, "message", ""),
+                "rule_id": getattr(f, "rule_id", ""),
+            }
         line = int(f.get("line", 0) or 0)
         fn = _function_for_line(spans, line)
         if fn:
