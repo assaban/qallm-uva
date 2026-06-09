@@ -156,3 +156,20 @@ def test_default_orchestrator_factory_constructs(tmp_path):
     assert orch is not None
     # The rounds value should have been accepted and applied.
     assert orch.rounds == 3
+
+
+def test_discover_inputs_excludes_ipynb_checkpoints(tmp_path):
+    """Jupyter autosave backups must not be processed as real notebooks."""
+    from qallm.experiments.gap_runner import _discover_inputs
+
+    (tmp_path / "real.ipynb").write_text("{}")
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    (sub / "nb.ipynb").write_text("{}")
+    ckpt = sub / ".ipynb_checkpoints"
+    ckpt.mkdir()
+    (ckpt / "nb-checkpoint.ipynb").write_text("{}")
+
+    found = sorted(p.name for p in _discover_inputs(tmp_path, "*.ipynb"))
+    assert found == ["nb.ipynb", "real.ipynb"]
+    assert "nb-checkpoint.ipynb" not in found

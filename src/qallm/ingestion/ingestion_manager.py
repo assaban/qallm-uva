@@ -79,7 +79,13 @@ class IngestionManager:
 
     def _scan_directory(self, directory: Path) -> List[CodeUnit]:
         units = []
-        for root, _, files in os.walk(directory):
+        for root, dirs, files in os.walk(directory):
+            # Skip Jupyter autosave backups: .ipynb_checkpoints holds
+            # "-checkpoint.ipynb" duplicates of real notebooks. Including them
+            # double-processes the same code, wastes budget, and pollutes the
+            # results (the ENVRI run was spending rounds on checkpoint copies).
+            # Pruning dirs in-place stops os.walk descending into them.
+            dirs[:] = [d for d in dirs if d != ".ipynb_checkpoints"]
             for file in files:
                 fpath = Path(root) / file
                 if fpath.suffix == '.ipynb':

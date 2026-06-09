@@ -78,6 +78,11 @@ from qallm.llm.transcript import (
 )
 from qallm.profiles import IMPLEMENTATION_DEFAULT, QualityProfile
 from qallm.utils.reporter import QualityReporter
+from qallm.utils.log_context import (
+    clear_unit_context,
+    install_unit_context_filter,
+    set_unit_context,
+)
 from qallm.verification.models import OracleType, TestedCodeUnit
 from qallm.verification.test_persistence import TestStabilityConfig
 from qallm.verification.verification_manager import VerificationManager
@@ -297,6 +302,10 @@ class QALLMOrchestrator:
         """
         logger.info(f"Starting QALLM operation for {source_path}...")
 
+        # Ensure the unit-context filter is attached so per-unit progress
+        # labels appear on every log line during this run. Idempotent.
+        install_unit_context_filter()
+
         # Activate prompt/response capture for the duration of this run.
         # reset_context clears any stale thread-local context from a prior
         # run on the same worker thread.
@@ -332,6 +341,12 @@ class QALLMOrchestrator:
         # Initialise per-unit tracking before the first round runs.
         for unit in units:
             self.tracks[_unit_id(unit)] = UnitTrack(unit_id=_unit_id(unit))
+
+        # Stable 1-based sequence number per unit, in collection order, for
+        # progress logging ("unit 3/47"). Lets every log line locate itself in
+        # the run instead of just naming a function with no sense of how far
+        # along we are.
+        self._unit_sequence = {_unit_id(u): i + 1 for i, u in enumerate(units)}
 
         # One unified loop. Round 0 is the baseline (analyse + verify the
         # original, no repair, always accepted, no budget round consumed).
@@ -467,6 +482,14 @@ class QALLMOrchestrator:
         """
         is_baseline = self.current_round == 0
         self.current_unit_id = unit_id
+        # Prefix every log line emitted while this unit is processed with its
+        # sequence position, so the log shows how far the run has progressed
+        # ("unit 3/47") rather than only naming a function.
+        set_unit_context(
+            index=self._unit_sequence.get(unit_id, 0),
+            total=self.units_total,
+            unit_id=unit_id,
+        )
         set_context(round_number=self.current_round, unit_id=unit_id,
                     function=None, oracle=None)
 
@@ -623,6 +646,7 @@ class QALLMOrchestrator:
         for unit_id, unit in inputs.items():
             track = self.tracks[unit_id]
             next_inputs[unit_id] = self._process_unit(unit_id, unit, track)
+            clear_unit_context()
         logger.info("Round %d (%s) completed.", self.current_round, label)
         return next_inputs
 
