@@ -215,8 +215,9 @@ If you enable the optional Ollama profile to run local LLMs, add:
 
 ### LLM API keys
 
-QALLM can use OpenAI, Anthropic, or Ollama (local). You need at least one configured. For OpenAI and Anthropic, obtain an API key from the provider's console:
+QALLM uses FedLLM by default (`fedllm:gpt-oss-120b`, hosted on EGI, free for VO users); it can also use OpenAI, Anthropic, or Ollama (local). You need at least one configured.
 
+* FedLLM (default): set `FEDLLM_API_KEY`. Hosted at <https://llm.ai.egi.eu>; free for VO users.
 * OpenAI: <https://platform.openai.com/api-keys>
 * Anthropic: <https://console.anthropic.com/>
 
@@ -230,7 +231,7 @@ The repository ships a multi-stage Dockerfile and a Compose file that build the 
 git clone https://github.com/assaban/qallm-uva.git
 cd qallm-uva
 
-# Configure API keys (at minimum one of OPENAI_API_KEY, ANTHROPIC_API_KEY).
+# Configure API keys (FEDLLM_API_KEY by default; or OPENAI_API_KEY / ANTHROPIC_API_KEY).
 cp .env.example .env
 $EDITOR .env
 
@@ -267,16 +268,16 @@ git clone https://github.com/assaban/qallm-uva.git
 cd qallm-uva
 pip install -e .
 
-export OPENAI_API_KEY=sk-...   # or ANTHROPIC_API_KEY
+export FEDLLM_API_KEY=...   # default provider; or OPENAI_API_KEY / ANTHROPIC_API_KEY
 
 # Static analysis only, on a notebook
 qallm notebooks/analysis.ipynb --strategy hypothesis
 
-# One-shot LLM verification
-qallm notebooks/analysis.ipynb --strategy oneshot --llm openai
+# One-shot LLM verification (FedLLM is the default provider)
+qallm notebooks/analysis.ipynb --strategy oneshot --llm fedllm
 
-# Full iterative-feedback verification, 5 rounds
-qallm notebooks/analysis.ipynb --strategy feedback --rounds 5 --llm openai
+# Full iterative-feedback verification, 5 rounds (FedLLM is the default)
+qallm notebooks/analysis.ipynb --strategy feedback --rounds 5 --llm fedllm
 ```
 
 Inputs may be a single `.py` or `.ipynb` file, a directory, a `.zip` archive, or a GitHub URL.
