@@ -309,3 +309,102 @@ class TestSessionSourceRefresh:
             assert session_after_r2 is session_after_r1
             assert "ast.literal_eval(x)" in session_after_r2.source_code
             assert "return eval(x)" not in session_after_r2.source_code
+
+
+class TestBaselineGate:
+    """The baseline gate (Bug 2): a generated test that fails on the ORIGINAL
+    code is stripped, since the original is the reference, the test is wrong,
+    not the code. Prevents false bugs on correct functions and the 0% HumanEval
+    detection signature."""
+
+    def test_test_failing_on_original_is_stripped(self, tmp_path, caplog):
+        from qallm.verification.models import TestDetail
+
+        original_source = "def add(a, b):\n    return a + b\n"
+        unit = _build_repaired_unit(
+            original_source, original_source, tmp_path / "demo.py",
+        )
+        vm = _make_verification_manager()
+        # GROW so freshly generated tests are run (gate is on generation path).
+        vm.stability_config = TestStabilityConfig(
+            stability=TestStability.FROZEN, policy=GenerationPolicy.GROW,
+        )
+
+        gen = MagicMock(
+            test_code=(
+                "def test_ok():\n    assert add(1, 2) == 3\n\n"
+                "def test_wrong():\n    assert add(1, 1) == 3\n"
+            ),
+            is_valid=True, generation_error=None, oracle="crash",
+            model="stub", provider="stub", discarded_tests=[],
+            input_tokens=0, output_tokens=0,
+        )
+
+        def fake_run(source, test_code, *a, **k):
+            # The gate runs against original_source: test_wrong fails there.
+            if "test_wrong" in test_code and source == original_source:
+                return MagicMock(
+                    test_details=[
+                        TestDetail(name="test_ok", status="passed"),
+                        TestDetail(name="test_wrong", status="failed"),
+                    ],
+                    passed=1, failed=1, errors=0, coverage_percent=100.0,
+                    execution_error=None,
+                )
+            # Subsequent runs (variant) see only the surviving test.
+            return MagicMock(
+                test_details=[TestDetail(name="test_ok", status="passed")],
+                passed=1, failed=0, errors=0, coverage_percent=100.0,
+                execution_error=None,
+            )
+
+        with patch.object(vm.generator, "generate", return_value=gen), \
+             patch("qallm.verification.verification_manager.run_tests", side_effect=fake_run):
+            with caplog.at_level(logging.INFO):
+                vm.verify(unit, round_number=1)
+
+        # test_wrong (fails on the original) was stripped; test_ok survives.
+        assert "test_wrong" not in gen.test_code
+        assert "def test_ok" in gen.test_code
+        assert any("baseline-gate" in r.getMessage() for r in caplog.records)
+
+
+    def test_gate_does_not_run_at_round_0(self, tmp_path, caplog):
+        """Round 0 is the gap-detection pass: a test that fails the original
+        is the signal, not noise, and must NOT be stripped. Gating round 0
+        would erase exactly the bugs the experiment measures."""
+        from qallm.verification.models import TestDetail
+
+        # Original code is buggy here (the round-0 case for reliability_gap).
+        original_source = "def add(a, b):\n    return a - b  # BUG\n"
+        unit = _build_repaired_unit(
+            original_source, original_source, tmp_path / "demo.py",
+        )
+        vm = _make_verification_manager()
+
+        gen = MagicMock(
+            test_code="def test_add():\n    assert add(1, 2) == 3\n",
+            is_valid=True, generation_error=None, oracle="crash",
+            model="stub", provider="stub", discarded_tests=[],
+            input_tokens=0, output_tokens=0,
+        )
+
+        run_calls = []
+
+        def fake_run(source, test_code, *a, **k):
+            run_calls.append(test_code)
+            # The (buggy) original fails this correct test, that is the gap.
+            return MagicMock(
+                test_details=[TestDetail(name="test_add", status="failed")],
+                passed=0, failed=1, errors=0, coverage_percent=100.0,
+                execution_error=None,
+            )
+
+        with patch.object(vm.generator, "generate", return_value=gen), \
+             patch("qallm.verification.verification_manager.run_tests", side_effect=fake_run):
+            with caplog.at_level(logging.INFO):
+                vm.verify(unit, round_number=0)
+
+        # The bug-catching test survives (not stripped) and no gate ran.
+        assert "def test_add" in gen.test_code
+        assert not any("baseline-gate" in r.getMessage() for r in caplog.records)
