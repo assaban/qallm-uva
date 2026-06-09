@@ -77,8 +77,17 @@ class GapExperimentResult:
 
 def _discover_inputs(dataset_dir: Path, pattern: str) -> list[Path]:
     """Every file under dataset_dir matching the pattern, sorted for
-    determinism."""
-    return sorted(dataset_dir.rglob(pattern))
+    determinism.
+
+    Jupyter autosave backups under .ipynb_checkpoints are excluded: they are
+    "-checkpoint.ipynb" duplicates of real notebooks, and rglob("*.ipynb")
+    matches them, which double-processes the same code and wastes budget (the
+    ENVRI run was burning rounds on checkpoint copies).
+    """
+    return sorted(
+        p for p in dataset_dir.rglob(pattern)
+        if ".ipynb_checkpoints" not in p.parts
+    )
 
 
 def _effective_retention(config: GapExperimentConfig) -> str:

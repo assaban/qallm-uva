@@ -45,6 +45,25 @@ class RepairManager:
         code_unit = analysed_code_unit.code_unit
         code_unit_path = str(code_unit.original_path.absolute())
 
+        # Nothing to repair: with zero findings there is no defect for the LLM
+        # to act on, so calling it is wasted budget (and was producing "Repair
+        # completed" lines for files that had no findings at all). Return an
+        # identity result (source unchanged, compiles, empty diff) without any
+        # LLM round-trip.
+        if not analysed_code_unit.findings:
+            logger.info(
+                "Repair skipped: 0 findings [File name: %s]",
+                code_unit.original_path,
+            )
+            identity = RepairResult(
+                file_path=code_unit_path,
+                repaired_source=code_unit.source_code,
+                explanation="no findings: repair skipped",
+                compiles=True,
+                unified_diff="",
+            )
+            return RepairedCodeUnit(analysed_code_unit, identity)
+
         request = RepairRequest(
             file_path=code_unit_path,
             original_source=code_unit.source_code,
