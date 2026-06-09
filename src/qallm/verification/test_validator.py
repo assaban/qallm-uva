@@ -328,3 +328,40 @@ def strip_incoherent_oracle_tests(code: str, fut_name: str) -> tuple[str, list[s
     except Exception:  # noqa: BLE001 - unparse should not fail, but be safe
         return code, []
     return rewritten, sorted(to_remove)
+
+
+def strip_tests_by_name(code: str, names: set[str]) -> tuple[str, list[str]]:
+    """Remove the named top-level test functions, keeping everything else.
+
+    Used by the baseline gate: tests that fail against the original (known
+    reference) code are not valid bug-detectors and are stripped before the
+    suite is allowed to indict a variant. Returns the rewritten code and the
+    sorted list of removed names; returns the code unchanged on parse failure
+    or when ``names`` is empty.
+    """
+    if not names:
+        return code, []
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return code, []
+
+    before = {
+        node.name for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name in names
+    }
+    if not before:
+        return code, []
+    tree.body = [
+        node for node in tree.body
+        if not (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name in names
+        )
+    ]
+    try:
+        rewritten = ast.unparse(tree)
+    except Exception:  # noqa: BLE001 - unparse should not fail, but be safe
+        return code, []
+    return rewritten, sorted(before)

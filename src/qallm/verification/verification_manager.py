@@ -16,6 +16,7 @@ import dataclasses
 import json
 import logging
 import time
+import ast as _ast
 from dataclasses import asdict
 from pathlib import Path
 from typing import Callable, Optional
@@ -25,6 +26,7 @@ from qallm.repair.repair_model import RepairedCodeUnit
 from .extractor import extract_functions_from_source
 from .generator import TestGenerator
 from .executor import run_tests
+from .test_validator import strip_tests_by_name
 from .models import TestGenerationSession, RoundResult, TestedCodeUnit
 from .reward import compute_reward
 from .test_persistence import (
@@ -36,6 +38,19 @@ from .test_persistence import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _has_test_function(code: str) -> bool:
+    """True if the code parses and defines at least one top-level test_*."""
+    try:
+        tree = _ast.parse(code)
+    except SyntaxError:
+        return False
+    return any(
+        isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+        and n.name.startswith("test")
+        for n in tree.body
+    )
 
 
 def _concatenate_test_codes(stored: list[StoredTest]) -> str:
@@ -230,6 +245,47 @@ class VerificationManager:
                     f", discarded={len(generated.discarded_tests)}" if generated.discarded_tests else "",
                     f", error={generated.generation_error}" if generated.generation_error else "",
                 )
+                # Baseline gate (Bug 2 fix): in REPAIR rounds (round >= 1), a
+                # freshly generated test that fails against the ORIGINAL
+                # baseline code is not a valid bug-detector, the baseline is
+                # the reference the repair must not regress against, so a
+                # failure there is the test being wrong, not a defect. Counting
+                # such failures inflated the gap rate (clean functions failing
+                # in round 1) and caused 0% HumanEval detection.
+                #
+                # CRITICAL: this must NOT run at round 0. Round 0 is the
+                # verification-gap pass itself, where a generated test that
+                # fails the original IS the signal being measured (static-clean
+                # but runtime-broken). Gating at round 0 would strip exactly the
+                # bugs the experiment exists to find.
+                if (
+                    round_number >= 1
+                    and generated is not None
+                    and generated.is_valid
+                    and generated.test_code
+                ):
+                    gate = run_tests(
+                        original_source, generated.test_code,
+                        f"{module_name}.py", path,
+                    )
+                    bad = {
+                        d.name for d in gate.test_details
+                        if d.status in ("failed", "error")
+                    }
+                    if bad:
+                        kept, removed = strip_tests_by_name(generated.test_code, bad)
+                        logger.info(
+                            "  [%s] baseline-gate: dropped %d test(s) that fail on "
+                            "the original code (not bug-detectors): %s",
+                            func.name, len(removed), ", ".join(removed),
+                        )
+                        generated.test_code = kept
+                        if not _has_test_function(kept):
+                            generated.is_valid = False
+                            generated.generation_error = (
+                                "All generated tests failed against the original "
+                                "code (baseline gate); none are valid bug-detectors."
+                            )
                 # Record only valid tests in the store under FROZEN modes;
                 # under PER_ROUND we still record so artefacts are tracked.
                 if self.store.carries_tests() or self.stability_config.policy is GenerationPolicy.GROW:

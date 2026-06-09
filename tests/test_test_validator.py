@@ -132,3 +132,35 @@ def test_two(foo, bar):
 '''
     problems = find_unsatisfied_fixtures(code)
     assert set(problems["test_two"]) == {"foo", "bar"}
+
+
+# ── strip_tests_by_name (baseline gate helper) ──
+
+def test_strip_tests_by_name_removes_only_named():
+    from qallm.verification.test_validator import strip_tests_by_name
+    code = (
+        "def test_good():\n    assert add(1, 2) == 3\n\n"
+        "def test_bad():\n    assert add(1, 1) == 3\n\n"
+        "def helper():\n    return 1\n"
+    )
+    kept, removed = strip_tests_by_name(code, {"test_bad"})
+    assert removed == ["test_bad"]
+    assert "def test_good" in kept
+    assert "def test_bad" not in kept
+    assert "def helper" in kept  # non-test top-level statements preserved
+
+
+def test_strip_tests_by_name_empty_names_is_noop():
+    from qallm.verification.test_validator import strip_tests_by_name
+    code = "def test_a():\n    assert True\n"
+    kept, removed = strip_tests_by_name(code, set())
+    assert removed == []
+    assert kept == code
+
+
+def test_strip_tests_by_name_unknown_name_is_noop():
+    from qallm.verification.test_validator import strip_tests_by_name
+    code = "def test_a():\n    assert True\n"
+    kept, removed = strip_tests_by_name(code, {"test_nonexistent"})
+    assert removed == []
+    assert "def test_a" in kept
