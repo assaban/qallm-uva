@@ -33,6 +33,7 @@ The mechanics and design record.
 ## experiments/ — the evaluation
 
 - [`experiments/protocol.md`](experiments/protocol.md): the reproducible experiment protocol for both tracks (the source of truth for Chapter 5).
+- [`experiments/run-outline.md`](experiments/run-outline.md): the ordered set of runs to execute, with exact commands and what each produces.
 - [`experiments/humaneval.md`](experiments/humaneval.md): the HumanEvalFix validation harness in detail.
 
 ## thesis/ — thesis-facing material
