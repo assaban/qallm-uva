@@ -115,3 +115,36 @@ def test_syntax_error_source_no_crash():
     rep = build_gap_report(0, "def broken(:\n  pass", [], None)
     assert rep.findings == []
     assert rep.execution_only_functions == []
+
+
+def test_build_gap_report_accepts_finding_objects():
+    """findings may be Finding dataclass objects, not just dicts.
+
+    Regression: the in-memory metrics_only path passes analysed.findings (a
+    list of Finding objects) straight to build_gap_report, which previously
+    called f.get(...) and raised "'Finding' object has no attribute 'get'" on
+    any unit that had static findings. Both dict and object inputs must work.
+    """
+    from qallm.analysis.analysis_model import Finding
+
+    finding = Finding(
+        tool="bandit", type="security", severity="HIGH", file="x.py",
+        line=2, message="eval use", rule_id="B307", code_snippet="", extra={},
+    )
+    rep = build_gap_report(0, SOURCE, [finding], [])
+    assert len(rep.findings) == 1
+    assert rep.findings[0].tool == "bandit"
+    assert rep.findings[0].severity == "HIGH"
+
+
+def test_build_gap_report_dict_and_object_agree():
+    """A dict finding and the equivalent Finding object yield the same fields."""
+    from qallm.analysis.analysis_model import Finding
+
+    obj = Finding(tool="ruff", type="style", severity="LOW", file="x.py",
+                  line=2, message="m", rule_id="E501", code_snippet="", extra={})
+    as_dict = {"tool": "ruff", "severity": "LOW", "line": 2, "message": "m", "rule_id": "E501"}
+    r_obj = build_gap_report(0, SOURCE, [obj], [])
+    r_dict = build_gap_report(0, SOURCE, [as_dict], [])
+    assert r_obj.findings[0].tool == r_dict.findings[0].tool
+    assert r_obj.findings[0].line == r_dict.findings[0].line
