@@ -46,6 +46,7 @@ from datetime import datetime
 import json
 import logging
 import time
+import uuid
 from typing import Literal, Optional
 
 from qallm.analysis.normalizer import LifecycleStage
@@ -174,7 +175,15 @@ class QALLMOrchestrator:
         if reporter is not None:
             self.reporter = reporter
         else:
-            effective_run_id = run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
+            # A bare second-resolution timestamp collides when several
+            # orchestrators start in the same second (parallel --workers runs),
+            # which made workers share one report directory and cross-contaminate
+            # each other's metrics. Append a short uuid so each run is unique
+            # even at identical timestamps (matches the reporter's own scheme).
+            effective_run_id = run_id or (
+                datetime.now().strftime("%Y%m%d_%H%M%S")
+                + "_" + uuid.uuid4().hex[:8]
+            )
             self.reporter = QualityReporter(
                 "outputs/quality_reporter", effective_run_id,
                 artefact_retention=artefact_retention,

@@ -11,6 +11,36 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-10 (parallel session-id collision, fixed)
+
+### Bug (data corruption)
+With --workers 4, all workers started in the same second and the orchestrator's
+fallback run_id was a bare %Y%m%d_%H%M%S, so all four got the SAME id, shared one
+report directory, and cross-contaminated metrics. lab_cal_voted_4 showed all
+four sessions with identical exec_only=7, gap=0.7 (impossible for four different
+files), the corruption signature. The tmp run happened to show truer per-file
+numbers (clean_control 1, complexity 1, reliability 5, security 0), matching the
+known single-sample result, but it still shared one id.
+
+### Fix
+The orchestrator fallback run_id now appends a uuid8 suffix (matching the
+reporter's own scheme), so runs are unique even at identical timestamps.
+
+### Delivered for review
+- **Run-id uniqueness (`fix/parallel-session-id-collision`)**: uuid suffix on
+  the fallback run_id; tests that four orchestrators in the same frozen second
+  get unique ids and that an explicit run_id is still respected.
+
+### Note on the two runs
+tmp is the trustworthy one: reliability 5/5, security 0, two false positives on
+clean_control(safe_mean) and complexity(cryptic), consistent with the
+single-sample correctness oracle. lab_cal_voted_4 is collision-corrupted and
+should be discarded.
+
+### Still open (Observation 5)
+Sessions still land in outputs/quality_reporter, not under the run output dir.
+Placing them under runs/<name>/sessions/ would improve traceability; separate PR.
+
 ## 2026-06-10 (parallel workers were silent, fixed)
 
 ### Bug
