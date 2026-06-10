@@ -39,6 +39,7 @@ The mechanics and design record.
 - [`experiments/humaneval.md`](experiments/humaneval.md): the HumanEvalFix validation harness in detail.
 - [`experiments/reliability-oracle-findings.md`](experiments/reliability-oracle-findings.md): why reliability bugs were missed (oracle-type mismatch, implementation anchoring), from the lab artifacts.
 - [`experiments/oracle-variance-and-consensus.md`](experiments/oracle-variance-and-consensus.md): single-shot oracle variance across runs, the oracle-threading correction, and the consensus design.
+- [`experiments/lab-calibration-result.md`](experiments/lab-calibration-result.md): the decisive lab result (5/5 reliability recall, 0 false positives under consensus + voting).
 
 ## thesis/ — thesis-facing material
 

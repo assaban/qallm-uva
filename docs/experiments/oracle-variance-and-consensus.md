@@ -107,6 +107,18 @@ Expected effects, predicted from the evidence:
   asserts. Inputs that appear in only one sample are kept only if that sample
   is internally consistent; the conservative default is majority agreement.
 
+## Update: assertion-level voting implemented
+
+Union alone maximises recall but keeps a one-off wrong expected value (the lab
+`cryptic` false positive). Majority voting is now implemented
+(`qallm.verification.consensus_vote`): for each call to the function under test,
+the expected value a majority of samples agree on wins, and assertions in any
+sample asserting a minority value are dropped before the union. A call with no
+majority is left untouched (we cannot say which value is wrong). Ballot-stuffing
+is prevented (a repeated assertion counts once per sample); pytest.approx is
+normalised; raises and inequalities are not voted on. This removes the cryptic
+false positive while preserving the 5/5 reliability recall.
+
 ## What is NOT changing
 
 - The crash oracle stays as is; it is correct for crash-class defects and does

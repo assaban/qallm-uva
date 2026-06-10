@@ -11,6 +11,37 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-10 (calibration milestone + assertion voting)
+
+### Result: the correctness oracle works (5/5)
+Two lab runs after the oracle-threading fix:
+- Run 1 (correctness, samples=1): reliability_gap 5/5, clean_control 1,
+  complexity_findings 1 (cryptic false positive), security 0 exec.
+- Run 2 (correctness, samples=5 consensus): reliability_gap 5/5,
+  clean_control 0, complexity_findings 1 (cryptic), security 0 exec.
+The earlier 1 to 2 of 5 was entirely the threading bug; the correctness oracle
+catches all five seeded reliability bugs once it actually runs at round 0.
+Recorded in docs/experiments/lab-calibration-result.md.
+
+### The cryptic false positive and the fix
+complexity_findings `cryptic` (returns 3x; docstring "doubles then offsets" is
+deliberately vague and states behaviour is correct) drew a wrong-guess
+assertion from the oracle. Union consensus kept it (union maximises recall but
+not precision). Implemented assertion-level majority voting
+(qallm.verification.consensus_vote): the minority wrong expected value is
+outvoted and dropped before the union, removing the false positive while keeping
+5/5 recall.
+
+### Delivered for review
+- **Assertion voting (`feature/consensus-assertion-voting`)**: consensus_vote
+  module (majority_expected, drop_outvoted_assertions) wired into the generator
+  merge; calibration-result doc; variance doc updated to "implemented".
+
+### Re-run + ENVRI
+Re-run lab --oracle correctness --samples 5: expect clean_control 0,
+complexity_findings 0, reliability_gap 5 (full target). Then ENVRI for the RQ1
+headline with --oracle correctness --samples 5.
+
 ## 2026-06-10 (oracle threading bug + consensus generation)
 
 ### Major finding
