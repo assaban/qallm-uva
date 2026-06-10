@@ -61,6 +61,12 @@ class GeneratedTest:
     # Names of test functions removed before execution because they
     # requested fixtures nothing provides (would error in setup, never run).
     discarded_tests: list[str] = field(default_factory=list)
+    # Names of test functions removed because their oracle was evaluated at a
+    # different input than the call under test (would record a false bug). Kept
+    # separate from discarded_tests because this count backs the
+    # threats-to-validity argument (MD-002): it quantifies generated-test
+    # quality, how often the generator produced an unsound oracle.
+    incoherent_oracle_tests: list[str] = field(default_factory=list)
 
 
 @dataclass

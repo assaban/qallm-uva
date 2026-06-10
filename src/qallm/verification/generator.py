@@ -174,8 +174,10 @@ class TestGenerator:
         total_in = sum(s.input_tokens or 0 for s in suites)
         total_out = sum(s.output_tokens or 0 for s in suites)
         discarded: list[str] = []
+        incoherent: list[str] = []
         for s in suites:
             discarded.extend(s.discarded_tests or [])
+            incoherent.extend(s.incoherent_oracle_tests or [])
 
         logger.info(
             "Consensus merge for %s: %d/%d samples valid, merged suite %s",
@@ -194,6 +196,7 @@ class TestGenerator:
             input_tokens=total_in,
             output_tokens=total_out,
             discarded_tests=discarded,
+            incoherent_oracle_tests=incoherent,
         )
 
     def _generate_once(
@@ -283,6 +286,10 @@ class TestGenerator:
         # a defect in the code, so letting it run would record a false bug and
         # undermine the validity of the execution-based verdict. Conservative:
         # only unambiguous constant-vs-constant mismatches are removed.
+        # Track incoherent-oracle drops separately for the threats-to-validity
+        # metric; they are also folded into discarded_tests for the existing
+        # accounting.
+        incoherent_dropped: list[str] = []
         if is_valid:
             stripped_code, incoherent = strip_incoherent_oracle_tests(
                 test_code, func.name
@@ -294,6 +301,7 @@ class TestGenerator:
                     len(incoherent), func.name, ", ".join(incoherent),
                 )
                 test_code = stripped_code
+                incoherent_dropped = list(incoherent)
                 is_valid, validation_error = _validate_test_code(test_code)
                 if not is_valid:
                     validation_error = (
@@ -314,5 +322,6 @@ class TestGenerator:
             provider=resp.provider,
             input_tokens=resp.input_tokens,
             output_tokens=resp.output_tokens,
-            discarded_tests=discarded,
+            discarded_tests=discarded + incoherent_dropped,
+            incoherent_oracle_tests=incoherent_dropped,
         )

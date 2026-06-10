@@ -35,6 +35,7 @@ class SessionMetrics:
     rounds: int = 0
     units_analyzed: int = 0
     functions_verified: int = 0
+    incoherent_oracles_dropped: int = 0  # generated-test quality (MD-002)
     cost_usd: float = 0.0
     tokens: int = 0
     # Verification gap (from gap reports, always available post-run).
@@ -60,6 +61,7 @@ class SessionMetrics:
             "rounds": self.rounds,
             "units_analyzed": self.units_analyzed,
             "functions_verified": self.functions_verified,
+            "incoherent_oracles_dropped": self.incoherent_oracles_dropped,
             "cost_usd": round(self.cost_usd, 6),
             "tokens": self.tokens,
             "static_findings": self.static_findings,
@@ -78,6 +80,7 @@ class SessionMetrics:
 CSV_COLUMNS: list[str] = [
     "session_id", "model", "testgen_model", "oracle", "rounds",
     "units_analyzed", "functions_verified", "cost_usd", "tokens",
+    "incoherent_oracles_dropped",
     "static_findings", "execution_only_bugs", "verification_gap_rate",
     "confirmed", "refuted", "confirmation_rate",
     "verified_fixed", "not_fixed", "verified_fix_rate",
@@ -112,6 +115,9 @@ def build_session_metrics(
         rounds=int(summary.get("rounds_per_function", 0) or 0),
         units_analyzed=int(summary.get("units_analyzed", 0) or 0),
         functions_verified=int(summary.get("functions_verified", 0) or 0),
+        incoherent_oracles_dropped=int(
+            summary.get("incoherent_oracles_dropped", 0) or 0
+        ),
         cost_usd=float(cost.get("total_cost_usd", 0.0) or 0.0),
         tokens=int(cost.get("total_tokens", 0) or 0),
     )

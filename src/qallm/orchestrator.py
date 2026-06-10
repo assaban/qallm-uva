@@ -799,6 +799,14 @@ class QALLMOrchestrator:
             "units_skipped": len(self.ingestion_manager.skipped),
             "skipped_units": self.ingestion_manager.skipped,
             "functions_verified": len(sessions_data),
+            # Generated-test-quality counts (threats to validity, MD-002):
+            # tests dropped before execution because they were unsound. A low
+            # number relative to tests generated indicates the generator
+            # produces usable oracles; incoherent_oracles_dropped specifically
+            # counts oracles evaluated at the wrong input (false-bug risk).
+            "tests_dropped_total": self.verification_manager.tests_dropped_total,
+            "incoherent_oracles_dropped":
+                self.verification_manager.incoherent_oracles_dropped,
             "rounds_accepted_total": total_accepted,
             "rounds_abandoned_total": total_abandoned,
             "cost": self.tracker.to_dict(),
