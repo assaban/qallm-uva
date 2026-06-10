@@ -106,3 +106,20 @@ def test_worker_logging_initializer_configures_file_handler(tmp_path):
             root._qallm_worker_configured = saved_flag
         elif hasattr(root, "_qallm_worker_configured"):
             delattr(root, "_qallm_worker_configured")
+
+
+def test_discovery_excludes_backups_and_cruft(tmp_path):
+    """Input discovery must skip backups/checkpoints/OS cruft so a run uses only
+    canonical inputs (no double-counting, no junk)."""
+    from qallm.experiments.gap_runner import _discover_inputs
+    ds = tmp_path / "ds"
+    (ds / ".ipynb_checkpoints").mkdir(parents=True)
+    (ds / "real.ipynb").write_text("{}")
+    (ds / "sub").mkdir()
+    (ds / "sub" / "also_real.ipynb").write_text("{}")
+    (ds / ".ipynb_checkpoints" / "real-checkpoint.ipynb").write_text("{}")
+    (ds / "loose-checkpoint.ipynb").write_text("{}")
+    (ds / "._real.ipynb").write_text("{}")
+    (ds / "real.ipynb~").write_text("{}")
+    found = {p.name for p in _discover_inputs(ds, "*.ipynb")}
+    assert found == {"real.ipynb", "also_real.ipynb"}

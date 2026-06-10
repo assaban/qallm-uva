@@ -87,18 +87,39 @@ class GapExperimentResult:
     errors: list[dict] = field(default_factory=list)
 
 
+def _is_backup_or_cruft(path: Path) -> bool:
+    """True for files that are not real dataset inputs.
+
+    rglob over a real-world dataset catches more than the intended notebooks:
+    Jupyter autosave copies (under .ipynb_checkpoints, or named
+    *-checkpoint.ipynb), editor backups (foo.ipynb~, foo.py.bak, foo.py.orig),
+    and macOS AppleDouble sidecars (._foo.ipynb). Processing these
+    double-counts the same code or feeds junk to the pipeline, wasting budget
+    and skewing the gap rate. Exclude them so a run uses only canonical inputs.
+    """
+    name = path.name
+    if ".ipynb_checkpoints" in path.parts:
+        return True
+    if name.startswith("._"):  # macOS AppleDouble sidecar
+        return True
+    if name.endswith((".ipynb~", ".py~", ".bak", ".orig", ".tmp", ".swp")):
+        return True
+    if name.endswith("-checkpoint.ipynb"):  # Jupyter checkpoint outside the dir
+        return True
+    return False
+
+
 def _discover_inputs(dataset_dir: Path, pattern: str) -> list[Path]:
-    """Every file under dataset_dir matching the pattern, sorted for
+    """Every canonical file under dataset_dir matching the pattern, sorted for
     determinism.
 
-    Jupyter autosave backups under .ipynb_checkpoints are excluded: they are
-    "-checkpoint.ipynb" duplicates of real notebooks, and rglob("*.ipynb")
-    matches them, which double-processes the same code and wastes budget (the
-    ENVRI run was burning rounds on checkpoint copies).
+    Backups and editor/Jupyter/OS cruft are excluded (see
+    _is_backup_or_cruft): they are duplicates or junk that rglob would
+    otherwise feed to the pipeline, double-processing code and wasting budget.
     """
     return sorted(
         p for p in dataset_dir.rglob(pattern)
-        if ".ipynb_checkpoints" not in p.parts
+        if not _is_backup_or_cruft(p)
     )
 
 

@@ -11,6 +11,15 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-10 (input discovery hardened against backups)
+
+### Delivered for review
+- **Backup/cruft exclusion (`fix/discovery-exclude-backups`)**: input discovery
+  now skips not just .ipynb_checkpoints dirs but also loose *-checkpoint.ipynb,
+  macOS ._ sidecars, and editor backups (~, .bak, .orig, .tmp, .swp). Prevents
+  double-counting and junk inputs on a real dataset, so the ENVRI run uses only
+  canonical files. Done to support the live experiment.
+
 ## 2026-06-10 (test-quality metric surfaced)
 
 ### Delivered for review
