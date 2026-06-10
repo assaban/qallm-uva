@@ -11,6 +11,33 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-10 (oracle threading bug + consensus generation)
+
+### Major finding
+While building consensus, found a latent bug: VerificationManager recorded
+self.oracle on the session but never PASSED oracle to generator.generate(), so
+round-0 generation used the default "crash" oracle regardless of --oracle. The
+session summaries show a mix of "correctness" and "crash" in a single
+--oracle correctness run. So the correctness oracle was not actually exercised
+at the gap-measurement pass; the erratic 2/5 recall and the prompt-tuning
+whack-a-mole were largely this bug. Fixed: the VM now passes oracle and samples
+to generate.
+
+### Delivered for review
+- **Consensus test generation + oracle fix (`feature/consensus-test-generation`)**:
+  (1) the oracle-threading fix above; (2) a --samples K knob (default 1, no
+  change) that generates the correctness suite K times and merges the valid
+  samples (union, test names namespaced per sample) to cut single-shot
+  variance. Threaded CLI -> config -> factory -> orchestrator -> VM -> generator.
+- Design doc docs/experiments/oracle-variance-and-consensus.md: the three-run
+  variance evidence (different samples catch different bugs; union 3/5), the
+  oracle-threading correction, and the consensus design with diagrams.
+
+### Regression gate (re-run needed, now meaningful)
+First: --oracle correctness --samples 1 to see the correctness oracle ACTUALLY
+working at round 0 (the bug is fixed). Then --samples 5 to measure the
+consensus lift. Gate: reliability_gap -> ~5, clean_control -> 0.
+
 ## 2026-06-10 (correctness oracle, withhold body)
 
 ### Diagnosis (from artifacts 20260610_010643)

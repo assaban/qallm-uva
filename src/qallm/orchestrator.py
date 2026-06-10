@@ -118,6 +118,7 @@ class QALLMOrchestrator:
             model_name: str | None = None,
             oracle: OracleType = "crash",
             rounds: int = 5,
+            samples: int = 1,
             test_stability: str = "frozen",
             generation_policy: str = "grow",
             caps: BudgetCaps | None = None,
@@ -185,6 +186,7 @@ class QALLMOrchestrator:
         # session schema use the current vocabulary. Behaviour is identical.
         self.strategy = "feedback" if strategy == "rl" else strategy
         self.oracle = oracle
+        self.samples = samples
         # User-supplied tags for grouping and retrieving sessions. Trimmed,
         # de-duplicated, blanks dropped; order preserved.
         self.tags: list[str] = []
@@ -263,6 +265,7 @@ class QALLMOrchestrator:
             tracker=self.tracker,
             oracle=self.oracle,
             total_rounds=self.rounds,
+            samples=self.samples,
             stability_config=self.stability_config,
         )
 
