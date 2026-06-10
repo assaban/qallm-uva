@@ -84,6 +84,11 @@ class VerificationManager:
         self.samples = samples
         self.stability_config = stability_config or TestStabilityConfig()
         self.store = TestSuiteStore(self.stability_config)
+        # Running counts of generated tests dropped before execution, surfaced
+        # in the run summary as a generated-test-quality metric. incoherent
+        # oracles specifically back the threats-to-validity argument (MD-002).
+        self.tests_dropped_total = 0
+        self.incoherent_oracles_dropped = 0
         logger.info(
             "VerificationManager initialised with stability=%s, policy=%s",
             self.stability_config.stability.value,
@@ -250,6 +255,11 @@ class VerificationManager:
                     generated.is_valid,
                     f", discarded={len(generated.discarded_tests)}" if generated.discarded_tests else "",
                     f", error={generated.generation_error}" if generated.generation_error else "",
+                )
+                # Accumulate generated-test-quality counts for the summary.
+                self.tests_dropped_total += len(generated.discarded_tests or [])
+                self.incoherent_oracles_dropped += len(
+                    generated.incoherent_oracle_tests or []
                 )
                 # Baseline gate (Bug 2 fix): in REPAIR rounds (round >= 1), a
                 # freshly generated test that fails against the ORIGINAL

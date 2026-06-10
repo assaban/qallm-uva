@@ -11,6 +11,24 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-10 (test-quality metric surfaced)
+
+### Delivered for review
+- **Generated-test-quality metric (`feature/test-quality-metric`)**: Tier-1
+  roadmap item 3. Incoherent-oracle drops (and total drops) are now surfaced as
+  numbers, not just logs: incoherent_oracles_dropped and tests_dropped_total in
+  summary.json, and incoherent_oracles_dropped as a column in metrics.csv. This
+  backs the threats-to-validity argument (MD-002) with a measured figure.
+  GeneratedTest gains incoherent_oracle_tests (kept separate from
+  discarded_tests); the VM accumulates both counts; the consensus merge
+  propagates them. Also fixed a latent gap: incoherent drops were previously
+  logged but not recorded on the returned GeneratedTest at all.
+
+### Roadmap status
+Tier 1: item 0 (lab calibration) confirmed sound; item 2 (bootstrap CI) already
+wired; item 3 (this) done. Remaining Tier 1: item 1 (ENVRI headline, user runs)
+and item 4 (provenance manifest: commit hash, model, seed).
+
 ## 2026-06-10 (parallel session-id collision, fixed)
 
 ### Bug (data corruption)
