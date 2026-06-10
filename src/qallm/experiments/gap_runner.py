@@ -58,6 +58,10 @@ class GapExperimentConfig:
     # in separate processes; each file is an independent orchestrator/session,
     # so this is safe. Bound by LLM-API concurrency limits in practice.
     workers: int = 1
+    # Log level workers configure for themselves (they do not inherit the main
+    # process's logging config under the spawn start method). The log file is
+    # output_dir/run.log, matching the main process.
+    log_level: str = "INFO"
 
     def to_manifest(self) -> dict:
         return {
@@ -201,7 +205,12 @@ def run_gap_experiment(
             # complete (order may differ from input order; the aggregate is
             # order-independent and each row carries its own input path).
             from concurrent.futures import ProcessPoolExecutor, as_completed
-            with ProcessPoolExecutor(max_workers=config.workers) as pool:
+            log_path = config.output_dir / "run.log"
+            with ProcessPoolExecutor(
+                max_workers=config.workers,
+                initializer=_init_worker_logging,
+                initargs=(str(log_path), config.log_level),
+            ) as pool:
                 futures = {
                     pool.submit(_run_one, p, config, orchestrator_factory): p
                     for p in pending
@@ -231,6 +240,38 @@ def run_gap_experiment(
                 "Aggregate verification_gap_rate=%s",
                 len(metrics), len(errors), aggregate.get("verification_gap_rate"))
     return GapExperimentResult(aggregate=aggregate, per_session=per_session, errors=errors)
+
+
+def _init_worker_logging(log_path: str, log_level: str) -> None:
+    """Configure logging inside a pool worker process.
+
+    ProcessPoolExecutor workers are fresh interpreters (spawn start method on
+    macOS and Windows) and do NOT inherit the main process's logging config, so
+    without this a parallel run is silent: all per-file work happens in workers
+    that log to nowhere, and the main log only shows start/finish. Each worker
+    attaches its own handlers to the SAME run.log (FileHandler appends, so
+    workers interleave into one file) plus stderr, and prefixes each line with
+    the worker pid so interleaved lines are attributable.
+    """
+    import logging as _logging
+    import os
+
+    root = _logging.getLogger()
+    # Guard against double-configuration if the initializer runs more than once.
+    if getattr(root, "_qallm_worker_configured", False):
+        return
+    level = getattr(_logging, log_level, _logging.INFO)
+    fmt = _logging.Formatter(
+        f"%(asctime)s %(levelname)s [pid {os.getpid()}] %(name)s: %(message)s"
+    )
+    file_h = _logging.FileHandler(log_path, encoding="utf-8")
+    file_h.setFormatter(fmt)
+    stream_h = _logging.StreamHandler()
+    stream_h.setFormatter(fmt)
+    root.setLevel(level)
+    root.addHandler(file_h)
+    root.addHandler(stream_h)
+    root._qallm_worker_configured = True
 
 
 def _run_one(

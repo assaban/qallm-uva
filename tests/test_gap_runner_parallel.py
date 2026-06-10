@@ -76,3 +76,33 @@ def test_parallel_resume_skips_completed(tmp_path):
     # f0 appears once (the pre-seeded row), f1 and f2 added once each.
     assert inputs.count("f0.py") == 1
     assert "f1.py" in inputs and "f2.py" in inputs
+
+
+def test_worker_logging_initializer_configures_file_handler(tmp_path):
+    """Workers must configure their own logging (they do not inherit the main
+    process config under spawn). The initializer attaches a FileHandler to the
+    given run.log so a parallel run is not silent."""
+    import logging
+    from qallm.experiments.gap_runner import _init_worker_logging
+
+    log_path = tmp_path / "run.log"
+    root = logging.getLogger()
+    # Snapshot and restore handlers so this test does not leak global state.
+    saved = root.handlers[:]
+    saved_flag = getattr(root, "_qallm_worker_configured", False)
+    try:
+        root.handlers = []
+        if hasattr(root, "_qallm_worker_configured"):
+            delattr(root, "_qallm_worker_configured")
+        _init_worker_logging(str(log_path), "INFO")
+        assert any(isinstance(h, logging.FileHandler) for h in root.handlers)
+        # Idempotent: a second call does not double-add.
+        n = len(root.handlers)
+        _init_worker_logging(str(log_path), "INFO")
+        assert len(root.handlers) == n
+    finally:
+        root.handlers = saved
+        if saved_flag:
+            root._qallm_worker_configured = saved_flag
+        elif hasattr(root, "_qallm_worker_configured"):
+            delattr(root, "_qallm_worker_configured")
