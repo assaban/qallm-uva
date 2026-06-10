@@ -20,6 +20,10 @@ from qallm.verification.prompts import (
     build_property_oracle_prompt,
     build_feedback_prompt
 )
+from qallm.verification.consensus_vote import (
+    drop_outvoted_assertions,
+    majority_expected,
+)
 from qallm.verification.sandbox import CodeExtractor
 from qallm.verification.test_validator import (
     strip_unsatisfied_fixture_tests,
@@ -119,12 +123,24 @@ class TestGenerator:
         if not valid:
             return suites[0]
 
+        # Majority vote on expected values before unioning. For each call to the
+        # function under test, the expected value a majority of samples agree on
+        # wins; assertions in any sample that assert a minority value are
+        # dropped. This removes the one-off wrong expected value that union
+        # alone keeps (the lab `cryptic` false positive). Calls with no majority
+        # are left untouched (we cannot say which value is wrong).
+        winners = majority_expected([s.test_code for s in valid], func.name)
+        sample_sources = [
+            drop_outvoted_assertions(s.test_code, func.name, winners)
+            for s in valid
+        ]
+
         import_lines: list[str] = []
         seen_imports: set[str] = set()
         body_blocks: list[str] = []
 
-        for idx, suite in enumerate(valid):
-            for line in suite.test_code.splitlines():
+        for idx, source in enumerate(sample_sources):
+            for line in source.splitlines():
                 stripped = line.strip()
                 is_import = stripped.startswith(("import ", "from "))
                 if is_import:

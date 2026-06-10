@@ -4,7 +4,7 @@ A grounded plan for what makes QALLM great, ordered by leverage. This is not a
 wish list; every item below is justified by the current state of the code, the
 audit findings, or a concrete thesis need. 
 
-## Where QALLM is today (honest snapshot)
+## Where QALLM is today
 
 The pipeline is complete and the architecture is sound. Recent work closed the
 verification-gap track end to end (all three metrics from one command), fixed
