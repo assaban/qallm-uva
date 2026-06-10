@@ -11,6 +11,38 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-10 (game-changer: oracle confidence by mutation testing)
+
+### What
+A positive soundness check for the verification gap. Until now every guard was
+negative (remove bad tests); none gave evidence that a surviving test is a
+sensitive detector. New: mutation-test the ORACLE. For a flagged function,
+inject semantics-changing mutants (AOR/ROR/COI/CRP/RVR) and run the generated
+suite against each; mutation score (killed/viable) becomes a CONFIDENCE for the
+gap finding (high/medium/low/unknown).
+
+### Why it is a game-changer
+It is the rigorous answer to the examiner's first question, "how do you know
+your execution-found bugs are real?". It also automatically distinguishes the
+exact failure mode that cost us many calibration runs: on inclusive_range_count,
+an exact-value oracle scores 1.0 (HIGH) while an isinstance-only oracle scores
+0.25 (LOW), no human inspection needed. Every gap finding can now carry a
+confidence, and the headline rate can be reported filtered to high-confidence.
+
+### Delivered for review
+- **Mutation-based oracle confidence (`feature/oracle-confidence-mutation`)**:
+  mutation.py (AST mutation engine, bounded, target-only, 5 operators) and
+  mutation_score.py (run suite vs mutants -> MutationScore with score +
+  confidence + viability handling). Concept doc with diagram and the
+  strong-vs-weak table. Reuses run_tests; no new infra.
+- Wiring the confidence into the gap report and the aggregate distribution is
+  the documented next PR.
+
+### Tests
++16: operator coverage, target-only mutation, bounding, syntax/unknown-fn
+safety, strong-oracle->high, weak-oracle->low, empty/no-mutant->unknown,
+confidence thresholds.
+
 ## 2026-06-10 (input discovery hardened against backups)
 
 ### Delivered for review
