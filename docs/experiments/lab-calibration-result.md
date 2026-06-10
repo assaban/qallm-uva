@@ -67,3 +67,23 @@ positives on clean code) are the calibration evidence for Chapter 5, and the
 `cryptic` case is a clean, honest example of the oracle's one failure mode
 (underspecified specs), which is worth a paragraph in the thesis rather than
 something to hide.
+
+
+## Correction (consensus was not actually running)
+
+A later voted run (`--samples 5`) still showed clean_control 1 and
+complexity_findings 1, and the artifacts revealed why: the generated suites had
+no per-sample namespacing, meaning the consensus merge never ran despite
+`samples=5` in the manifest. Root cause: the verification manager attaches an
+EMPTY session before the first `generate()` call, and the consensus guard tested
+`existing_session is not None`, so it treated round 0 as a feedback round and
+fell back to a single sample. Consensus (and therefore voting) was silently
+disabled in every "consensus" run so far; run 2's clean_control 0 was a
+single-sample lucky draw, not the merge working.
+
+Fix: the guard now tests whether the session has prior ROUNDS (a real feedback
+round), matching how the prompt selector distinguishes feedback. With this,
+`--samples 5` actually generates five samples at round 0 and votes across them.
+The lab re-run with the fix in place is the first that truly exercises
+consensus + voting; that is the run that should land clean_control 0,
+complexity_findings 0, reliability_gap 5.

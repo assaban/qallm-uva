@@ -92,7 +92,15 @@ class TestGenerator:
         rounds (existing_session present) use a single sample, since they are
         refining a specific prior suite rather than measuring the gap.
         """
-        if samples <= 1 or existing_session is not None:
+        # Consensus applies only to the INITIAL generation (round 0). A
+        # feedback round is one where the session already has prior rounds; an
+        # empty session attached before round 0 is NOT a feedback round. The
+        # earlier guard tested `existing_session is not None`, but the manager
+        # attaches an empty session before the first generate(), so that guard
+        # disabled consensus entirely (samples was silently ignored). Test the
+        # round count, matching how _generate_once selects the feedback prompt.
+        is_feedback = bool(existing_session and len(existing_session.rounds) > 0)
+        if samples <= 1 or is_feedback:
             return self._generate_once(func, oracle, module_name, existing_session)
 
         suites: list[GeneratedTest] = []

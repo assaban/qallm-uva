@@ -11,6 +11,39 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-10 (consensus was silently disabled, fixed)
+
+### Finding
+The voted run (--samples 5) STILL showed clean_control 1 and complexity 1. The
+artifacts had no per-sample namespacing: consensus never ran. Root cause: the
+manager attaches an EMPTY session before the first generate(), and the consensus
+guard tested `existing_session is not None`, so round 0 was misclassified as a
+feedback round and fell back to a single sample. So consensus + voting were
+disabled in every run so far; run 2's clean_control 0 was a single-sample lucky
+draw, not the merge.
+
+### Delivered for review
+- **Fix consensus guard (`fix/consensus-empty-session-guard`)**: the guard now
+  tests whether the session has prior ROUNDS (a real feedback round), matching
+  the prompt selector. With this, --samples 5 actually generates five samples at
+  round 0 and votes. Regression test added for the empty-session-at-round-0
+  case. Calibration doc and roadmap updated.
+
+### Re-run (now genuinely exercising consensus) + ENVRI
+Re-run lab --oracle correctness --samples 5: this is the FIRST run where
+consensus + voting actually execute; expect clean_control 0, complexity 0,
+reliability 5. Then ENVRI for the RQ1 headline.
+
+### Pending (updated)
+- Confirm lab calibration with consensus running (the gate, do first).
+- ENVRI RQ1 headline (--oracle correctness --samples 5, tmux, metrics_only, CI).
+- Surface incoherent_oracles_dropped count in summary.json (test-quality metric).
+- Add CI/bootstrap to the gap rate (examiners expect an interval).
+- RQ2/RQ3 confirm path produced 0 confirmed/0 refuted on the lab set; investigate.
+- Verify execution sandbox imports heavy ML deps for ENVRI, or use a light subset.
+- Observation 4 (progress label: file N/M + fn N/M) and Observation 5 (session
+  dirs under the run output) still pending, lower priority than ENVRI.
+
 ## 2026-06-10 (calibration milestone + assertion voting)
 
 ### Result: the correctness oracle works (5/5)
