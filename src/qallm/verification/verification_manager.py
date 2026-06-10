@@ -348,7 +348,7 @@ class VerificationManager:
                 )
                 exec_elapsed = time.perf_counter() - exec_start
                 logger.info(
-                    "  [%s] test-exec: %.2fs (passed=%d, failed=%d, errors=%d, coverage=%.1f%%%s)",
+                    "  [%s]: test-exec: %.2fs (passed=%d, failed=%d, errors=%d, coverage=%.1f%%%s)",
                     func.name, exec_elapsed,
                     getattr(execution, "passed", 0),
                     getattr(execution, "failed", 0),
@@ -400,7 +400,7 @@ class VerificationManager:
             )
 
             logger.info(
-                "  %s: reward=%.2f, coverage=%.1f%%, bugs=%d, valid=%s",
+                "  [%s]: reward=%.2f, coverage=%.1f%%, bugs=%d, valid=%s",
                 func.name,
                 reward.total,
                 execution.coverage_percent or 0.0,
@@ -414,7 +414,7 @@ class VerificationManager:
             # rather than hidden in a single unit-wide total.
             func_elapsed = time.perf_counter() - func_start
             logger.info(
-                "  [%s] total: %.2fs (round %d)",
+                "  [%s]: total: %.2fs (round %d)",
                 func.name, func_elapsed, round_number,
             )
 

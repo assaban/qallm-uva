@@ -68,13 +68,34 @@ def test_samples_three_calls_generate_once_three_times():
 
 
 def test_feedback_round_ignores_samples():
-    """Feedback rounds (existing_session) refine one suite, so a single sample."""
+    """Feedback rounds (existing_session WITH prior rounds) refine one suite,
+    so a single sample."""
     gen = TestGenerator(llm=MagicMock())
     session = MagicMock()
     session.rounds = [MagicMock()]  # has prior rounds -> feedback path
     with patch.object(gen, "_generate_once", return_value=_suite("x")) as once:
         gen.generate(_fi(), oracle="correctness", samples=5, existing_session=session)
         assert once.call_count == 1
+
+
+def test_empty_session_at_round_0_still_runs_consensus():
+    """Regression: the manager attaches an EMPTY session before the first
+    generate(). Consensus must still run at round 0 (the gap pass) in that
+    case; the earlier guard `existing_session is not None` disabled consensus
+    entirely because of this empty session, so samples was silently ignored."""
+    from qallm.verification.models import TestGenerationSession
+    gen = TestGenerator(llm=MagicMock())
+    empty = TestGenerationSession(
+        function_name="f", source_code="", oracle="correctness",
+        model="m", total_rounds=5,
+    )
+    assert len(empty.rounds) == 0
+    with patch.object(gen, "_generate_once", return_value=_suite(
+        "from source_module import f\n\ndef test_a():\n    assert f(1) == 1\n"
+    )) as once:
+        gen.generate(_fi(), oracle="correctness", samples=5,
+                     existing_session=empty, module_name="source_module")
+        assert once.call_count == 5
 
 
 def test_verification_manager_passes_oracle_and_samples():

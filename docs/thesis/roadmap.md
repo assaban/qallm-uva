@@ -6,30 +6,40 @@ audit findings, or a concrete thesis need.
 
 ## Where QALLM is today
 
-The pipeline is complete and the architecture is sound. Recent work closed the
-verification-gap track end to end (all three metrics from one command), fixed
-the per-round source rendering, added incoherent-oracle filtering to keep bug
-counts sound, made session-directory creation lazy, and decoupled ingestion.
-The audit found a genuinely clean codebase: zero TODO/FIXME markers in source,
-ruff clean, 75% line coverage, 572 passing tests. That is a strong base. The
-gaps that remain are specific, not structural.
+The pipeline is complete and the architecture is sound. The verification-gap
+track runs end to end (all three metrics from one command), and the calibration
+instrument now works: on the lab set the correctness oracle catches 5/5 seeded
+reliability bugs. Getting there surfaced and fixed a chain of issues, the gap
+was being measured at the wrong round, the oracle type was mismatched to
+reliability defects, the implementation body was anchoring the test generator,
+the oracle was not actually reaching round-0 generation, and consensus was
+silently disabled by an empty-session guard. Each is now fixed and documented
+(see docs/experiments/lab-calibration-result.md and oracle-variance-and-consensus.md).
+The codebase remains clean: ruff clean, 650+ passing tests. The remaining work
+is the headline experiment and the write-up, not detector correctness.
 
 ## Tier 1: thesis-critical (do before the full experiment run)
 
 These directly determine whether the thesis results are trustworthy and
 defensible. Highest leverage.
 
-1. **Run the full verification-gap experiment and fill Chapter 5.** The
-   machinery exists (`scripts/run_gap_experiment.py --confirm`). The blocker is
-   operational: confirm FedLLM egress on the UvA VM, pilot on a small notebook
-   subset, then run Li's dataset. This converts the bracketed placeholders in
-   the thesis scaffold into real numbers. Everything else is secondary to this.
+0. **Confirm the lab calibration with consensus actually running.** The
+   empty-session guard that disabled consensus is fixed; re-run
+   `--oracle correctness --samples 5` and confirm clean_control 0,
+   complexity_findings 0, reliability_gap 5. This is the gate that says the
+   instrument is sound. Cheap, decisive, do it first.
+
+1. **Run the full verification-gap experiment (ENVRI) and fill Chapter 5.** The
+   machinery exists (`scripts/run_gap_experiment.py --confirm`). Run with
+   `--oracle correctness --samples 5` under tmux, metrics_only retention, and
+   report the gap rate with its 95% CI. This converts the bracketed
+   placeholders in the thesis scaffold into real numbers. Everything else is
+   secondary to this.
 
 2. **Harden the statistical layer (started).** `stats.py` is now tested and a
    JSON-serialisation bug is fixed. Remaining: add a confidence interval or
-   bootstrap to the gap rate so the headline 91.3%-style figures carry
-   uncertainty, examiners expect an interval, not a point estimate. Small,
-   high-credibility.
+   bootstrap to the gap rate so the headline figures carry uncertainty,
+   examiners expect an interval, not a point estimate. Small, high-credibility.
 
 3. **Surface generated-test quality as a reported number.** Incoherent-oracle
    tests are currently dropped to a log. Surface a per-session
