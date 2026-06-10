@@ -1,8 +1,7 @@
 # Why the reliability bugs are missed: an oracle-type mismatch
 
 From the lab calibration artifacts (session 20260609_220309, reliability_gap.py).
-This is the most important finding since the round-0 fix. Dashes avoided per
-convention.
+This is the most important finding since the round-0 fix.
 
 ## The numbers
 
@@ -91,6 +90,40 @@ Re-run lab calibration with the correctness oracle:
 
 That is the instrument working: high recall on real reliability bugs, no false
 positives on clean code.
+
+## Update (after the first correctness-oracle run): the body anchors the model
+
+Adding the correctness oracle improved recall (reliability_gap 1 -> 2 of 5,
+clean_control held at 0), but three bugs were still missed. The artifacts show
+why: even with the docstring presented as the source of truth and an explicit
+"the implementation may be wrong" warning, the model still derived expected
+values from the code. The clearest evidence, the generated test for
+inclusive_range_count contained:
+
+```python
+assert result == end - start  # expected buggy behavior
+```
+
+The model read the buggy body, computed `end - start`, and even labelled it
+"expected buggy behavior". Two more:
+- safe_divide: asserted `pytest.raises(ZeroDivisionError)` for b=0, mirroring
+  the buggy crash, when the docstring says it should return 0.
+- accumulate: the mutable-default bug only surfaces across MULTIPLE calls; every
+  generated test passed a fresh bucket and called once, so it never triggered.
+
+### Fix: withhold the implementation body
+The correctness oracle now shows only the SIGNATURE and docstring, never the
+body. With no code to anchor on, the model must compute expected values from
+the spec. The prompt also adds explicit guidance for stateful/cross-call
+behaviour (the accumulate class) and clarifies that an edge input the spec says
+should RETURN a value must be asserted as a return, not a raise (the safe_divide
+class).
+
+### Regression gate
+Re-run lab calibration with --oracle correctness; expect reliability_gap -> ~5
+(all seeded bugs caught), clean_control -> 0. If a bug is still missed, its
+artifact shows whether the model mis-derived the expected value from the spec,
+which is a prompt-refinement signal, not a structural one.
 
 ## Honest framing
 

@@ -2,8 +2,7 @@
 
 Status: design analysis and source of truth, written 2026-06-09 in response to
 five observations from the lab calibration run. Some sections describe current
-behaviour, some describe the fix being made. Each is marked. Dashes avoided per
-convention.
+behaviour, some describe the fix being made. Each is marked.
 
 ## The five observations and how they connect
 
