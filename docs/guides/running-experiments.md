@@ -66,6 +66,12 @@ not CPU: for FedLLM, start at 4 and watch for rate-limit warnings before going
 higher. With `metrics_only` retention this gives a near-linear speedup on large
 datasets.
 
+Under `--workers N`, each worker logs to the same `run.log` (and stderr) with a
+`[pid NNNN]` prefix, so a parallel run is observable live (`tail -f run.log`)
+and interleaved lines stay attributable to their worker. Control verbosity with
+`--log-level` (DEBUG for per-step detail, WARNING to quieten); it applies to the
+workers too.
+
 By default a batch gap run uses `--retention metrics_only`: it keeps the gap
 data in `summary.json` and skips the per-unit round directories, which is far
 less disk on a large dataset (those directories are one folder per code unit

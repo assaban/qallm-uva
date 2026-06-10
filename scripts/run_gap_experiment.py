@@ -93,6 +93,7 @@ def main() -> None:
         rounds=args.rounds,
         samples=args.samples,
         workers=args.workers,
+        log_level=args.log_level,
         oracle=args.oracle,
         judge_strategy=args.judge_strategy,
         stage=args.stage,

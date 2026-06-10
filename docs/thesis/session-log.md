@@ -11,6 +11,27 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-10 (parallel workers were silent, fixed)
+
+### Bug
+Running with --workers 4 produced no logs during processing: run.log had only
+the start lines, then nothing until completion. Cause: ProcessPoolExecutor
+workers are fresh interpreters (spawn) and do NOT inherit the main process's
+logging config, so all per-file work logged to nowhere. The user could not
+observe a parallel run.
+
+### Delivered for review
+- **Worker logging (`fix/parallel-worker-logging`)**: a pool initializer
+  configures logging in each worker to the SAME run.log (and stderr) with a
+  [pid NNNN] prefix so interleaved lines are attributable; idempotent. log_level
+  added to the config and threaded so workers honour --log-level. Now a parallel
+  run is observable live (tail -f run.log).
+
+### Note to user
+Re the earlier "what to do next": option 1 (run ENVRI now at samples=1,
+--workers 4) was THE recommendation; options 2 (fixed-input voting) and 3
+(logging normalisation pass) were optional offers, not required steps.
+
 ## 2026-06-10 (parallel runner + consensus-voting finding)
 
 ### Finding: voting rarely triggers (samples test different inputs)
