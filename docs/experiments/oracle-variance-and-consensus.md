@@ -119,6 +119,45 @@ is prevented (a repeated assertion counts once per sample); pytest.approx is
 normalised; raises and inequalities are not voted on. This removes the cryptic
 false positive while preserving the 5/5 reliability recall.
 
+## Update 2: voting rarely triggers, because samples test different inputs
+
+With consensus genuinely running (`--samples 5`), the lab result was:
+clean_control 2 (worse than single-sample 1), complexity_findings 1,
+reliability_gap 5. The run.log shows the reason: **zero votes were cast across
+the entire run.** Majority voting only prunes when several samples assert
+different expected values for the SAME call, but the LLM samples pick DIFFERENT
+test inputs each time (one tests `add(2, 3)`, another `add(-1, 1)`, etc.), so
+there is almost never a shared call to vote on. Union then accumulates every
+sample's tests, including any one-off wrong assertion on a unique input, which
+is why clean_control got worse: more samples means more chances for a stray
+wrong assertion on an input no other sample tested.
+
+So consensus-by-union plus call-keyed voting does not help precision here, and
+hurts it on clean code. The mechanism is sound but mis-targeted: it assumes
+samples will collide on inputs, and they do not.
+
+### The real fix: fix the inputs, then vote on outputs
+Voting needs shared calls. The way to get them is to decouple input selection
+from output prediction:
+1. Generate candidate INPUTS once (or take the union of inputs across samples).
+2. For each fixed input, ask K samples only for the EXPECTED OUTPUT.
+3. Keep the input with its majority expected output; drop inputs with no
+   majority (the spec is too ambiguous for that input, exactly the cryptic and
+   safe_mean cases).
+
+This makes voting actually bind: every sample answers the same questions, so a
+one-off wrong answer is outvoted, and an input nobody agrees on is dropped
+rather than fired as a false positive. It also bounds the suite size (K answers
+per input, not K independent suites).
+
+This is a larger change (a new generation shape: propose-inputs then
+vote-outputs) and should be its own design + PR. For now, the honest
+calibration position is: single-sample correctness oracle gives 5/5 reliability
+recall with 1 to 2 false positives on clean/ambiguous functions; consensus as
+currently built does not improve precision and should be left at samples=1 until
+the fixed-input voting is implemented. The reliability recall (5/5) does not
+depend on consensus.
+
 ## What is NOT changing
 
 - The crash oracle stays as is; it is correct for crash-class defects and does
