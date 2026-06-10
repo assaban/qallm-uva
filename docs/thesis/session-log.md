@@ -11,6 +11,32 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-10 (correctness oracle, withhold body)
+
+### Diagnosis (from artifacts 20260610_010643)
+First correctness-oracle run: reliability_gap 1 -> 2 of 5, clean_control held at
+0. Three bugs still missed. The artifacts show the model still derived expected
+values from the buggy body despite the warning: the inclusive_range_count test
+literally asserted `result == end - start  # expected buggy behavior`.
+safe_divide asserted a raise (mirroring the crash) when the spec says return 0;
+accumulate's mutable-default bug needs multiple calls but every test called once.
+
+### Delivered for review
+- **Withhold body in correctness oracle (`feature/correctness-oracle-signature-only`)**:
+  the correctness prompt now shows only the SIGNATURE + docstring, never the
+  body, so the model must compute expected values from the spec. Adds explicit
+  guidance for cross-call/stateful defects (accumulate class) and for
+  return-not-raise edge behaviour (safe_divide class).
+- New illustrated doc `concepts/oracles-and-defect-classes.md` (which oracle
+  catches which defect class; why the body is withheld), linked in the index.
+- Removed the "Dashes avoided per convention" lines from docs (convention now
+  applied silently).
+
+### Regression gate (re-run needed)
+Re-run lab calibration `--oracle correctness`: expect reliability_gap -> ~5,
+clean_control -> 0, complexity_findings -> 0. That is the recall gate before the
+ENVRI headline.
+
 ## 2026-06-09 (later, correctness oracle)
 
 ### Diagnosis (from the pipeline artifacts)

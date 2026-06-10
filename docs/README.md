@@ -10,6 +10,7 @@ The reasoning the thesis rests on.
 
 - [`concepts/surpassing-static-analysers.md`](concepts/surpassing-static-analysers.md): the static-versus-execution argument (the verification gap, confirm/refute, verified fixes).
 - [`concepts/oracles.md`](concepts/oracles.md): the verification oracles (crash, property, metamorphic).
+- [`concepts/oracles-and-defect-classes.md`](concepts/oracles-and-defect-classes.md): which oracle catches which defect class, and why the correctness oracle withholds the implementation (illustrated).
 
 ## guides/ — how to run and operate QALLM
 

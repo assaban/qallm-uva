@@ -40,6 +40,29 @@ input (e.g. result of f(1000) must not be compared to expected(100)).
 """
 
 
+def _signature_only(func: "FunctionInfo") -> str:
+    """The function's def line(s) up to the colon, without the body.
+
+    The correctness oracle must reason from the SPEC, not the implementation.
+    Showing the body anchors the model on what the (possibly buggy) code does,
+    even when told not to, observed on the lab set where a test asserted
+    `result == end - start  # expected buggy behavior`. Withholding the body
+    forces the model to derive expected values from the docstring. Falls back
+    to a bare `def name(...)` if the header cannot be parsed.
+    """
+    src = func.source or ""
+    header_lines = []
+    for line in src.splitlines():
+        header_lines.append(line)
+        if ":" in line.split("#")[0]:
+            break
+    header = "\n".join(header_lines).strip()
+    if not header.startswith(("def ", "async def ")):
+        arglist = ", ".join(name for name, _ in (func.args or []))
+        header = f"def {func.name}({arglist}):"
+    return header
+
+
 def build_correctness_oracle_prompt(func: FunctionInfo) -> str:
     """Build a user prompt for the correctness oracle.
 
@@ -47,21 +70,24 @@ def build_correctness_oracle_prompt(func: FunctionInfo) -> str:
     crash but return WRONG values. These are missed by the crash oracle (which
     only checks for unhandled exceptions). The key design choices:
 
-    - Expected outputs are derived from the DOCSTRING / stated intent, never
-      from the implementation. The implementation may be buggy; asserting what
-      the code does would encode the bug as expected behaviour (the failure
-      mode seen on the lab set, e.g. a test asserting safe_divide(5, 0) raises,
-      when the docstring says it should return 0).
-    - Assertions must check exact VALUES for concrete inputs, not just types or
-      shapes (`assert f(0, 10) == 11`, not `assert isinstance(f(0, 10), int)`).
+    - Only the SIGNATURE and docstring are shown, never the body. Showing the
+      implementation anchors the model on the buggy behaviour even when warned
+      against it.
+    - Expected outputs are derived from the DOCSTRING / stated intent.
+    - Assertions must check exact VALUES for concrete inputs, not types/shapes.
     """
     parts = [
-        "## Function under test\n",
-        f"```python\n{func.source}\n```\n",
+        "## Function to test (signature only, the body is withheld on purpose)\n",
+        f"```python\n{_signature_only(func)}\n    ...\n```\n",
     ]
 
     if func.docstring:
         parts.append(f"## Specification (docstring, the SOURCE OF TRUTH)\n{func.docstring}\n")
+    else:
+        parts.append(
+            "## Specification\nNo docstring is available. Infer the intended "
+            "behaviour from the function name and arguments, and test that.\n"
+        )
 
     if func.args:
         arg_lines = []
@@ -74,24 +100,30 @@ def build_correctness_oracle_prompt(func: FunctionInfo) -> str:
 
     parts.append(
         "## Task\n"
-        "Generate pytest tests that check the function returns the CORRECT "
-        "VALUE according to the specification (docstring) above.\n\n"
+        "You are given only the signature and the specification, NOT the "
+        "implementation. Write pytest tests that check the function returns "
+        "the CORRECT VALUE according to the specification.\n\n"
         "CRITICAL:\n"
-        "  - The implementation shown MAY BE WRONG. Derive every expected "
-        "value from the docstring / stated intent, NOT from what the code "
-        "appears to do. If the code contradicts the docstring, your test must "
-        "follow the docstring and therefore FAIL on the code.\n"
-        "  - Assert exact values for concrete inputs "
-        "(e.g. `assert f(0, 10) == 11`). Do NOT use `isinstance` or type/shape "
-        "checks as the only assertion; those pass on wrong values.\n"
-        "  - Pick inputs whose correct output you can determine from the "
-        "docstring and state that output explicitly in the assert.\n\n"
-        "Cover normal cases, boundaries, and any behaviour the docstring "
-        "promises for edge inputs (empty, zero, None). Use pytest.raises only "
-        "when the docstring explicitly says an exception is the correct "
-        "behaviour.\n\n"
+        "  - Derive every expected value from the specification. Compute by "
+        "hand what the function SHOULD return for each input, and assert that "
+        "exact value (e.g. `assert f(0, 10) == 11`). Do NOT use `isinstance` "
+        "or type/shape checks as the only assertion; those pass on wrong "
+        "values.\n"
+        "  - If the docstring describes behaviour that only appears across "
+        "MULTIPLE calls (state retained between calls, accumulation, caching, "
+        "default-argument reuse), write a test that calls the function several "
+        "times and asserts the specified cross-call behaviour. A single call "
+        "will miss such defects.\n"
+        "  - For error handling, use pytest.raises ONLY when the spec says an "
+        "exception is the correct behaviour. If the spec says the function "
+        "should RETURN a value for an edge input (e.g. return 0 on a zero "
+        "divisor), assert that returned value, do not assert it raises.\n\n"
+        "Cover normal cases, boundaries, and the edge behaviours the spec "
+        "promises.\n\n"
         "Return ONLY the complete test file. Start with imports."
     )
+
+    return "\n".join(parts)
 
     return "\n".join(parts)
 
