@@ -129,7 +129,7 @@ def run_tests(
         if source_origin and source_origin.exists():
             copied = DependencyMapper.resolve_and_copy(source_origin, work_dir)
             if copied:
-                logger.info(
+                logger.debug(
                     "Sandbox dependency resolution: copied %s into %s",
                     ", ".join(copied), work_dir,
                 )
@@ -174,7 +174,7 @@ def run_tests(
         coverage_pct, coverage_branches = _parse_coverage_json(coverage_json_path)
         total = counts["passed"] + counts["failed"] + counts["errors"] + counts["skipped"]
 
-        logger.info(f"Test execution: {source_origin}:{str(test_path)} completed!")
+        logger.debug(f"Test execution: {source_origin}:{str(test_path)} completed!")
         return ExecutionResult(
             passed=counts["passed"], failed=counts["failed"],
             errors=counts["errors"], skipped=counts["skipped"],
