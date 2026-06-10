@@ -42,6 +42,8 @@ def main() -> None:
     parser.add_argument("--strategy", default="feedback",
                         choices=["feedback", "rl", "oneshot", "hypothesis"])
     parser.add_argument("--rounds", type=int, default=5)
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Parallel workers for processing files (1 = sequential; >1 runs that many files concurrently in separate processes).")
     parser.add_argument("--samples", type=int, default=1,
                         help="Consensus samples for the correctness oracle (>1 merges several generations to reduce variance; 1 = single-shot).")
     parser.add_argument("--oracle", default="crash",
@@ -90,6 +92,7 @@ def main() -> None:
         strategy=args.strategy,
         rounds=args.rounds,
         samples=args.samples,
+        workers=args.workers,
         oracle=args.oracle,
         judge_strategy=args.judge_strategy,
         stage=args.stage,

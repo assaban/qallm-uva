@@ -11,6 +11,38 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-10 (parallel runner + consensus-voting finding)
+
+### Finding: voting rarely triggers (samples test different inputs)
+With consensus genuinely running (--samples 5), lab gave clean_control 2 (worse
+than single-sample), complexity 1, reliability 5. run.log: ZERO votes cast all
+run. Call-keyed voting only prunes when samples disagree on the SAME call, but
+samples pick DIFFERENT inputs, so there is nothing to vote on; union then
+accumulates every stray wrong assertion, hurting clean code. Honest position:
+reliability recall 5/5 does NOT depend on consensus; consensus-by-union does not
+improve precision and should stay at samples=1 until fixed-input voting (propose
+inputs once, vote on outputs per input) is implemented. Documented as the real
+fix in oracle-variance-and-consensus.md (its own future PR).
+
+### Delivered for review
+- **Parallel runner (`feature/parallel-gap-runner`)**: --workers N (default 1 =
+  sequential, unchanged). >1 processes files concurrently via
+  ProcessPoolExecutor; each file is an independent orchestrator/session so it is
+  safe; resumable (completed files skipped); aggregate is order-independent.
+  Threaded CLI -> config -> manifest. Tests cover all-files-processed, manifest,
+  sequential default, and parallel resume.
+- Logging conventions added to the documentation style guide (INFO = milestones,
+  DEBUG = per-iteration detail; per-round test-exec is DEBUG, round verdict is
+  INFO; uniform verb-first messages; no secrets). Supports the logging
+  normalization started in executor.py and verification_manager.py.
+- running-experiments.md documents --workers.
+
+### Next
+- Re-run ENVRI can now use --workers 4 for a near-linear speedup.
+- Fixed-input voting is the real consensus fix (own PR); until then samples=1.
+- ENVRI RQ1 headline remains the priority (--oracle correctness, samples=1,
+  tmux, metrics_only, --workers 4, report gap rate with 95% CI).
+
 ## 2026-06-10 (consensus was silently disabled, fixed)
 
 ### Finding

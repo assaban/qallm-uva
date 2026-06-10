@@ -92,6 +92,36 @@ clearly so a reader never implements a proposal as if it were current:
   "confirm/refute", "verified fix" as the standard vocabulary; do not introduce
   synonyms for established terms.
 
+## Logging conventions
+
+Logging is documentation for operators, so it follows the same discipline. The
+levels mean specific things:
+
+- **INFO**: milestones an operator watching a run wants to see, one per
+  meaningful step, not one per iteration. "Verifying f [3/12] in round 2",
+  "Gap experiment: 289 inputs, 0 done", "Consensus merge for f: 5/5 valid".
+  A reader skimming INFO should see the run progress, not a firehose.
+- **DEBUG**: the per-iteration and per-item detail useful when diagnosing a
+  specific failure: each generated test's validation result, per-sample timing,
+  intermediate token counts. Off by default; on when chasing a bug.
+- **WARNING**: something recovered from but worth knowing: a sample was
+  invalid, a test was dropped, a fixture was missing. Not for normal flow.
+- **ERROR**: the operation failed and the run is affected.
+
+Rules of thumb:
+- If a line fires once per function-per-round (or more often), it is almost
+  certainly DEBUG, not INFO. Per-round test-execution detail is DEBUG; the
+  round's verdict is INFO.
+- Method and event names in log messages start with a verb and read uniformly
+  ("Generating ...", "Verifying ...", "Repairing ...", "Dropped ..."), so a
+  grep on the verb finds the whole class of events.
+- One idea per line; do not pack several facts into one message. Structured
+  fields (key=value) are easier to grep than prose.
+- Never log secrets (API keys, tokens) at any level.
+
+When in doubt, ask: would an operator running ENVRI over hundreds of notebooks
+want this line every time? If not, it is DEBUG.
+
 ## The docs index
 
 `docs/README.md` lists every doc with a one-line description, grouped by

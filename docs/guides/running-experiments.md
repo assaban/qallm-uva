@@ -51,7 +51,20 @@ python scripts/run_gap_experiment.py \
 python scripts/run_gap_experiment.py \
     --dataset data/li_notebooks --output runs/gap_full \
     --llm fedllm --rounds 5 --confirm
+
+# parallel: each file is an independent session, so files can run concurrently
+python scripts/run_gap_experiment.py \
+    --dataset data/li_notebooks --output runs/gap_full \
+    --llm fedllm --rounds 5 --confirm --workers 4
 ```
+
+`--workers N` (default 1, sequential) processes N files concurrently in
+separate processes. Each file is its own orchestrator and session, so this is
+safe; the run stays resumable (completed files are skipped) and the aggregate
+is order-independent. The practical ceiling is the LLM API's concurrency limit,
+not CPU: for FedLLM, start at 4 and watch for rate-limit warnings before going
+higher. With `metrics_only` retention this gives a near-linear speedup on large
+datasets.
 
 By default a batch gap run uses `--retention metrics_only`: it keeps the gap
 data in `summary.json` and skips the per-unit round directories, which is far

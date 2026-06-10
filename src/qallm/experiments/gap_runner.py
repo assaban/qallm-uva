@@ -53,6 +53,11 @@ class GapExperimentConfig:
     # (thousands of small files across a dataset) and keep the gap data in
     # summary.json. Pass "full" to retain every variant's provenance.
     artefact_retention: str = "metrics_only"
+    # Parallel workers for processing files. 1 = sequential (default, identical
+    # to the historical behaviour). >1 processes that many files concurrently
+    # in separate processes; each file is an independent orchestrator/session,
+    # so this is safe. Bound by LLM-API concurrency limits in practice.
+    workers: int = 1
 
     def to_manifest(self) -> dict:
         return {
@@ -67,6 +72,7 @@ class GapExperimentConfig:
             "stage": self.stage,
             "pattern": self.pattern,
             "confirm": self.confirm,
+            "workers": self.workers,
         }
 
 
@@ -176,18 +182,42 @@ def run_gap_experiment(
         elif row.get("metrics"):
             metrics.append(_metrics_from_dict(row["metrics"]))
 
+    pending = [p for p in inputs if str(p) not in already]
+
+    def _handle_row(row: dict) -> None:
+        out.write(json.dumps(row) + "\n")
+        out.flush()
+        if row.get("error"):
+            errors.append(row)
+        elif row.get("metrics"):
+            metrics.append(_metrics_from_dict(row["metrics"]))
+
     with open(results_path, "a", encoding="utf-8") as out:
-        for input_path in inputs:
-            key = str(input_path)
-            if key in already:
-                continue
-            row = _run_one(input_path, config, orchestrator_factory)
-            out.write(json.dumps(row) + "\n")
-            out.flush()
-            if row.get("error"):
-                errors.append(row)
-            elif row.get("metrics"):
-                metrics.append(_metrics_from_dict(row["metrics"]))
+        if config.workers and config.workers > 1 and len(pending) > 1:
+            logger.info("Processing %d file(s) with %d parallel worker(s).",
+                        len(pending), config.workers)
+            # Each file is an independent orchestrator/session, so files run
+            # in separate processes safely. Results are written as they
+            # complete (order may differ from input order; the aggregate is
+            # order-independent and each row carries its own input path).
+            from concurrent.futures import ProcessPoolExecutor, as_completed
+            with ProcessPoolExecutor(max_workers=config.workers) as pool:
+                futures = {
+                    pool.submit(_run_one, p, config, orchestrator_factory): p
+                    for p in pending
+                }
+                for fut in as_completed(futures):
+                    input_path = futures[fut]
+                    try:
+                        row = fut.result()
+                    except Exception as exc:  # a worker crashed; record it
+                        logger.exception("Worker failed for %s", input_path)
+                        row = {"input": str(input_path), "error": repr(exc)}
+                    _handle_row(row)
+        else:
+            for input_path in pending:
+                row = _run_one(input_path, config, orchestrator_factory)
+                _handle_row(row)
 
     aggregate = aggregate_sessions(metrics).to_dict()
     per_session = [m.to_dict() for m in metrics]
