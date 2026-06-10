@@ -43,6 +43,7 @@ class GapExperimentConfig:
     model_name: Optional[str] = None
     strategy: str = "feedback"
     rounds: int = 5
+    samples: int = 1  # consensus samples for the correctness oracle (1 = single-shot)
     oracle: str = "crash"
     judge_strategy: str = "lexicographic"
     stage: str = "implementation"
@@ -60,6 +61,7 @@ class GapExperimentConfig:
             "model_name": self.model_name,
             "strategy": self.strategy,
             "rounds": self.rounds,
+            "samples": self.samples,
             "oracle": self.oracle,
             "judge_strategy": self.judge_strategy,
             "stage": self.stage,
@@ -114,6 +116,7 @@ def _default_orchestrator_factory(config: GapExperimentConfig):
         llm_type=config.llm_type,
         model_name=config.model_name,
         rounds=config.rounds,
+        samples=config.samples,
         oracle=config.oracle,
         judge_strategy=config.judge_strategy,
         artefact_retention=_effective_retention(config),

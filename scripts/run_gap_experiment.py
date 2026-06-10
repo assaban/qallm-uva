@@ -42,6 +42,8 @@ def main() -> None:
     parser.add_argument("--strategy", default="feedback",
                         choices=["feedback", "rl", "oneshot", "hypothesis"])
     parser.add_argument("--rounds", type=int, default=5)
+    parser.add_argument("--samples", type=int, default=1,
+                        help="Consensus samples for the correctness oracle (>1 merges several generations to reduce variance; 1 = single-shot).")
     parser.add_argument("--oracle", default="crash",
                         choices=["crash", "correctness", "property", "metamorphic"])
     parser.add_argument("--judge-strategy", default="lexicographic",
@@ -87,6 +89,7 @@ def main() -> None:
         model_name=args.model,
         strategy=args.strategy,
         rounds=args.rounds,
+        samples=args.samples,
         oracle=args.oracle,
         judge_strategy=args.judge_strategy,
         stage=args.stage,

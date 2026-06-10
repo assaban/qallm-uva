@@ -76,10 +76,12 @@ class VerificationManager:
         oracle: str = "crash",
         total_rounds: int = 5,
         stability_config: Optional[TestStabilityConfig] = None,
+        samples: int = 1,
     ):
         self.generator = TestGenerator(llm, tracker=tracker)
         self.oracle = oracle
         self.total_rounds = total_rounds
+        self.samples = samples
         self.stability_config = stability_config or TestStabilityConfig()
         self.store = TestSuiteStore(self.stability_config)
         logger.info(
@@ -231,7 +233,11 @@ class VerificationManager:
                 # "LLM is slow today" from "sandbox is hung."
                 gen_start = time.perf_counter()
                 generated = self.generator.generate(
-                    func, module_name=module_name, existing_session=session
+                    func,
+                    oracle=self.oracle,
+                    module_name=module_name,
+                    existing_session=session,
+                    samples=self.samples,
                 )
                 gen_elapsed = time.perf_counter() - gen_start
                 logger.info(

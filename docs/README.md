@@ -20,6 +20,7 @@ Practical, task-oriented.
 - [`guides/deployment.md`](guides/deployment.md): production deployment (split frontend/API, CORS, TLS, operations).
 - [`guides/sonarqube-integration.md`](guides/sonarqube-integration.md): SonarQube setup and integration.
 - [`guides/jupyter-magic.md`](guides/jupyter-magic.md): the `%%qallm` Jupyter magic.
+- [`guides/documentation-style-guide.md`](guides/documentation-style-guide.md): how we write QALLM docs (categories, shape, status markers, diagrams, vocabulary).
 
 ## architecture/ — how QALLM works inside
 
@@ -36,6 +37,8 @@ The mechanics and design record.
 - [`experiments/protocol.md`](experiments/protocol.md): the reproducible experiment protocol for both tracks (the source of truth for Chapter 5).
 - [`experiments/run-outline.md`](experiments/run-outline.md): the ordered set of runs to execute, with exact commands and what each produces.
 - [`experiments/humaneval.md`](experiments/humaneval.md): the HumanEvalFix validation harness in detail.
+- [`experiments/reliability-oracle-findings.md`](experiments/reliability-oracle-findings.md): why reliability bugs were missed (oracle-type mismatch, implementation anchoring), from the lab artifacts.
+- [`experiments/oracle-variance-and-consensus.md`](experiments/oracle-variance-and-consensus.md): single-shot oracle variance across runs, the oracle-threading correction, and the consensus design.
 
 ## thesis/ — thesis-facing material
 

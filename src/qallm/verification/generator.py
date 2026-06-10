@@ -66,11 +66,124 @@ class TestGenerator:
             func: FunctionInfo,
             oracle: OracleType = "crash",
             module_name: str = "source_module",
+            existing_session: TestGenerationSession | None = None,
+            samples: int = 1,
+    ) -> GeneratedTest:
+        """Generate a test suite, optionally from several samples (consensus).
+
+        With ``samples == 1`` this is a single LLM generation (the historical
+        behaviour, nothing changes). With ``samples > 1`` it generates the
+        suite ``samples`` times and merges the valid ones into a single suite.
+
+        Why: a correctness test is only as good as the expected value it
+        asserts, and a single generation derives that value with meaningful
+        variance, different samples catch different reliability bugs (shown on
+        the lab set: one sample caught normalise_unit, another caught
+        accumulate). Merging samples collects the union, so a bug any sample
+        would catch is caught. Test-function names are made unique per sample so
+        concatenated suites do not collide. See
+        docs/experiments/oracle-variance-and-consensus.md.
+
+        Consensus is only applied to the initial (round-0) generation; feedback
+        rounds (existing_session present) use a single sample, since they are
+        refining a specific prior suite rather than measuring the gap.
+        """
+        if samples <= 1 or existing_session is not None:
+            return self._generate_once(func, oracle, module_name, existing_session)
+
+        suites: list[GeneratedTest] = []
+        for i in range(samples):
+            logger.info("Consensus sample %d/%d for %s", i + 1, samples, func.name)
+            suites.append(
+                self._generate_once(func, oracle, module_name, existing_session)
+            )
+
+        return self._merge_samples(suites, func, oracle, module_name)
+
+    def _merge_samples(
+        self,
+        suites: list[GeneratedTest],
+        func: FunctionInfo,
+        oracle: OracleType,
+        module_name: str,
+    ) -> GeneratedTest:
+        """Merge several sampled suites into one (union of their tests).
+
+        Keeps every valid sample's tests, namespacing test-function names by
+        sample index so they do not collide, and concatenating imports once.
+        If no sample is valid, returns the first (carrying its error). Token
+        counts and discarded lists are summed across samples for honest
+        accounting.
+        """
+        valid = [s for s in suites if s.is_valid and s.test_code.strip()]
+        if not valid:
+            return suites[0]
+
+        import_lines: list[str] = []
+        seen_imports: set[str] = set()
+        body_blocks: list[str] = []
+
+        for idx, suite in enumerate(valid):
+            for line in suite.test_code.splitlines():
+                stripped = line.strip()
+                is_import = stripped.startswith(("import ", "from "))
+                if is_import:
+                    if stripped not in seen_imports:
+                        seen_imports.add(stripped)
+                        import_lines.append(stripped)
+                    continue
+                # Namespace test function names so samples never collide.
+                if stripped.startswith("def test"):
+                    line = re.sub(
+                        r"\bdef (test\w*)",
+                        rf"def \1_s{idx}",
+                        line,
+                        count=1,
+                    )
+                body_blocks.append(line)
+            body_blocks.append("")  # blank line between samples
+
+        merged_code = "\n".join(import_lines) + "\n\n" + "\n".join(body_blocks)
+        merged_code = _fix_source_import(merged_code, module_name)
+        is_valid, validation_error = _validate_test_code(merged_code)
+
+        total_in = sum(s.input_tokens or 0 for s in suites)
+        total_out = sum(s.output_tokens or 0 for s in suites)
+        discarded: list[str] = []
+        for s in suites:
+            discarded.extend(s.discarded_tests or [])
+
+        logger.info(
+            "Consensus merge for %s: %d/%d samples valid, merged suite %s",
+            func.name, len(valid), len(suites),
+            "valid" if is_valid else f"invalid ({validation_error})",
+        )
+
+        return GeneratedTest(
+            function_name=func.name,
+            oracle=oracle,
+            test_code=merged_code,
+            is_valid=is_valid,
+            generation_error=validation_error,
+            model=valid[0].model,
+            provider=valid[0].provider,
+            input_tokens=total_in,
+            output_tokens=total_out,
+            discarded_tests=discarded,
+        )
+
+    def _generate_once(
+            self,
+            func: FunctionInfo,
+            oracle: OracleType = "crash",
+            module_name: str = "source_module",
             existing_session: TestGenerationSession | None = None
     ) -> GeneratedTest:
-        """
-        Generates pytest test cases. If an existing_session with previous rounds
-        is provided, it switches to a feedback-driven prompt.
+        """Generate one test suite (a single LLM sample).
+
+        If an existing_session with previous rounds is provided, switches to a
+        feedback-driven prompt. This is one sample; `generate` may call it
+        several times for consensus.
         """
         # 1. Select the appropriate prompt builder based on session state
         if existing_session and len(existing_session.rounds) > 0:
