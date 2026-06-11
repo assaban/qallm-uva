@@ -11,6 +11,28 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-10 (oracle confidence wired into the gap pipeline)
+
+### Delivered for review (on the mutation branch, builds on the engine)
+- **Gap-confidence wiring (`feature/oracle-confidence-mutation`, 2nd commit)**:
+  --mutation-confidence flag. After the gap is measured, the runner reads each
+  execution-only function's round-0 source and generated suite from disk,
+  mutation-scores the oracle (gap_confidence.score_gap_confidence_from_dir), and
+  attaches a per-function confidence + aggregate distribution to the result row.
+  Forces full retention (reads artefacts), scores only gap functions. Tolerates
+  round_00 / round_0 naming. Verified end-to-end: strong oracle -> high, weak
+  oracle -> low through the artefact path.
+
+### Note discovered while wiring
+confirm_verify.py reads lineage/round_0, but the reporter writes round_00
+(round_{n:02d}). This mismatch likely explains the 0 confirmed / 0 refuted we
+saw, confirm/verify may be finding no baseline dir. Worth fixing in the RQ2/RQ3
+investigation (gap_confidence already tolerates both names).
+
+### Thesis framing
+Report the gap rate twice: all findings, and high-confidence only. If close,
+that is direct evidence the gap is real, not test noise.
+
 ## 2026-06-10 (game-changer: oracle confidence by mutation testing)
 
 ### What

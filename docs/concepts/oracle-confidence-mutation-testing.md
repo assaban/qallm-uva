@@ -107,11 +107,27 @@ verification, run only on functions that produced a gap finding (where the
 confidence actually matters), so it is affordable even on a large dataset and
 can be made opt-in via a flag.
 
-## Status and next step
+## Status and how to use it
 
-The engine (`mutation.py`) and scorer (`mutation_score.py`) are implemented and
-tested (strong oracle -> high, weak oracle -> low, bounded, target-only,
-viability handling). The next step is to wire the score into the gap report as a
-per-finding `confidence` field and surface a confidence distribution in the run
-aggregate, so the headline gap rate carries it. That wiring is its own PR; this
-one delivers the validated capability.
+The engine (`mutation.py`), scorer (`mutation_score.py`), and the gap-pipeline
+wiring (`gap_confidence.py`) are implemented and tested. Enable it on a run with
+`--mutation-confidence`:
+
+```
+python scripts/run_gap_experiment.py --dataset <data> --output runs/headline \
+    --llm fedllm --rounds 5 --oracle correctness --samples 1 \
+    --mutation-confidence
+```
+
+For each execution-only (gap) function, the runner reads the round-0 source and
+its generated suite, mutation-scores the oracle, and records a confidence
+(high/medium/low/unknown) per function plus an aggregate distribution in the
+result row. Like `--confirm`, it needs full retention (it reads round-0
+artefacts from disk), so it forces `full` automatically. It scores only the gap
+functions, so the cost is proportional to the number of findings, not the whole
+dataset.
+
+A strong thesis framing: report the gap rate twice, over all findings and
+restricted to high-confidence findings. If the two are close, that is direct
+evidence the gap is real and not test noise.
+

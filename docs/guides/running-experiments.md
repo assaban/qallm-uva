@@ -72,6 +72,15 @@ and interleaved lines stay attributable to their worker. Control verbosity with
 `--log-level` (DEBUG for per-step detail, WARNING to quieten); it applies to the
 workers too.
 
+`--mutation-confidence` adds a soundness check to each gap finding: after the
+gap is measured, the oracle for each execution-only function is mutation-tested
+(small faults are injected into the function and the generated suite is checked
+for whether it catches them), yielding a per-function confidence
+(high/medium/low) and an aggregate distribution. It reads round-0 artefacts from
+disk, so it forces full retention, and it scores only gap functions, so the cost
+is proportional to the number of findings. Use it for the headline run to report
+the gap rate alongside its confidence distribution.
+
 By default a batch gap run uses `--retention metrics_only`: it keeps the gap
 data in `summary.json` and skips the per-unit round directories, which is far
 less disk on a large dataset (those directories are one folder per code unit

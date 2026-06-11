@@ -1,0 +1,133 @@
+"""Attach mutation-based confidence to verification-gap findings.
+
+After a gap report names the functions with an execution-only bug (the gap),
+this reads each such function's source and its round-0 generated test suite from
+the on-disk artefacts and runs the mutation scorer over them. The result is a
+confidence label per gap function (high/medium/low/unknown) and an aggregate
+distribution, so a reported gap can be qualified by how sensitive the oracle
+that found it actually is.
+
+Like confirm/verify, this needs the round-0 artefacts on disk (source.py and
+tests/), so it requires full retention. It is opt-in (the runner enables it via
+config), and it scores only the gap functions, where confidence matters, not
+every function, so the cost stays proportional to the number of findings.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+
+from qallm.verification.mutation_score import score_oracle
+
+logger = logging.getLogger(__name__)
+
+
+def _read_text(path: str) -> str | None:
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
+def _baseline_dir(report_dir: str) -> str | None:
+    """The round-0 lineage directory, tolerating both naming conventions.
+
+    The reporter writes round_00 (round_{n:02d}); some older paths used
+    round_0. Try both so this works regardless of which produced the run.
+    """
+    for name in ("round_00", "round_0"):
+        candidate = os.path.join(report_dir, "lineage", name)
+        if os.path.isdir(candidate):
+            return candidate
+    return None
+
+
+def _test_code_for(unit_dir: str, func_name: str) -> str | None:
+    """The generated test suite for one function in a unit dir.
+
+    Tests are written per function as tests/test_<func>.py. If that exact file
+    is absent (naming variance), fall back to concatenating every test file in
+    the unit that mentions the function, so a renamed file still contributes.
+    """
+    tests_dir = os.path.join(unit_dir, "tests")
+    if not os.path.isdir(tests_dir):
+        return None
+    exact = os.path.join(tests_dir, f"test_{func_name}.py")
+    code = _read_text(exact)
+    if code:
+        return code
+    parts = []
+    for name in sorted(os.listdir(tests_dir)):
+        if not name.endswith(".py"):
+            continue
+        text = _read_text(os.path.join(tests_dir, name))
+        if text and func_name in text:
+            parts.append(text)
+    return "\n\n".join(parts) if parts else None
+
+
+def score_gap_confidence_from_dir(
+    report_dir: str,
+    gap_functions: list[str] | None = None,
+    max_per_operator: int = 3,
+) -> dict:
+    """Mutation-score the oracle for each gap function under report_dir.
+
+    Args:
+        report_dir: the session report directory.
+        gap_functions: restrict scoring to these function names (the
+            execution-only functions). When None, every function with a test
+            suite is scored.
+        max_per_operator: mutant bound passed to the scorer.
+
+    Returns a dict with per-function confidence and an aggregate distribution:
+        {
+          "per_function": {func: {mutation_score, confidence, killed, ...}},
+          "distribution": {"high": n, "medium": n, "low": n, "unknown": n},
+          "scored": n,
+        }
+    """
+    out: dict = {"per_function": {}, "distribution": {}, "scored": 0}
+    base = _baseline_dir(report_dir)
+    if base is None:
+        logger.info("No round-0 artefacts under %s; skipping gap confidence.",
+                    report_dir)
+        return out
+
+    want = set(gap_functions) if gap_functions is not None else None
+    dist = {"high": 0, "medium": 0, "low": 0, "unknown": 0}
+
+    for unit_seg in sorted(os.listdir(base)):
+        unit_dir = os.path.join(base, unit_seg)
+        if not os.path.isdir(unit_dir):
+            continue
+        source = _read_text(os.path.join(unit_dir, "source.py"))
+        if not source:
+            continue
+        # Discover functions that have a generated suite in this unit.
+        tests_dir = os.path.join(unit_dir, "tests")
+        if not os.path.isdir(tests_dir):
+            continue
+        for name in sorted(os.listdir(tests_dir)):
+            if not (name.startswith("test_") and name.endswith(".py")):
+                continue
+            func_name = name[len("test_"):-len(".py")]
+            if want is not None and func_name not in want:
+                continue
+            test_code = _test_code_for(unit_dir, func_name)
+            if not test_code:
+                continue
+            score = score_oracle(
+                source, func_name, test_code,
+                max_per_operator=max_per_operator,
+            )
+            out["per_function"][func_name] = score.to_dict()
+            dist[score.confidence] = dist.get(score.confidence, 0) + 1
+            out["scored"] += 1
+
+    out["distribution"] = dist
+    logger.info("Gap confidence over %s: %d scored, distribution=%s",
+                report_dir, out["scored"], dist)
+    return out
