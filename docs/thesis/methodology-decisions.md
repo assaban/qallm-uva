@@ -85,3 +85,22 @@ Decisions are append-only. To overturn a decision, add a new entry that explicit
 9. **Implications**: makes the bug-count denominators sound, which strengthens RQ1 (verification gap) and RQ2 (confirmation) against the examiner question "how do you know your execution-found bugs are real and not test artifacts?". The threats-to-validity section should cite this as a deliberate conservative filter. The number of tests dropped this way is itself a small reportable measure of generated-test quality.
 
 10. **Update (metric now surfaced)**: the drop count is no longer log-only. `incoherent_oracles_dropped` (and `tests_dropped_total`) are recorded per run in `summary.json` and per session in `metrics.csv`, so the threats-to-validity argument is backed by a measured figure rather than an assertion. A low ratio of incoherent drops to tests generated is direct evidence that the generator produces sound oracles.
+
+
+## MD-003: confirm/verify baseline directory naming (round_00)
+
+**Date**: 2026-06-10
+
+**Decision**: confirm/refute (RQ2) and verify-fixes (RQ3) read the round-0
+baseline from `lineage/round_00`, resolved tolerantly (also accepting the legacy
+`round_0`).
+
+**Why**: the reporter writes zero-padded round directories (`round_{n:02d}`,
+so `round_00`), but the confirm/verify reader looked only for `round_0`. On real
+runs it therefore found no baseline and returned 0 confirmed / 0 refuted, which
+is the most likely cause of the empty RQ2/RQ3 numbers observed on the lab set.
+The unit test had used single-digit `round_0`/`round_1` fixtures, which masked
+the mismatch; the fixture now uses the real naming.
+
+**Implication**: RQ2/RQ3 should be re-run; the confirmation and verified-fix
+rates that previously read as null/zero are expected to populate.

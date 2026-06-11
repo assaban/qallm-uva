@@ -11,6 +11,24 @@ left, with enough detail to resume), and any DECISIONS worth remembering.
 
 ---
 
+## 2026-06-10 (RQ2/RQ3 unblocked + run-level gap confidence)
+
+### Delivered for review (3rd commit on the mutation branch)
+- **confirm/verify round_00 fix**: _baseline_units read lineage/round_0 but the
+  reporter writes round_00 (round_{n:02d}), so confirm/verify found no baseline
+  and returned 0 confirmed / 0 refuted. Resolved tolerantly (round_00, then
+  round_0). The masking test fixture (which used round_0/round_1) now uses real
+  zero-padded naming; back-compat and empty-baseline tests added. Recorded as
+  MD-003. RQ2/RQ3 should be re-run.
+- **Run-level gap confidence in the aggregate**: --mutation-confidence now folds
+  per-session confidence distributions into aggregate.json
+  (gap_confidence.distribution + high_confidence_gap_bugs), so the headline can
+  be reported filtered to high-confidence findings.
+
+### Tests
++3 (confirm round_00 + legacy + empty baseline) and +1 (aggregate folds
+confidence). Suite 689; ruff clean on touched files.
+
 ## 2026-06-10 (oracle confidence wired into the gap pipeline)
 
 ### Delivered for review (on the mutation branch, builds on the engine)

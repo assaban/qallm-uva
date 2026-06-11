@@ -204,6 +204,9 @@ def run_gap_experiment(
 
     metrics: list[SessionMetrics] = []
     errors: list[dict] = []
+    # Per-session gap-confidence blocks (present only with --mutation-confidence),
+    # combined into a run-level distribution for the aggregate.
+    confidence_blocks: list[dict] = []
 
     # Re-read prior session rows so the aggregate covers the whole run, not
     # only this invocation's new sessions.
@@ -212,6 +215,8 @@ def run_gap_experiment(
             errors.append(row)
         elif row.get("metrics"):
             metrics.append(_metrics_from_dict(row["metrics"]))
+        if row.get("gap_confidence"):
+            confidence_blocks.append(row["gap_confidence"])
 
     pending = [p for p in inputs if str(p) not in already]
 
@@ -222,6 +227,8 @@ def run_gap_experiment(
             errors.append(row)
         elif row.get("metrics"):
             metrics.append(_metrics_from_dict(row["metrics"]))
+        if row.get("gap_confidence"):
+            confidence_blocks.append(row["gap_confidence"])
 
     with open(results_path, "a", encoding="utf-8") as out:
         if config.workers and config.workers > 1 and len(pending) > 1:
@@ -257,6 +264,23 @@ def run_gap_experiment(
 
     aggregate = aggregate_sessions(metrics).to_dict()
     per_session = [m.to_dict() for m in metrics]
+
+    # When mutation-confidence ran, add a run-level confidence distribution and
+    # a high-confidence gap count, so the headline can be reported filtered to
+    # high-confidence findings (direct evidence the gap is not test noise).
+    if confidence_blocks:
+        combined = {"high": 0, "medium": 0, "low": 0, "unknown": 0}
+        scored = 0
+        for block in confidence_blocks:
+            for label, n in (block.get("distribution") or {}).items():
+                combined[label] = combined.get(label, 0) + int(n or 0)
+            scored += int(block.get("scored", 0) or 0)
+        aggregate["gap_confidence"] = {
+            "distribution": combined,
+            "scored": scored,
+            "high_confidence_gap_bugs": combined.get("high", 0),
+        }
+        logger.info("Gap-confidence distribution over the run: %s", combined)
 
     with open(config.output_dir / "aggregate.json", "w", encoding="utf-8") as fh:
         json.dump(aggregate, fh, indent=2)

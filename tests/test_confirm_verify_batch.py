@@ -1,7 +1,6 @@
 """Tests for the batch confirm/verify-from-disk helper."""
 
 import json
-import os
 from pathlib import Path
 
 from qallm.experiments.confirm_verify import (
@@ -12,23 +11,29 @@ from qallm.experiments.confirm_verify import (
 
 
 def _make_session(tmp_path: Path):
-    """A report dir with a baseline (round_0) and a repaired (round_1)."""
+    """A report dir with a baseline (round_00) and a repaired (round_01).
+
+    Uses the real zero-padded naming the reporter writes (round_{n:02d}); an
+    earlier version of this fixture used round_0/round_1, which masked a bug
+    where confirm/verify only looked for round_0 and so found no baseline on
+    real runs (0 confirmed / 0 refuted).
+    """
     rd = tmp_path / "session_1"
-    base = rd / "lineage" / "round_0" / "unit"
+    base = rd / "lineage" / "round_00" / "unit"
     base.mkdir(parents=True)
     (base / "source.py").write_text("def f(x):\n    return x - 1\n")
     (base / "static.json").write_text(json.dumps([
         {"tool": "sonar", "type": "RELIABILITY", "severity": "HIGH",
          "line": 2, "message": "off-by-one", "rule_id": "S1"},
     ]))
-    repaired = rd / "lineage" / "round_1" / "unit"
+    repaired = rd / "lineage" / "round_01" / "unit"
     repaired.mkdir(parents=True)
     (repaired / "source.py").write_text("def f(x):\n    return x + 1\n")
     (repaired / "static.json").write_text(json.dumps([]))
     return rd
 
 
-def test_baseline_units_reads_round_0(tmp_path):
+def test_baseline_units_reads_round_00(tmp_path):
     rd = _make_session(tmp_path)
     units = _baseline_units(str(rd))
     assert "unit" in units
@@ -39,7 +44,7 @@ def test_baseline_units_reads_round_0(tmp_path):
 def test_final_sources_takes_latest_round(tmp_path):
     rd = _make_session(tmp_path)
     finals = _final_sources(str(rd))
-    # round_1 is later than round_0, so the repaired source wins.
+    # round_01 is later than round_00, so the repaired source wins.
     assert "x + 1" in finals["unit"]
 
 
@@ -80,3 +85,22 @@ def test_confirm_and_verify_end_to_end(tmp_path):
     assert vs is not None
     # And the fix should verify (same test passes on x + 1).
     assert vs["verified_fixed"] >= 1
+
+
+def test_baseline_tolerates_legacy_round_0_naming(tmp_path):
+    """Back-compat: a report dir written with the old round_0 name still
+    resolves, so older runs remain analysable."""
+    rd = tmp_path / "legacy"
+    base = rd / "lineage" / "round_0" / "unit"
+    base.mkdir(parents=True)
+    (base / "source.py").write_text("def f():\n    return 1\n")
+    (base / "static.json").write_text("[]")
+    units = _baseline_units(str(rd))
+    assert "unit" in units
+
+
+def test_baseline_empty_when_no_round_zero(tmp_path):
+    rd = tmp_path / "empty"
+    (rd / "lineage" / "round_03" / "unit").mkdir(parents=True)
+    # only a late round exists; there is no baseline to confirm against
+    assert _baseline_units(str(rd)) == {}
