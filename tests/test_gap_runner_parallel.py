@@ -123,3 +123,19 @@ def test_discovery_excludes_backups_and_cruft(tmp_path):
     (ds / "real.ipynb~").write_text("{}")
     found = {p.name for p in _discover_inputs(ds, "*.ipynb")}
     assert found == {"real.ipynb", "also_real.ipynb"}
+
+
+def test_mutation_confidence_forces_full_retention():
+    from qallm.experiments.gap_runner import _effective_retention, GapExperimentConfig
+    cfg = GapExperimentConfig(
+        dataset_dir="x", output_dir="y",
+        mutation_confidence=True, artefact_retention="metrics_only",
+    )
+    assert _effective_retention(cfg) == "full"
+
+
+def test_mutation_confidence_in_manifest():
+    from qallm.experiments.gap_runner import GapExperimentConfig
+    cfg = GapExperimentConfig(dataset_dir="x", output_dir="y",
+                              mutation_confidence=True)
+    assert cfg.to_manifest()["mutation_confidence"] is True

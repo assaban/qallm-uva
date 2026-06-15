@@ -54,6 +54,8 @@ def main() -> None:
                         choices=["initialization", "implementation", "publication"])
     parser.add_argument("--pattern", default="*.ipynb",
                         help="Glob for dataset files (default *.ipynb; use *.py for scripts).")
+    parser.add_argument("--mutation-confidence", action="store_true",
+                        help="After measuring the gap, mutation-test the oracle for each gap function and attach a confidence (high/medium/low). Forces full retention.")
     parser.add_argument("--confirm", action="store_true",
                         help="Also run confirm/refute (RQ2) and verify-fixes (RQ3) per "
                              "session. Makes extra LLM calls; off by default.")
@@ -99,6 +101,7 @@ def main() -> None:
         stage=args.stage,
         pattern=args.pattern,
         confirm=args.confirm,
+        mutation_confidence=args.mutation_confidence,
         artefact_retention=args.retention,
     )
     result = run_gap_experiment(config)

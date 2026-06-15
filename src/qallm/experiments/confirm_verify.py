@@ -42,15 +42,30 @@ def _read_json(path: str):
         return None
 
 
+def _baseline_dir(report_dir: str) -> str | None:
+    """Resolve the round-0 lineage directory.
+
+    The reporter writes round_{n:02d}, so the baseline is round_00, but an
+    earlier convention used round_0. Looking only for round_0 (as this did)
+    found nothing on real runs, so confirm/verify silently returned 0
+    confirmed / 0 refuted. Try both names.
+    """
+    for name in ("round_00", "round_0"):
+        candidate = os.path.join(report_dir, "lineage", name)
+        if os.path.isdir(candidate):
+            return candidate
+    return None
+
+
 def _baseline_units(report_dir: str) -> dict[str, dict]:
-    """Map unit name -> {source, findings} from the round_0 (baseline) artefacts.
+    """Map unit name -> {source, findings} from the round-0 (baseline) artefacts.
 
     Round 0 is the original code before any repair, the right basis for
-    confirm/refute. Looks under lineage/round_0 (baseline is always accepted).
+    confirm/refute.
     """
     units: dict[str, dict] = {}
-    base = os.path.join(report_dir, "lineage", "round_0")
-    if not os.path.isdir(base):
+    base = _baseline_dir(report_dir)
+    if base is None:
         return units
     for unit_seg in sorted(os.listdir(base)):
         unit_dir = os.path.join(base, unit_seg)
