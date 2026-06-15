@@ -1,6 +1,4 @@
 """Tests for the test executor (subprocess sandbox with coverage)."""
-import pytest
-from pathlib import Path
 from qallm.verification.executor import run_tests
 
 

@@ -24,7 +24,6 @@ What this file covers:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -38,7 +37,7 @@ from qallm.evaluation import (
 )
 from qallm.judge import JudgeOutcome
 from qallm.judge.models import JudgeVerdict, VerdictComparison
-from qallm.orchestrator import LineageEntry, QALLMOrchestrator, UnitTrack, _unit_id
+from qallm.orchestrator import QALLMOrchestrator, _unit_id
 from qallm.profiles import QualityDimension
 
 

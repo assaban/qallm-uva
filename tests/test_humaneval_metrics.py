@@ -11,10 +11,8 @@ and run fast.
 
 from __future__ import annotations
 
-import pytest
 
 from qallm.experiments.humaneval_metrics import (
-    AggregateResult,
     ProblemResult,
     aggregate,
     bug_was_detected,

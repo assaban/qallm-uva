@@ -19,7 +19,6 @@ ModelJudge tests use a stub LLM; no real API calls.
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -33,14 +32,13 @@ from qallm.evaluation import (
 from qallm.judge import (
     JudgeOutcome,
     JudgeStrategy,
-    JudgeVerdict,
     LexicographicJudge,
     ModelJudge,
     StrictJudge,
     build_judge,
 )
 from qallm.judge.comparator import compare_verdicts
-from qallm.judge.models import IndicatorChange, VerdictComparison
+from qallm.judge.models import IndicatorChange
 from qallm.llm.base import LLMResponse
 from qallm.profiles import QualityDimension
 

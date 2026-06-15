@@ -20,11 +20,9 @@ import pytest
 from qallm.verification.models import (
     ExecutionResult,
     GeneratedTest,
-    TestGenerationSession,
 )
 from qallm.verification.test_persistence import (
     GenerationPolicy,
-    StoredTest,
     TestStability,
     TestStabilityConfig,
     TestSuiteStore,

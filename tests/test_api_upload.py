@@ -169,7 +169,7 @@ class TestReanalyseUsesRepairedSource:
     def test_first_analyse_uses_original_source(self, client, monkeypatch):
         # Upload + first analysis: no repair has happened yet, so analyse
         # operates on the original source (the file's actual content).
-        from unittest.mock import MagicMock, patch as mock_patch
+        from unittest.mock import MagicMock
         from qallm.api.main import sessions
 
         # Patch the analysis_manager to record which source code it sees.

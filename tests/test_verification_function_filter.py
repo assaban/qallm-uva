@@ -25,7 +25,6 @@ import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from qallm.repair.repair_model import RepairedCodeUnit, RepairResult
 from qallm.analysis.analysis_model import AnalysedCodeUnit
@@ -124,7 +123,8 @@ class TestOriginalOnlyFiltering:
             )
 
             with caplog.at_level(logging.INFO):
-                tested = vm.verify(unit, round_number=1)
+                # tested = vm.verify(unit, round_number=1)
+                vm.verify(unit, round_number=1)
 
             # Generator was called for `add` but NOT for `validate`.
             called_func_names = [

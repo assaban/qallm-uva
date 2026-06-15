@@ -103,7 +103,8 @@ def test_verification_manager_passes_oracle_and_samples():
     round-0 generation always used the default crash oracle regardless of
     --oracle. The VM must forward both oracle and samples."""
     from qallm.verification.verification_manager import VerificationManager
-    llm = MagicMock(); llm.name.return_value = "m"
+    llm = MagicMock()
+    llm.name.return_value = "m"
     vm = VerificationManager(llm=llm, tracker=MagicMock(),
                              oracle="correctness", samples=4)
     assert vm.oracle == "correctness"
