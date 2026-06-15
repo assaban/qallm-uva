@@ -4,6 +4,21 @@ Newest first. Append-only.
 
 ---
 
+## 2026-06-15 (docs/UI reality audit)
+
+### Delivered for review (`docs/reality-audit-and-enrichment`)
+- Roadmap items 0 and 1 corrected: they still said "confirm consensus running"
+  and --samples 5; reality is consensus abandoned, samples=1 is the calibrated
+  setting (5/5 recall), and item 1 (ENVRI) is in progress with the right flags.
+- README index: added verification-repair-reward-design.md and (re)added the
+  security-confirmation-scope decision aid (restored; its PR was not merged).
+- About screen: added the mutation-confidence story (a "How do we know the bugs
+  are real?" card + a "Score confidence" pipeline step), so the UI reflects the
+  third contribution that is now live in the gap panel.
+- New: docs/thesis/enrichment-ideas.md, candidate features and experiments to
+  enrich QALLM, each with value/effort/risk, separated into thesis-scope vs
+  future-work.
+
 ## 2026-06-15 (web UI: oracle-confidence view)
 
 ### Delivered for review
