@@ -1,13 +1,28 @@
 # QALLM session log
 
-An append-only, dated record of what changed each working session and what is
-outstanding. Purpose: preserve context across chat sessions so a new session
-can pick up without re-deriving state. Newest entries at the top. This is a
-log, not a plan; for priorities see `roadmap.md`, for design rationale see
-`methodology-decisions.md`.
+Newest first. Append-only.
 
-Conventions: each entry lists MERGED work (what landed), OPEN items (what is
-left, with enough detail to resume), and any DECISIONS worth remembering.
+---
+
+## 2026-06-10 (provenance manifest: Tier 1 complete)
+
+### Delivered for review
+- **Provenance manifest (`feature/provenance-manifest`)**: Tier-1 item 4, the
+  last one. experiments/provenance.py captures commit/branch/dirty, package
+  version, Python/platform, and a dataset fingerprint (count + sha256 over
+  sorted paths). gap_runner folds it into manifest.json under "provenance".
+  Best-effort: never blocks a run (a missing field is None/unknown). The
+  dirty-tree flag is recorded honestly as a reproducibility caveat.
+
+### Milestone
+Tier 1 is now complete: calibrated instrument (5/5), CIs, mutation confidence,
+test-quality metric, RQ2/RQ3 unblocked, provenance. Remaining Tier-1 item (the
+ENVRI headline run) is execution, not code. Focus shifts to Tier 2 (load-bearing
+untested code: analyzer adapters, generator/repair coverage) for finalization.
+
+### Next validation
+Lab full run: --confirm --mutation-confidence to validate RQ2/RQ3 populate and
+gap findings score high-confidence on ground truth.
 
 ---
 

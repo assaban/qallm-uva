@@ -191,13 +191,25 @@ def run_gap_experiment(
     results_path = config.output_dir / "results.jsonl"
     manifest_path = config.output_dir / "manifest.json"
 
-    with open(manifest_path, "w", encoding="utf-8") as fh:
-        json.dump(config.to_manifest(), fh, indent=2)
-
     if orchestrator_factory is None:
         orchestrator_factory = _default_orchestrator_factory
 
     inputs = _discover_inputs(config.dataset_dir, config.pattern)
+
+    # Manifest = config + provenance (commit, version, env, dataset
+    # fingerprint), so every number from this run traces back to exact
+    # conditions. Provenance is best-effort and never blocks the run.
+    from qallm.experiments.provenance import capture, dataset_fingerprint
+    manifest = config.to_manifest()
+    try:
+        manifest["provenance"] = capture(
+            {"dataset": dataset_fingerprint(inputs)}
+        )
+    except Exception as exc:  # provenance must never sink a run
+        logger.warning("Provenance capture failed: %s", exc)
+        manifest["provenance"] = {"error": repr(exc)}
+    with open(manifest_path, "w", encoding="utf-8") as fh:
+        json.dump(manifest, fh, indent=2)
     already = _completed_inputs(results_path)
     logger.info("Gap experiment: %d input(s) under %s; %d already done.",
                 len(inputs), config.dataset_dir, len(already))
