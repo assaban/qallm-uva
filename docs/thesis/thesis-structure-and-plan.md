@@ -105,22 +105,22 @@ Legend: [ ] not started, [~] drafted, [x] solid.
 
 | Section | Status | Blocking input |
 | --- | --- | --- |
-| 1 Introduction | [~] | headline number from E1 |
-| 2 Background/related | [~] | none (can write now) |
+| 1 Introduction | [~] | drafted; headline number from E1 |
+| 2 Background/related | [~] | drafted (citations to add) |
 | 3.1 to 3.7 Method | [~] | none (scaffold exists) |
 | 3.8 Judge/EVERSE | [~] | drafted into the scaffold |
 | 3.9 Oracle confidence | [~] | drafted into the scaffold |
-| 4 Implementation | [~] | none |
-| 5.1 Setup | [ ] | none |
+| 4 Implementation | [~] | drafted |
+| 5.1 Setup | [~] | drafted (dataset/model specifics to fill) |
 | 5.2 Calibration (E0) | [ ] | E0 run |
 | 5.3 RQ1 (E1) | [ ] | E1 run |
 | 5.4 RQ2 (E2) | [ ] | E2 run (confirm path verified) |
 | 5.5 RQ3 (E3) | [ ] | E3 run |
 | 5.6 Scale (E4) | [ ] | Li dataset |
-| 5.7 Threats | [~] | none (mostly writable now) |
+| 5.7 Threats | [~] | drafted |
 | 6 Discussion | [ ] | results |
 | 7 Conclusion | [ ] | results |
-| Appendix | [~] | none |
+| Appendix | [x] | metric definitions complete |
 
 ## What can be written now, before the runs
 
