@@ -15,14 +15,10 @@ from __future__ import annotations
 
 import time
 
-import pytest
 
 from qallm.cost import (
     CEILING_COST_USD,
     CEILING_ROUNDS,
-    CEILING_ROUND_SECONDS,
-    CEILING_SECONDS,
-    CEILING_TOKENS,
     DEFAULT_COST_USD,
     DEFAULT_ROUNDS,
     DEFAULT_TOKENS,

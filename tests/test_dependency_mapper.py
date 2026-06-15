@@ -1,7 +1,4 @@
 """Tests for DependencyMapper: validates sibling module copying and import sanitization."""
-import pytest
-import tempfile
-from pathlib import Path
 from qallm.verification.sandbox import DependencyMapper
 
 

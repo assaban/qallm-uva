@@ -1,6 +1,5 @@
 """IngestionManager filters non-analyzable units and records what it skipped."""
 
-import os
 import tempfile
 from pathlib import Path
 

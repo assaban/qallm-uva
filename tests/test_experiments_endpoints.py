@@ -1,7 +1,6 @@
 """Tests for the experiment-results browsing endpoints."""
 
 import json
-import os
 
 import pytest
 from fastapi.testclient import TestClient

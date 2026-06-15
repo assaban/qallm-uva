@@ -1,6 +1,5 @@
 """Tests for pruning empty session directories."""
 
-import os
 from pathlib import Path
 
 from qallm.api.routers.sessions_library import prune_empty_sessions

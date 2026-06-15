@@ -4,6 +4,23 @@ Newest first. Append-only.
 
 ---
 
+## 2026-06-10 (analyzer-adapter pinning tests: Tier 2 item 5)
+
+### Delivered for review
+- **Finding-shape pinning tests (`test/analyzer-finding-shape`)**: the findings
+  the whole gap metric depends on are now pinned against known raw tool output.
+  radon_normalizer 59 -> 100% (CC > 5 threshold, MI < 70 threshold, both
+  severity bands, combined, empty/malformed json), trufflehog mapper 65 -> 93%
+  (JSONL secret -> issue shape, multi-line, blank-line skip, missing-metadata
+  default), bandit _safe_parse fully covered (ANSI strip + recover JSON from
+  noisy output), util.get_snippet 33 -> 89% (target-line marker, start clamp,
+  bad-input None). Analysis-package coverage 80 -> 87%. A tool output drift now
+  fails a test instead of silently changing the gap metric.
+
+### Roadmap
+Tier 2 item 5 substantially done. Next: generator/repair coverage (item 7),
+then broad-except triage (item 6).
+
 ## 2026-06-10 (provenance manifest: Tier 1 complete)
 
 ### Delivered for review

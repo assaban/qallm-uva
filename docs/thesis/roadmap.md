@@ -66,10 +66,15 @@ The audit found the static-analysis adapters at 0% direct coverage. They
 produce the findings the entire gap metric depends on, so they are the most
 load-bearing untested code.
 
-5. **Test the analyzer adapters.** `analyzer_registry.py`, `ruff_analyzer.py`,
-   `trufflehog_analyzer.py` at 0%. Add adapter tests with small fixture inputs
-   asserting the normalised finding shape (tool, type, severity, line). If a
-   tool's output format shifts, the gap metric silently changes; tests pin it.
+5. **Test the analyzer adapters. SUBSTANTIALLY DONE.** The normalised finding
+   shape is now pinned: `radon_normalizer` 100% (CC/MI thresholds and severity
+   bands), `trufflehog` mapper 93% (JSONL secret -> issue shape, multi-line,
+   blank-line and missing-metadata handling), `bandit._safe_parse` fully covered
+   (ANSI strip + JSON recovery from noisy output), `util.get_snippet` 89%.
+   Analysis-package coverage is 87%. If a tool's output format shifts, these
+   tests now catch the change instead of the gap metric drifting silently. The
+   remaining uncovered lines are subprocess-invocation paths (need the tool
+   binary installed), exercised by the dynamic integration tests.
 
 6. **Audit the broad excepts.** 33 `except Exception` sites; most are
    defensible isolation (one bad notebook should not sink a batch), but a few

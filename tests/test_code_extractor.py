@@ -1,5 +1,4 @@
 """Tests for CodeExtractor: validates that LLM chatter is stripped and valid Python is extracted."""
-import pytest
 from qallm.verification.sandbox import CodeExtractor
 
 

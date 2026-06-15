@@ -6,9 +6,7 @@ numbers an examiner will scrutinise, so they are tested for correctness
 against hand-computed and known-property values, not just executed.
 """
 
-import math
 
-import pytest
 
 from qallm.stats import cliffs_delta, wilcoxon_test
 

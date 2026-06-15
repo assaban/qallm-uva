@@ -16,7 +16,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 
 from qallm.experiments.humaneval_dataset import HumanEvalProblem
 from qallm.experiments.humaneval_runner import (
@@ -126,7 +125,7 @@ class TestBasicRunLoop:
         results_file = config.output_dir / "results.jsonl"
         assert results_file.exists()
         lines = [
-            l for l in results_file.read_text().splitlines() if l.strip()
+            line for line in results_file.read_text().splitlines() if line.strip()
         ]
         assert len(lines) == 1
         parsed = json.loads(lines[0])
@@ -179,12 +178,15 @@ class TestResumability:
         run_experiment(
             config, orchestrator_factory=factory, problems=problems,
         )
-        first_run_calls = sum(
+        # first_run_calls = sum(
+        #     1 for c in [factory] if c
+        # )  # Coverage check below.
+        sum(
             1 for c in [factory] if c
         )  # Coverage check below.
         first_results_count = len([
-            l for l in (config.output_dir / "results.jsonl")
-                .read_text().splitlines() if l.strip()
+            line for line in (config.output_dir / "results.jsonl")
+                .read_text().splitlines() if line.strip()
         ])
         assert first_results_count == 2
 
