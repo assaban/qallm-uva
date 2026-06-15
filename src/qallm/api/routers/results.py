@@ -302,6 +302,37 @@ async def get_gap(session_id: str):
     return {"available": True, "rounds": _compute_gap_rounds(report_dir)}
 
 
+@router.get("/api/session/{session_id}/gap-confidence")
+async def get_gap_confidence(session_id: str):
+    """Mutation-based confidence for this session's verification-gap findings.
+
+    For each execution-only (gap) function, mutates the function and runs its
+    generated suite against each mutant; the kill rate becomes a confidence
+    (high/medium/low/unknown). Returns the per-function scores and the
+    distribution, so the UI can show how trustworthy the gap findings are, not
+    just how many there are. Scores only the gap functions, so the cost is
+    proportional to the number of findings.
+    """
+    report_dir = _resolve_report_dir(session_id)
+    if not report_dir:
+        return {"available": False,
+                "reason": "No run artefacts yet. Run the pipeline first."}
+    from qallm.experiments.gap_confidence import score_gap_confidence_from_dir
+    # Gap functions = round-0 execution-only functions.
+    gap_funcs: list[str] = []
+    for r in _compute_gap_rounds(report_dir):
+        if int(r.get("round", r.get("round_number", 0)) or 0) == 0:
+            gap_funcs = list(r.get("execution_only_functions", []) or [])
+            break
+    if not gap_funcs:
+        return {"available": True, "scored": 0, "per_function": {},
+                "distribution": {"high": 0, "medium": 0, "low": 0, "unknown": 0},
+                "reason": "No execution-only gap findings to score."}
+    result = score_gap_confidence_from_dir(report_dir, gap_funcs)
+    result["available"] = True
+    return result
+
+
 @router.get("/api/session/{session_id}/metrics")
 async def get_session_metrics(session_id: str):
     """Thesis-ready metrics for one session: run metadata plus the

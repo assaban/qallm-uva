@@ -34,6 +34,28 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
       .finally(() => setConfirming(false));
   };
 
+  // Mutation-based oracle confidence: stress-test the oracle for each gap
+  // function by injecting faults and checking the suite catches them. Pure
+  // execution, no LLM. On demand, since it runs the suite many times.
+  const [scoring, setScoring] = useState(false);
+  const [confidence, setConfidence] = useState<api.GapConfidenceResponse | null>(null);
+  const [confidenceError, setConfidenceError] = useState<string | null>(null);
+
+  const runConfidence = () => {
+    setScoring(true);
+    setConfidenceError(null);
+    api.getGapConfidence(sessionId)
+      .then(res => {
+        if (res.available) {
+          setConfidence(res);
+        } else {
+          setConfidenceError(res.reason ?? "Not available.");
+        }
+      })
+      .catch(() => setConfidenceError("Confidence scoring failed."))
+      .finally(() => setScoring(false));
+  };
+
   // Verified-fix loop: re-run confirmed findings' reproducing tests against
   // the repaired code to prove the defect is gone. Pure execution, no LLM.
   const [verifying, setVerifying] = useState(false);
@@ -234,6 +256,73 @@ export default function GapPanel({ sessionId }: { sessionId: string }) {
             )}
           </div>
         )}
+
+        {/* Oracle confidence: how trustworthy are the gap findings? Stress-test
+            each gap function's oracle with injected faults; a suite that kills
+            the mutants is a sensitive detector, so its finding is high
+            confidence. Pure execution, no model calls. */}
+        <div className="mt-5 border-t border-slate-100 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <BadgeCheck className="h-4 w-4 text-indigo-600" /> How trustworthy are these findings?
+              </h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Injects small faults into each gap function and checks the generated test catches them. A test that kills the injected faults is a sensitive detector, so its finding is high confidence; one that misses them is flagged low. Pure execution, no model calls.
+              </p>
+            </div>
+            <button
+              onClick={runConfidence}
+              disabled={scoring}
+              className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 disabled:opacity-50"
+            >
+              {scoring ? <><Loader2 className="h-4 w-4 animate-spin" /> Scoring...</> : <>Score confidence</>}
+            </button>
+          </div>
+
+          {confidenceError && <div className="mt-3 text-xs text-rose-600">{confidenceError}</div>}
+
+          {confidence && confidence.scored > 0 && (
+            <>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                <Stat icon={<ShieldCheck className="h-3.5 w-3.5" />} label="high" value={confidence.distribution.high} tone="emerald" />
+                <Stat icon={<ShieldQuestion className="h-3.5 w-3.5" />} label="medium" value={confidence.distribution.medium} tone="amber" />
+                <Stat icon={<ShieldAlert className="h-3.5 w-3.5" />} label="low" value={confidence.distribution.low} tone="rose" />
+                <Stat icon={<ShieldAlert className="h-3.5 w-3.5" />} label="unknown" value={confidence.distribution.unknown} tone="slate" />
+              </div>
+              <div className="mt-3 space-y-2">
+                {Object.values(confidence.per_function).map((f, i) => (
+                  <ConfidenceCard key={i} f={f} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {confidence && confidence.scored === 0 && (
+            <div className="mt-3 text-xs text-slate-500">{confidence.reason ?? "Nothing to score."}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfidenceCard({ f }: { f: api.GapConfidenceFunction }) {
+  const tone =
+    f.confidence === "high" ? "text-emerald-700 bg-emerald-50 border-emerald-200" :
+    f.confidence === "medium" ? "text-amber-700 bg-amber-50 border-amber-200" :
+    f.confidence === "low" ? "text-rose-700 bg-rose-50 border-rose-200" :
+    "text-slate-600 bg-slate-50 border-slate-200";
+  return (
+    <div className="rounded-lg border border-slate-100 p-3 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`rounded-md border px-2 py-0.5 font-semibold capitalize ${tone}`}>{f.confidence}</span>
+        <span className="font-mono text-slate-700">{f.function}</span>
+        {f.mutation_score !== null && (
+          <span className="text-slate-500">score: <span className="font-semibold text-slate-700">{(f.mutation_score * 100).toFixed(0)}%</span></span>
+        )}
+        <span className="text-slate-400">·</span>
+        <span className="text-slate-500">{f.killed}/{f.viable} mutants killed</span>
       </div>
     </div>
   );
@@ -404,6 +493,7 @@ function Stat({ icon, label, value, tone }: { icon: React.ReactNode; label: stri
     amber: "text-amber-700 bg-amber-50",
     slate: "text-slate-600 bg-slate-100",
     indigo: "text-indigo-700 bg-indigo-50",
+    rose: "text-rose-700 bg-rose-50",
   };
   return (
     <span className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium ${tones[tone]}`}>

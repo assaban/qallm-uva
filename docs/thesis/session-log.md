@@ -4,6 +4,21 @@ Newest first. Append-only.
 
 ---
 
+## 2026-06-15 (web UI: oracle-confidence view)
+
+### Delivered for review
+- **Gap-confidence in the UI (`feature/ui-gap-confidence`)**: new endpoint
+  GET /api/session/{id}/gap-confidence mutation-scores the session's gap
+  functions and returns per-function confidence + distribution. GapPanel gains a
+  "How trustworthy are these findings?" card: a Score-confidence button, a
+  high/medium/low/unknown summary, and per-function cards (confidence, score,
+  killed/viable). Pure execution, no LLM. Frontend builds; backend 723 tests.
+
+### For the demo
+This is the most compelling number we have, the gap finding count is now
+qualified by how sensitive the oracle that found each one is. Shows live in the
+tool.
+
 ## 2026-06-15 (RQ2 diagnosis: findings confirm but land inconclusive, now legible)
 
 ### Diagnosis from lab_calibration_06151708 (the run with diagnostics)
