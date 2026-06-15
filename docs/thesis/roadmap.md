@@ -47,10 +47,18 @@ defensible. Highest leverage.
    so the thesis can state generated-test quality as data, and so the
    threats-to-validity argument (MD-002) is backed by a measured figure.
 
-4. **Determinism and provenance manifest.** Every run should emit a
-   `manifest.json` capturing commit hash, model, seed, config, and dataset
-   slice (the protocol already asks for this; make it automatic). This is what
-   lets any number trace back to exact conditions, the reproducibility spine.
+4. **Determinism and provenance manifest. DONE.** Every run now emits a
+   `manifest.json` whose `provenance` block captures commit hash, branch,
+   dirty-tree flag, package version, Python/platform, and a dataset fingerprint
+   (file count + hash over sorted paths), via `experiments/provenance.py`.
+   Capture is best-effort (never blocks a run). Any number now traces back to
+   exact conditions.
+
+**Tier 1 is complete.** The instrument is calibrated (5/5 reliability recall),
+the headline machinery runs with confidence intervals and mutation-based
+per-finding confidence, generated-test quality is reported, RQ2/RQ3 are
+unblocked (round_00 fix), and every run is provenance-stamped. The remaining
+Tier-1 item, the ENVRI headline run itself, is an execution step, not code.
 
 ## Tier 2: coverage and robustness (de-risks the artifact)
 
