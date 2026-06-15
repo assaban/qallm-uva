@@ -4,6 +4,29 @@ Newest first. Append-only.
 
 ---
 
+## 2026-06-15 (lab full-run analysis: two fixes + confirm diagnostics)
+
+### Analysis of lab_full_rq1553
+RQ1 healthy: reliability 5/5, security 0, clean/complexity 1 FP each (matches
+calibration), gap rate 1.0. Two problems found:
+- gap_confidence mostly "unknown" (6/7): the scorer recorded 0 mutants for
+  functions whose test file lived in a unit not defining them, and a few real
+  functions had too few mutable sites (no % operator).
+- RQ2/RQ3 still 0: confirm ran (baseline found, so round_00 fix works) but
+  mapped 0 findings to functions; needs the artefacts to pin, so added
+  diagnostics.
+
+### Delivered for review (`fix/gap-confidence-and-confirm-diagnostics`)
+- gap_confidence: only score a function against the unit whose source actually
+  defines it (was recording false "unknown" for functions living elsewhere);
+  score each function once; report unresolved gap functions separately so the
+  distribution is not polluted by lookup misses.
+- mutation engine: added %, //, ** to arithmetic operators so parity/integer
+  code (e.g. first_even's n % 2) yields viable mutants instead of "unknown".
+- confirm_verify: diagnostic logging (baseline unit count, findings count,
+  and an explicit line when findings exist but none map to a function) to
+  pinpoint the RQ2/RQ3 0/0 on the next run.
+
 ## 2026-06-10 (analyzer-adapter pinning tests: Tier 2 item 5)
 
 ### Delivered for review

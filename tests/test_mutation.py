@@ -76,3 +76,19 @@ def test_mutants_differ_from_original():
     src = "def f(a, b):\n    return a + b\n"
     for m in generate_mutants(src, "f"):
         assert m.source != src
+
+
+def test_modulo_operator_mutated():
+    # parity checks (n % 2) must yield a mutant so functions like first_even
+    # produce a viable confidence instead of "unknown"
+    src = "def f(n):\n    return n % 2 == 1\n"
+    ms = generate_mutants(src, "f")
+    assert any(m.operator == "AOR" for m in ms)
+    assert any("n * 2" in m.source for m in ms)
+
+
+def test_floordiv_and_pow_mutated():
+    src = "def f(a, b):\n    return a // b + a ** 2\n"
+    ms = generate_mutants(src, "f")
+    sources = " ".join(m.source for m in ms)
+    assert "a * b" in sources or "a * 2" in sources
