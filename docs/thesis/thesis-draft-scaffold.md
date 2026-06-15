@@ -25,43 +25,113 @@ implementation, and the empirical characterisation of the gap.
 
 Purpose: motivate the problem and state the contribution.
 
-- Research software quality matters and is under-served; notebooks especially
-  (exploratory, rarely tested, increasingly LLM-authored).
-- Static analysers (Bandit, Radon, SonarQube) are the de facto quality gate.
-  They are valuable and necessary, and this work builds on them rather than
-  competing with them. Their structural limit: they reason about source text,
-  not runtime behaviour, so they miss defects that only manifest on execution
-  and they raise findings that may not be reproducible.
-- The gap this leaves: code can pass static analysis and still be wrong. This
-  is the "verification gap".
-- Contribution, stated plainly:
-  1. A method that treats each static finding as a hypothesis and uses
-     execution to confirm, refute, or supplement it, then to verify fixes.
-  2. An open implementation (QALLM) realising the method end to end.
-  3. An empirical characterisation of the verification gap on AI-generated
-     notebook code, with three reproducible metrics.
-- Research questions (carried from the proposal, refined):
-  - RQ1: To what extent does execution-based assessment reveal defects that
-    static analysis of AI-generated notebook code misses?
-  - RQ2: How reliably can individual static findings be confirmed or refuted
-    by automatically generated, executed tests?
-  - RQ3: When a repair is applied, can the fix be verified by execution, and
-    how often does a repair that satisfies static analysis fail to fix the
-    underlying defect?
+Research software quality matters and is under-served, and notebooks are the
+sharpest case: they are exploratory, rarely tested, and increasingly authored by
+language models. Static analysers (Bandit, Radon, SonarQube, and others) are the
+de facto quality gate for such code. They are valuable and necessary, and this
+work builds on them rather than competing with them. Their structural limit is
+that they reason about source text, not runtime behaviour, so they miss defects
+that only manifest on execution, and they raise findings that may not be
+reproducible. The gap this leaves is simple to state and consequential: code can
+pass static analysis and still be wrong. This is the verification gap, and
+measuring it on AI-generated notebook code is the subject of this thesis.
+
+The work makes three contributions:
+
+1. **The verification-gap method.** Each static finding is treated as a
+   hypothesis that execution adjudicates: confirm it, refute it, or supplement it
+   with defects no analyser flagged, and then verify that a repair actually
+   removed a demonstrated defect. The verification gap is defined formally and
+   measured.
+2. **An EVERSE-aligned judge.** Repairs are accepted or rejected by a
+   lexicographic ordering over research-software quality dimensions, so a
+   higher-priority concern (security, then reliability) is never traded for a
+   lower one, and results can be reported per dimension.
+3. **Mutation-based oracle confidence.** Each gap finding carries a confidence
+   grounded in how well the test that found it detects injected faults, a
+   positive soundness check that answers whether the execution-found defects are
+   real.
+
+These are realised end to end in an open implementation, QALLM, and characterised
+empirically with reproducible metrics and per-finding confidence. The iterative
+generation loop that runs through all three is iterative prompting with
+quantitative feedback over an external LLM API, not the training of a custom
+model; this is stated here to fix the scope precisely.
+
+Research questions (carried from the proposal, refined):
+
+- **RQ1**: To what extent does execution-based assessment reveal defects that
+  static analysis of AI-generated notebook code misses?
+- **RQ2**: How reliably can individual static findings be confirmed or refuted
+  by automatically generated, executed tests?
+- **RQ3**: When a repair is applied, can the fix be verified by execution, and
+  how often does a repair that satisfies static analysis fail to fix the
+  underlying defect?
 
 ## 2. Background and related work
 
 Purpose: situate the work; show the gap in the literature is real.
 
-- Static analysis for Python and for research software; what each tool sees.
-- Quality models: ISO/IEC 25010, and the role and lifecycle-aware framing of
-  Volentir et al. (QRS 2025), on which QALLM's quality profiles build
-  (EVERSE, FAIR4RS, ISO 25010). [Cite and summarise.]
-- LLMs for code generation and for test generation; the reliability problem.
-- Execution-based / dynamic approaches and search-based test generation;
-  position QALLM relative to them.
-- The under-addressed point: using execution specifically to adjudicate
-  static findings and to verify repairs, on notebook code. [This is the gap.]
+### 2.1 Static analysis and its blind spot
+
+Static analysers reason about source code without running it. For Python, tools
+such as Bandit (security), Radon (complexity and maintainability), Ruff (style
+and a broad class of correctness lints), and TruffleHog (secrets), together with
+industrial platforms like SonarQube, cover whole categories of issue cheaply and
+at scale. [Cite the tools and a survey of static analysis for Python.] Their
+strength is also their limit: because they never execute the code, they cannot
+observe behaviour. A function can be free of every lint and security finding and
+still return the wrong value on ordinary inputs. This blind spot is the space the
+present work measures.
+
+### 2.2 Quality models for research software
+
+Assessing research software needs a notion of quality that goes beyond "does it
+lint cleanly". ISO/IEC 25010 provides a general software product quality model,
+and the research-software community has developed frameworks that foreground the
+properties that matter for reproducible science, notably EVERSE and FAIR4RS, with
+a lifecycle-aware framing developed by Volentir et al. (QRS 2025) on which
+QALLM's quality profiles build. [Cite and summarise ISO 25010, EVERSE, FAIR4RS,
+and Volentir et al.] QALLM adopts these dimensions directly: it tags every
+finding with the dimension it concerns and orders its judge lexicographically
+over them, so the quality model is not a backdrop but an operative part of the
+method (Section 3.8).
+
+### 2.3 LLMs for code and test generation
+
+Large language models now generate both production code and tests. Their use for
+research code is the motivation for this work: AI-generated code is plausible and
+often passes static analysis, yet its behavioural correctness is not guaranteed.
+[Cite LLM code-generation and the reliability concern.] LLMs are also used to
+generate tests, which is the mechanism QALLM relies on, but a generated test is
+only useful if it is a sound and sensitive oracle. The literature on LLM test
+generation gives less attention to whether the generated oracle can actually
+distinguish correct from incorrect behaviour, which is precisely the question
+QALLM's mutation-based confidence answers (Section 3.9). [Cite LLM test
+generation; Islam and Zhao's lifecycle-aware LLM feedback work as a theoretical
+foundation.]
+
+### 2.4 Execution-based and search-based testing
+
+Dynamic and search-based test-generation approaches (for example property-based
+testing and search-based test generation) execute code to find faults, and QALLM
+shares their execution-first stance. [Cite property-based testing and
+search-based test generation.] What distinguishes QALLM is the target of
+execution: rather than maximising coverage or finding arbitrary faults, it uses
+execution specifically to adjudicate static findings (treating each as a
+hypothesis) and to verify that a repair removed a demonstrated defect.
+
+### 2.5 The under-addressed point
+
+Across these strands, the specific combination QALLM occupies is
+under-addressed: using execution to adjudicate static findings and to verify
+repairs, on notebook code, with a confidence on each verdict. Prior work stops
+short on at least one of these axes, it confirms findings without verifying
+fixes, generates tests without measuring their adequacy as oracles, or targets
+scripts rather than the notebook form in which research code is actually written.
+This is the gap the thesis addresses. [Position precisely against the closest
+prior work, including Li's notebook dataset work and the QRS 2025 metrics
+framework.]
 
 ## 3. Method
 
@@ -204,15 +274,63 @@ the question of whether its execution-found defects are real.
 
 Purpose: enough detail that the system is credible and reproducible.
 
-- Architecture: ingestion, analysis, verification (loop, executor, reward,
-  generator, sandbox), reporting. [Map to the package structure.]
-- Models: local (Ollama, gemma family) and hosted (OpenAI) via one interface.
-- Static tools integrated: Bandit, Radon, Ruff, TruffleHog, SonarQube.
-- Reproducibility: every run persists per-round source, static findings, and
-  verification results; the three metrics are exported per session (JSON and
-  CSV) and aggregated across sessions, count-weighted. [This is the evidence
-  pipeline for Chapter 5.]
-- Open source; commit history; the web interface for inspection.
+### 4.1 Architecture
+
+QALLM is a staged pipeline orchestrated per code unit. Ingestion turns a Python
+file or a Jupyter notebook into code units (one per `.py` file or per notebook
+cell), each holding the functions defined within it. The analysis stage runs the
+static analysers through a registry and normalises their output into a single
+finding model tagged with an EVERSE dimension. The verification stage generates
+tests, executes them in a sandbox, and accumulates results across rounds; the
+repair stage proposes fixes for findings and for runtime failures; the judge
+accepts or rejects each repaired variant against its parent. A reporting layer
+persists per-round artefacts and exports the metrics. The packages map onto these
+stages directly (`ingestion`, `analysis`, `verification`, `repair`, `judge`,
+with `orchestrator` as the conductor and `metrics_export`/`stats` for reporting),
+and a React/TypeScript web UI exposes runs, the gap view, the confirmation and
+verified-fix actions, the oracle-confidence view, and the documentation.
+
+### 4.2 Models behind one interface
+
+The pipeline talks to language models through a single provider interface, so
+local models (the project default is FedLLM, an EGI-hosted `gpt-oss-120b` that is
+free for VO users) and hosted models (OpenAI, Anthropic) are interchangeable.
+This makes the model a configuration choice rather than a code change and is what
+would make a cross-model comparison (future work) inexpensive.
+
+### 4.3 Static analysers
+
+Five analysers are integrated through the registry: Bandit (security), Radon
+(complexity and maintainability), Ruff (style and correctness lint), TruffleHog
+(secrets), and SonarQube (a broad industrial platform). Each analyser's raw
+output is normalised into the common finding model, so the judge and the gap
+analysis treat findings uniformly regardless of source. The registry design
+means adding an analyser is a local change.
+
+### 4.4 The sandbox and test accumulation
+
+Generated tests run in an isolated subprocess sandbox with a wall-clock timeout,
+so a misbehaving generated test cannot stall or compromise a run. Across repair
+rounds, the verified test suite follows a FROZEN+GROW policy: tests that have
+passed are retained and new tests are added, so a repair must satisfy the
+accumulated evidence rather than a single round's tests.
+
+### 4.5 Reproducibility and the evidence pipeline
+
+Every run persists, per round, the source under test, the static findings, the
+verification results, the judge decisions, and the generated tests. The three
+metrics (verification gap rate, confirmation rate, verified-fix rate) are exported
+per session as JSON and CSV and aggregated across sessions, count-weighted, with
+bootstrap 95% confidence intervals. Each run also writes a provenance manifest
+capturing the commit hash, branch and dirty-tree flag, package version,
+Python/platform, and a dataset fingerprint, so any reported number traces back to
+exact conditions. The runner is resumable and parallel, and writes a live,
+per-worker log. This is the evidence pipeline that Chapter 5 reports from.
+
+### 4.6 Availability
+
+QALLM is open source; the commit history records its development, and the web
+interface provides an inspection surface for any run, live or historical.
 
 ## 5. Evaluation
 
@@ -220,13 +338,34 @@ Purpose: answer the research questions with the metrics, honestly.
 
 ### 5.1 Setup
 
-Dataset: [Li's 2,796 notebooks from 277 projects, or the subset used.]
-Models: [which, and why]. Quality profile(s): [which]. Budget caps: [values].
-Procedure: for each unit, run the pipeline; record the per-session metrics;
-aggregate. [State exactly what was run, so it is reproducible.] The exact
-commands, environment, and reporting checklist are in the reproducible
-experiment protocol (docs/experiments/protocol.md); this section reports the
-results of following it.
+Datasets are used in two tiers. The lab dataset (four hand-built files with a
+documented answer key) is the instrument: because its defects are known, it
+establishes that QALLM's verdict is correct before any claim is made on real
+code. The headline corpus is real research notebooks (the ENVRI corpus, and for
+scale Li's notebook dataset of roughly 2,800 notebooks). [State the exact ENVRI
+slice and the Li subset used.]
+
+Models: [which, and why; the project default is FedLLM]. Quality profile(s):
+[which; implementation-stage default]. Budget caps: [values]. The oracle is the
+correctness oracle at single-sample generation, the calibrated setting
+(Section 3.3 and the calibration result below); consensus by union was
+investigated and set aside (Section 5.5).
+
+Procedure: calibration first, then the headline. For each unit, the pipeline is
+run, the per-session metrics are recorded, and results are aggregated
+count-weighted with bootstrap 95% confidence intervals. Every run is
+provenance-stamped. The exact commands, environment, and reporting checklist are
+in the reproducible experiment protocol (docs/experiments/protocol.md) and the
+experiment plan (docs/thesis/experiment-plan.md); this section reports the
+results of following them.
+
+Calibration result (instrument validation): on the lab set the correctness
+oracle recovers all five seeded reliability defects (5/5), reports zero
+execution-only bugs on the clean control and on the complex-but-correct file
+beyond at most one false positive on a deliberately under-specified function, and
+flags zero execution-only bugs on the security file (whose findings are handled
+under RQ2). This is the evidence that the measuring instrument is sound, and it
+is reported before the headline so the headline can be trusted.
 
 ### 5.2 RQ1: the verification gap
 
@@ -254,13 +393,53 @@ resolved.]
 
 ### 5.5 Threats to validity
 
-- Construct: confirmation is corroboration, not per-line causation; test
-  generation quality bounds what can be confirmed; refutation depends on the
-  generator finding a triggering input.
-- Internal: model nondeterminism; budget caps truncating rounds; the
-  ERROR/discarded exclusions (argue these strengthen, not bias, the gap rate).
-- External: notebook dataset representativeness; model choice; Python only.
-- Conclusion: count-weighted aggregation choices; sample size.
+Construct validity. Confirmation is corroboration by demonstration, not a proof
+of per-line causation: a finding is confirmed when a generated test reproduces
+the behaviour it predicts, which establishes the behaviour is real, not that the
+flagged line is its sole cause. What can be confirmed is bounded by the quality
+of the generated tests, and refutation depends on the generator finding a
+triggering input. Two design choices mitigate this. First, the incoherent-oracle
+filter removes tests whose oracle is evaluated at a different input than the call
+under test, so a confirmed defect is not an artefact of an unsound test, and the
+number of tests dropped this way is reported as a generated-test-quality measure.
+Second, the mutation-based oracle confidence (Section 3.9) gives each finding a
+confidence grounded in the oracle's demonstrated power to detect injected faults,
+so the gap rate can be reported restricted to high-confidence findings.
+
+A related construct point is the asymmetry between defect classes. Execution
+adjudicates reliability (wrong-value) defects strongly, because a correctness
+test reproduces the defect directly. Security findings are weaker: demonstrating
+that an `eval` or shell call is genuinely exploitable, safely and observably,
+under the sandbox is hard, so security findings frequently land inconclusive
+rather than confirmed. This is reported honestly rather than forced to a number;
+it shows QALLM is conservative exactly where execution-based confirmation is
+least reliable.
+
+Internal validity. Model nondeterminism could move the numbers; provenance
+stamping (commit, model, environment, dataset fingerprint) and the
+single-sample calibrated setting make a run reproducible and the conditions
+explicit. Consensus by union was investigated and set aside: because samples test
+different inputs, votes are never cast and union accumulates stray assertions
+that hurt clean code, so single-sample is the principled choice, not a shortcut.
+Budget caps can truncate repair rounds, which can only reduce the verified-fix
+rate, not inflate it. The ERROR and discarded-test exclusions are conservative:
+they remove cases that cannot be soundly judged, which tightens rather than
+inflates the gap denominators.
+
+A limitation of the confidence measure itself: a trivially simple function with
+almost no mutable structure yields no viable mutant and so scores "unknown"
+rather than high or low. This is reported as unknown rather than hidden; it
+reflects that an oracle cannot be stress-tested when there is nothing to mutate,
+and it does not affect functions with ordinary structure.
+
+External validity. The findings are bounded by the representativeness of the
+notebook corpus, the choice of model, and the focus on Python. The calibration-
+first protocol and a scale run on a larger corpus address representativeness in
+part; cross-model generality is named as future work.
+
+Conclusion validity. Rates are aggregated count-weighted, so larger units weigh
+proportionally, and are reported with bootstrap 95% confidence intervals so the
+sample size is reflected in the stated uncertainty.
 
 ## 6. Discussion
 
@@ -290,7 +469,14 @@ Stated here once, precisely, and referenced from the text.
   from the denominator.
 - **Verified-fix rate** = verified_fixed / (verified_fixed + not_fixed), over
   confirmed findings re-tested after repair. Inconclusive results excluded.
+- **Mutation score** (oracle confidence) = killed / (killed + survived), the
+  fraction of viable injected mutants of a function that its generated test
+  suite catches. Mutants that error on every test are not viable and excluded.
+- **Confidence label** maps the mutation score: high for score >= 0.8, medium
+  for 0.5 <= score < 0.8, low for score < 0.5, and unknown when no viable
+  mutant can be produced (a function with no mutable structure).
 
-All three are produced per session and aggregated count-weighted across
-sessions by the QALLM metrics export, so every number in Chapter 5 is
-reproducible from the persisted run artefacts.
+All metrics are produced per session and aggregated count-weighted across
+sessions by the QALLM metrics export, with bootstrap 95% confidence intervals
+on the rates, so every number in Chapter 5 is reproducible from the persisted
+run artefacts and its provenance manifest.

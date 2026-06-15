@@ -4,6 +4,33 @@ Newest first. Append-only.
 
 ---
 
+## 2026-06-15 (thesis: drafted the results-independent sections)
+
+### Delivered for review (`docs/thesis-results-independent-draft`)
+Drafted as thesis-ready prose (no headline numbers needed), replacing the
+bracketed outlines:
+- Ch1 Introduction: the three-contribution framing (verification-gap method,
+  EVERSE judge, mutation confidence) and the RL-as-iterative-prompting scope
+  clarification.
+- Ch2 Background: 2.1 static-analysis blind spot, 2.2 quality models
+  (ISO 25010/EVERSE/FAIR4RS/Volentir), 2.3 LLMs for code/test gen, 2.4
+  execution/search-based testing, 2.5 the under-addressed point. Citation
+  placeholders kept.
+- Ch4 Implementation: 4.1 architecture, 4.2 model interface, 4.3 analysers,
+  4.4 sandbox + FROZEN+GROW, 4.5 reproducibility/evidence pipeline + provenance,
+  4.6 availability.
+- 5.1 Setup: calibration-first protocol + the lab calibration result; dataset/
+  model specifics left bracketed for E1.
+- 5.5 Threats: full prose incl. the real threats (incoherent-oracle filter,
+  single-sample/consensus, security-inconclusive asymmetry, mutation "unknown"
+  on trivial functions).
+- Appendix: added mutation-score and confidence-label definitions.
+Status tracker updated; writing convention respected (no dash punctuation).
+
+### Remaining (need E1 results)
+5.2/5.3/5.4 (RQ1/RQ2/RQ3 numbers), 5.6 scale, Ch6 Discussion, Ch7 Conclusion,
+Abstract (written last).
+
 ## 2026-06-15 (docs/UI reality audit)
 
 ### Delivered for review (`docs/reality-audit-and-enrichment`)
