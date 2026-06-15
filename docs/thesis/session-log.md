@@ -4,6 +4,33 @@ Newest first. Append-only.
 
 ---
 
+## 2026-06-15 (RQ2 diagnosis: findings confirm but land inconclusive, now legible)
+
+### Diagnosis from lab_calibration_06151708 (the run with diagnostics)
+The confirm path is NOT broken in plumbing: it found baseline units and findings
+(security: 4 SECURITY findings; complexity: 1 COMPLEXITY finding), and 3 of the 4
+security findings map to functions (line 10 is module-level import, correctly
+unmapped). So confirm_findings ran on 3 testable SECURITY findings. The reason
+RQ2 read 0 confirmed / 0 refuted: every targeted security test came back
+INCONCLUSIVE (the exploit test errors or cannot demonstrate the unsafe effect in
+the sandbox), and inconclusive was never surfaced. The aggregate only exposed
+confirmed/refuted, so "all inconclusive" looked identical to "nothing to
+confirm". That was a legibility bug, not a confirmation bug.
+
+### Delivered for review (`fix/surface-confirm-inconclusive`)
+- SessionMetrics + aggregate now carry inconclusive and not_execution_testable
+  (in summary.json, metrics.csv, aggregate.json). RQ2 is now legible: confirmed
+  / refuted / inconclusive / not-testable are all visible.
+- confirm_verify logs the verdict breakdown per session.
+
+### Real RQ2 finding (for the thesis, not a bug)
+Security findings on the lab set are reachable-but-not-trivially-demonstrable by
+a generated exploit under the sandbox, so they land inconclusive. This is itself
+a result: execution can strongly adjudicate RELIABILITY (wrong-value) findings,
+but SECURITY confirmation via generated exploit is weaker and often inconclusive.
+Worth stating in RQ2 and threats-to-validity. The reliability path (the headline)
+is unaffected.
+
 ## 2026-06-15 (lab full-run analysis: two fixes + confirm diagnostics)
 
 ### Analysis of lab_full_rq1553

@@ -136,3 +136,25 @@ def test_gap_round_0_seeded_bugs_preserved():
     ]
     m = build_session_metrics("reliability", _summary(), gap_rounds)
     assert m.execution_only_bugs == 5   # the seeded bugs at round 0, not 5+8
+
+
+def test_confirm_inconclusive_and_not_testable_surfaced():
+    """RQ2 must distinguish 'nothing to confirm' from 'all inconclusive'."""
+    from qallm.metrics_export import build_session_metrics, aggregate_sessions
+    cs = {"confirmed": 0, "refuted": 0, "inconclusive": 3,
+          "not_execution_testable": 1, "confirmation_rate": None}
+    m = build_session_metrics("s", {"model": "m", "oracle": "correctness"},
+                              [], cs)
+    assert m.inconclusive == 3
+    assert m.not_execution_testable == 1
+    d = m.to_dict()
+    assert d["inconclusive"] == 3 and d["not_execution_testable"] == 1
+    agg = aggregate_sessions([m]).to_dict()
+    assert agg["total_inconclusive"] == 3
+    assert agg["total_not_execution_testable"] == 1
+
+
+def test_confirm_columns_present():
+    from qallm.metrics_export import CSV_COLUMNS
+    assert "inconclusive" in CSV_COLUMNS
+    assert "not_execution_testable" in CSV_COLUMNS

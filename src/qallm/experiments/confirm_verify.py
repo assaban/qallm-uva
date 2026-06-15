@@ -185,6 +185,11 @@ def confirm_and_verify_from_dir(report_dir: str, testgen_llm, tracker=None) -> d
         "not_execution_testable": not_testable,
         "confirmation_rate": (confirmed / denom) if denom else None,
     }
+    logger.info(
+        "Confirm/verify verdicts: confirmed=%d refuted=%d inconclusive=%d "
+        "not_execution_testable=%d", confirmed, refuted, inconclusive,
+        not_testable,
+    )
 
     # Verify fixes: re-run each confirmed finding's reproducing test against
     # the final (repaired) source for its unit.
