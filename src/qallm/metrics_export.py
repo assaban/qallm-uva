@@ -47,6 +47,14 @@ class SessionMetrics:
     confirmed: int | None = None
     refuted: int | None = None
     confirmation_rate: float | None = None
+    # Confirm/refute outcomes that are neither confirmed nor refuted, surfaced
+    # so RQ2 is legible: an "inconclusive" (the targeted test errored or was
+    # invalid) or "not_execution_testable" (a non-runtime finding type, e.g.
+    # complexity) is not the same as "no findings". Without these, a run where
+    # every finding came back inconclusive looks identical to a run with nothing
+    # to confirm, which is misleading.
+    inconclusive: int | None = None
+    not_execution_testable: int | None = None
     # Verified-fix (only if verify-fixes was run and recorded).
     verified_fixed: int | None = None
     not_fixed: int | None = None
@@ -70,6 +78,8 @@ class SessionMetrics:
             "confirmed": self.confirmed,
             "refuted": self.refuted,
             "confirmation_rate": self.confirmation_rate,
+            "inconclusive": self.inconclusive,
+            "not_execution_testable": self.not_execution_testable,
             "verified_fixed": self.verified_fixed,
             "not_fixed": self.not_fixed,
             "verified_fix_rate": self.verified_fix_rate,
@@ -83,6 +93,7 @@ CSV_COLUMNS: list[str] = [
     "incoherent_oracles_dropped",
     "static_findings", "execution_only_bugs", "verification_gap_rate",
     "confirmed", "refuted", "confirmation_rate",
+    "inconclusive", "not_execution_testable",
     "verified_fixed", "not_fixed", "verified_fix_rate",
 ]
 
@@ -153,6 +164,10 @@ def build_session_metrics(
         m.confirmed = int(confirm_summary.get("confirmed", 0) or 0)
         m.refuted = int(confirm_summary.get("refuted", 0) or 0)
         m.confirmation_rate = confirm_summary.get("confirmation_rate")
+        m.inconclusive = int(confirm_summary.get("inconclusive", 0) or 0)
+        m.not_execution_testable = int(
+            confirm_summary.get("not_execution_testable", 0) or 0
+        )
 
     if verify_summary:
         m.verified_fixed = int(verify_summary.get("verified_fixed", 0) or 0)
@@ -173,6 +188,8 @@ class AggregateMetrics:
     total_execution_only_bugs: int = 0
     total_confirmed: int = 0
     total_refuted: int = 0
+    total_inconclusive: int = 0
+    total_not_execution_testable: int = 0
     total_verified_fixed: int = 0
     total_not_fixed: int = 0
     total_cost_usd: float = 0.0
@@ -232,6 +249,8 @@ class AggregateMetrics:
             "verification_gap_rate": self.verification_gap_rate,
             "total_confirmed": self.total_confirmed,
             "total_refuted": self.total_refuted,
+            "total_inconclusive": self.total_inconclusive,
+            "total_not_execution_testable": self.total_not_execution_testable,
             "confirmation_rate": self.confirmation_rate,
             "total_verified_fixed": self.total_verified_fixed,
             "total_not_fixed": self.total_not_fixed,
@@ -251,6 +270,8 @@ def aggregate_sessions(sessions: list[SessionMetrics]) -> AggregateMetrics:
         agg.total_execution_only_bugs += s.execution_only_bugs
         agg.total_confirmed += (s.confirmed or 0)
         agg.total_refuted += (s.refuted or 0)
+        agg.total_inconclusive += (s.inconclusive or 0)
+        agg.total_not_execution_testable += (s.not_execution_testable or 0)
         agg.total_verified_fixed += (s.verified_fixed or 0)
         agg.total_not_fixed += (s.not_fixed or 0)
         agg.total_cost_usd += s.cost_usd
