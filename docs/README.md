@@ -29,6 +29,7 @@ The mechanics and design record.
 
 - [`architecture/workflow-design.md`](architecture/workflow-design.md): what QALLM does (the loop, judge, budget, quality frameworks).
 - [`architecture/run-mechanics-and-diagnostics.md`](architecture/run-mechanics-and-diagnostics.md): rounds, FROZEN+GROW test accumulation, ERROR vs BUG.
+- [`architecture/verification-repair-reward-design.md`](architecture/verification-repair-reward-design.md): the verification/repair/reward design and the key observations behind it.
 - [`architecture/web-ui-automode.md`](architecture/web-ui-automode.md): auto-mode web UI behaviour.
 - [`architecture/web-ui-history.md`](architecture/web-ui-history.md): the Experiments and Sessions history views.
 - [`architecture/design/`](architecture/design/): per-feature design specifications (FEAT-01 .. FEAT-05).
@@ -51,6 +52,8 @@ The mechanics and design record.
 - [`thesis/experiment-plan.md`](thesis/experiment-plan.md): the experiments that answer each RQ, with exact commands and outputs.
 - [`thesis/thesis-structure-and-plan.md`](thesis/thesis-structure-and-plan.md): chapter structure, the three-contribution framing, per-section checklist, and writing-status tracker.
 - [`thesis/audit-2026-06.md`](thesis/audit-2026-06.md): full project audit (strengths, prioritised risks, web-UI assessment, punch list).
+- [`thesis/enrichment-ideas.md`](thesis/enrichment-ideas.md): candidate features and experiments to enrich QALLM, with value/effort/risk and a thesis-scope vs future-work split.
+- [`thesis/security-confirmation-scope.md`](thesis/security-confirmation-scope.md): scope/feasibility/risk-benefit analysis for making security findings confirm rather than land inconclusive (decision aid).
 - [`thesis/session-log.md`](thesis/session-log.md): append-only, dated record of what changed each session and what is outstanding (for cross-session continuity).
 
 ## showcase/ — shareable, self-contained pages

@@ -23,18 +23,23 @@ is the headline experiment and the write-up, not detector correctness.
 These directly determine whether the thesis results are trustworthy and
 defensible. Highest leverage.
 
-0. **Confirm the lab calibration with consensus actually running.** The
-   empty-session guard that disabled consensus is fixed; re-run
-   `--oracle correctness --samples 5` and confirm clean_control 0,
-   complexity_findings 0, reliability_gap 5. This is the gate that says the
-   instrument is sound. Cheap, decisive, do it first.
+0. **Lab calibration. DONE.** The instrument is sound: with the correctness
+   oracle at `--samples 1`, the lab set gives reliability_gap 5/5,
+   security 0 exec-only, and at most one documented false positive each on
+   clean_control and complexity_findings (an under-specified function the oracle
+   cannot disambiguate). Consensus by union (`--samples 5`) was investigated and
+   abandoned: votes are never cast because samples test different inputs, and
+   union accumulates stray assertions that hurt clean code. Single-sample is the
+   calibrated, defensible setting (see docs/experiments/oracle-variance-and-consensus.md).
 
-1. **Run the full verification-gap experiment (ENVRI) and fill Chapter 5.** The
-   machinery exists (`scripts/run_gap_experiment.py --confirm`). Run with
-   `--oracle correctness --samples 5` under tmux, metrics_only retention, and
-   report the gap rate with its 95% CI. This converts the bracketed
+1. **Run the full verification-gap experiment (ENVRI) and fill Chapter 5.**
+   In progress. The machinery exists (`scripts/run_gap_experiment.py`). Run with
+   `--oracle correctness --samples 1 --workers 4` under tmux, metrics_only
+   retention (add `--mutation-confidence` for the per-finding confidence and
+   `--confirm` for RQ2/RQ3). Report the gap rate with its 95% CI, twice: over
+   all findings and over high-confidence findings. This converts the bracketed
    placeholders in the thesis scaffold into real numbers. Everything else is
-   secondary to this.
+   secondary to this. See docs/thesis/experiment-plan.md for the full plan.
 
 2. **Harden the statistical layer (started).** `stats.py` is now tested and a
    JSON-serialisation bug is fixed. Remaining: add a confidence interval or
