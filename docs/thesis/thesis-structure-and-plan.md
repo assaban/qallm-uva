@@ -108,8 +108,8 @@ Legend: [ ] not started, [~] drafted, [x] solid.
 | 1 Introduction | [~] | headline number from E1 |
 | 2 Background/related | [~] | none (can write now) |
 | 3.1 to 3.7 Method | [~] | none (scaffold exists) |
-| 3.8 Judge/EVERSE | [ ] | none (code + concept doc exist) |
-| 3.9 Oracle confidence | [ ] | none (concept doc exists) |
+| 3.8 Judge/EVERSE | [~] | drafted into the scaffold |
+| 3.9 Oracle confidence | [~] | drafted into the scaffold |
 | 4 Implementation | [~] | none |
 | 5.1 Setup | [ ] | none |
 | 5.2 Calibration (E0) | [ ] | E0 run |
