@@ -126,6 +126,80 @@ Technical Action Research: the artifact (QALLM) is built and then exercised
 across iterations from controlled to realistic conditions. [Tie to Wieringa
 and Moralı; mirror the proposal's framing.]
 
+### 3.8 The judge and the EVERSE quality model
+
+A repair round produces a candidate variant of a function; the pipeline must
+decide whether that variant is an improvement over its parent before accepting
+it into the lineage. A single blended quality score would obscure the kind of
+trade that matters most: a change that tidies style while breaking behaviour
+must never be accepted. QALLM therefore judges variants with a lexicographic
+ordering over the quality dimensions of the EVERSE research-software quality
+model, so a higher-priority dimension is never sacrificed for a lower one.
+
+The dimensions, in priority order, are Security, Reliability, Maintainability,
+Reproducibility, and FAIRness. The order encodes an engineering judgement about
+research software. Security is first because a vulnerability blocks use
+outright. Reliability is next, because code that returns the wrong answer is not
+useful regardless of how readable it is. Maintainability and Reproducibility
+support the long-term health of the software but do not, on their own, block a
+release. FAIRness, the findability and documentation properties, is hygiene that
+should not override a behavioural concern. The judge compares a variant to its
+parent dimension by dimension; the first dimension on which they differ decides
+the verdict, and a regression on any dimension is never compensated by a gain on
+a lower one.
+
+The quality model does more than rank variants. Each static finding is tagged
+with the EVERSE dimension it concerns when it is normalised, and that tag routes
+the work: it selects which gate the evidence must pass and frames the repair
+prompt for the relevant concern. It also makes the results legible to a
+research-software audience, the verification gap can be reported per dimension
+(for example, concentrated in Reliability), which is a sharper and more
+defensible claim than a single blended rate and which speaks the language of the
+framework the community is adopting. Quality profiles are keyed to the EOSC
+software lifecycle stage, so the set of dimensions evaluated can differ by stage;
+the implementation-stage profile is the default in this work.
+
+### 3.9 Oracle confidence by mutation testing
+
+The verification gap rests on a claim that invites immediate scrutiny: that an
+execution-found defect is a real defect and not an artifact of a weak generated
+test. The guards described above are all conservative filters; they remove
+unsound tests (an incoherent oracle, a test that fails the original baseline in
+a repair round) but they do not provide positive evidence that a surviving test
+is a sensitive detector. A test can pass every filter and still be too weak to
+distinguish correct from incorrect behaviour, the canonical example being an
+oracle that only checks the return type and so accepts any value of that type.
+
+To supply that positive evidence, QALLM mutation-tests the oracle itself.
+Mutation testing is the established technique for measuring whether a test suite
+can detect faults: small, semantics-changing faults are injected into the code
+under test, and the suite is judged by how many it catches. QALLM applies this
+to each function it flags. It generates mutants of the function using a set of
+classic operators, arithmetic operator replacement (covering the common numeric
+forms including modulo, floor division, and power), relational operator
+replacement, boolean operator swaps, constant replacement, and return-value
+replacement, mutating only the target function and bounding the number of
+mutants per operator so the cost stays proportional to the function's size. It
+then runs the function's generated test suite against each mutant. A mutant is
+killed if at least one test fails (the suite detected the injected fault) and
+survives if every test passes. A mutant that errors on every test is treated as
+not viable and excluded, because it measures the suite's tendency to crash, not
+its power to discriminate.
+
+The mutation score, the fraction of viable mutants the suite kills, becomes a
+confidence for the gap finding the suite produced: high when the suite kills most
+injected faults, low when it kills few. The effect is to distinguish, without
+human inspection, exactly the strong-from-weak oracle case that is otherwise hard
+to catch. On a representative reliability function whose correct definition is an
+inclusive count, an oracle asserting exact return values kills every mutant and
+scores high, whereas an oracle that only checks the return type kills only the
+mutant that returns None and scores low. The headline gap rate can then be
+reported twice, over all findings and restricted to high-confidence findings; if
+the two are close, that is direct evidence that the gap reflects real defects
+rather than test noise. This is a positive, quantitative soundness check layered
+on top of the conservative filters, and it is the pipeline's strongest answer to
+the question of whether its execution-found defects are real.
+
 ## 4. Implementation
 
 Purpose: enough detail that the system is credible and reproducible.

@@ -462,6 +462,32 @@ export async function getGap(sid: string): Promise<GapResponse> {
   return req<GapResponse>(`/api/session/${sid}/gap`);
 }
 
+// ─── Mutation-based oracle confidence for gap findings ───
+export interface GapConfidenceFunction {
+  function: string;
+  mutation_score: number | null;
+  confidence: "high" | "medium" | "low" | "unknown";
+  killed: number;
+  survived: number;
+  viable: number;
+  total_mutants: number;
+}
+
+export interface GapConfidenceResponse {
+  available: boolean;
+  scored: number;
+  per_function: Record<string, GapConfidenceFunction>;
+  distribution: { high: number; medium: number; low: number; unknown: number };
+  unresolved?: string[];
+  reason?: string;
+}
+
+export async function getGapConfidence(
+  sid: string,
+): Promise<GapConfidenceResponse> {
+  return req<GapConfidenceResponse>(`/api/session/${sid}/gap-confidence`);
+}
+
 // ─── Confirm/refute individual findings ───
 export type FindingVerdict =
   | "confirmed" | "refuted" | "inconclusive" | "not_execution_testable";
