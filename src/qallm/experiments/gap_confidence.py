@@ -68,6 +68,19 @@ def _test_code_for(unit_dir: str, func_name: str) -> str | None:
     return "\n\n".join(parts) if parts else None
 
 
+def _functions_in(source: str) -> set[str]:
+    """Names of functions defined at any level in the source."""
+    import ast
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return set()
+    return {
+        n.name for n in ast.walk(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+
+
 def score_gap_confidence_from_dir(
     report_dir: str,
     gap_functions: list[str] | None = None,
@@ -99,25 +112,39 @@ def score_gap_confidence_from_dir(
     want = set(gap_functions) if gap_functions is not None else None
     dist = {"high": 0, "medium": 0, "low": 0, "unknown": 0}
 
+    # Collect (source, tests_dir) per unit once, so a gap function can be scored
+    # against the unit whose source ACTUALLY defines it. A function is scored at
+    # most once even if its name appears in several units' test files.
+    units: list[tuple[str, str]] = []
     for unit_seg in sorted(os.listdir(base)):
         unit_dir = os.path.join(base, unit_seg)
         if not os.path.isdir(unit_dir):
             continue
         source = _read_text(os.path.join(unit_dir, "source.py"))
-        if not source:
-            continue
-        # Discover functions that have a generated suite in this unit.
         tests_dir = os.path.join(unit_dir, "tests")
-        if not os.path.isdir(tests_dir):
-            continue
-        for name in sorted(os.listdir(tests_dir)):
+        if source and os.path.isdir(tests_dir):
+            units.append((source, unit_dir))
+
+    scored_funcs: set[str] = set()
+    for source, unit_dir in units:
+        defined = _functions_in(source)
+        for name in sorted(os.listdir(os.path.join(unit_dir, "tests"))):
             if not (name.startswith("test_") and name.endswith(".py")):
                 continue
             func_name = name[len("test_"):-len(".py")]
             if want is not None and func_name not in want:
                 continue
+            if func_name in scored_funcs:
+                continue
+            # Only score against a unit whose source defines this function;
+            # otherwise generate_mutants finds nothing and we would wrongly
+            # record "unknown" for a function that simply lives elsewhere.
+            if func_name not in defined:
+                continue
             test_code = _test_code_for(unit_dir, func_name)
             if not test_code:
+                logger.debug("No test code for %s in %s; skipping.",
+                             func_name, unit_dir)
                 continue
             score = score_oracle(
                 source, func_name, test_code,
@@ -126,6 +153,16 @@ def score_gap_confidence_from_dir(
             out["per_function"][func_name] = score.to_dict()
             dist[score.confidence] = dist.get(score.confidence, 0) + 1
             out["scored"] += 1
+            scored_funcs.add(func_name)
+
+    # A gap function we never found in any unit's source is unresolved, not
+    # "unknown confidence"; report it separately so the distribution is not
+    # polluted by lookup misses.
+    if want is not None:
+        unresolved = sorted(want - scored_funcs)
+        if unresolved:
+            out["unresolved"] = unresolved
+            logger.info("Gap functions not found in artefacts: %s", unresolved)
 
     out["distribution"] = dist
     logger.info("Gap confidence over %s: %d scored, distribution=%s",

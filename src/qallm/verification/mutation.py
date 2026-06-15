@@ -50,6 +50,11 @@ class Mutant:
 _ARITH_SWAP = {
     ast.Add: ast.Sub, ast.Sub: ast.Add,
     ast.Mult: ast.Div, ast.Div: ast.Mult,
+    # Modulo and floor-division swap to multiplication; power swaps to
+    # multiplication too. These cover common numeric code (parity checks like
+    # n % 2, integer division) that the basic four operators miss, so more
+    # functions yield viable mutants and a meaningful confidence.
+    ast.Mod: ast.Mult, ast.FloorDiv: ast.Mult, ast.Pow: ast.Mult,
 }
 _COMPARE_SWAP = {
     ast.Lt: ast.LtE, ast.LtE: ast.Lt,

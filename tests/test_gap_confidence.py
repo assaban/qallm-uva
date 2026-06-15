@@ -96,3 +96,34 @@ def test_aggregate_folds_confidence_distribution(tmp_path, monkeypatch):
     assert agg["gap_confidence"]["distribution"] == {
         "high": 3, "medium": 0, "low": 1, "unknown": 0}
     assert agg["gap_confidence"]["high_confidence_gap_bugs"] == 3
+
+
+def test_only_scores_functions_present_in_unit_source(tmp_path):
+    """A gap function whose test file sits in a unit but is NOT defined in that
+    unit's source must not be scored as 'unknown' (it lives elsewhere)."""
+    rd = tmp_path / "rep"
+    unit = rd / "lineage" / "round_00" / "u1"
+    (unit / "tests").mkdir(parents=True)
+    (unit / "source.py").write_text("def present(x):\n    return x + 1\n")
+    # a stray test file for a function not in this source
+    (unit / "tests" / "test_absent.py").write_text(
+        "from source_module import absent\ndef t(): assert absent(1) == 1\n")
+    (unit / "tests" / "test_present.py").write_text(
+        "from source_module import present\n"
+        "def t(): assert present(0) == 1\n")
+    res = score_gap_confidence_from_dir(str(rd), ["present", "absent"])
+    assert "present" in res["per_function"]
+    assert "absent" not in res["per_function"]
+    assert res.get("unresolved") == ["absent"]
+
+
+def test_function_scored_once_across_units(tmp_path):
+    rd = tmp_path / "rep"
+    for i in (1, 2):
+        unit = rd / "lineage" / "round_00" / f"u{i}"
+        (unit / "tests").mkdir(parents=True)
+        (unit / "source.py").write_text("def f(x):\n    return x + 1\n")
+        (unit / "tests" / "test_f.py").write_text(
+            "from source_module import f\ndef t(): assert f(0) == 1\n")
+    res = score_gap_confidence_from_dir(str(rd), ["f"])
+    assert res["scored"] == 1

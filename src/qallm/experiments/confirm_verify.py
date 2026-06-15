@@ -120,11 +120,19 @@ def confirm_and_verify_from_dir(report_dir: str, testgen_llm, tracker=None) -> d
 
     baseline = _baseline_units(report_dir)
     if not baseline:
+        logger.info("Confirm/verify: no baseline units under %s.", report_dir)
         return {"confirm_summary": None, "verify_summary": None}
 
     confirmer = FindingConfirmer(testgen_llm, tracker)
     confirmed = refuted = inconclusive = not_testable = 0
     confirmed_verdicts: list[dict] = []
+
+    total_findings = sum(len(u["findings"]) for u in baseline.values())
+    units_with_findings = sum(1 for u in baseline.values() if u["findings"])
+    logger.info(
+        "Confirm/verify: %d baseline unit(s), %d with findings, %d finding(s) total.",
+        len(baseline), units_with_findings, total_findings,
+    )
 
     for name, unit in baseline.items():
         findings = unit["findings"]
@@ -133,6 +141,7 @@ def confirm_and_verify_from_dir(report_dir: str, testgen_llm, tracker=None) -> d
         source = unit["source"]
         spans = function_spans(source)
         funcs = {f.name: f for f in extract_functions_from_source(source, name)}
+        mapped = 0
         for fname, func in funcs.items():
             fn_findings = [
                 f for f in findings
@@ -140,6 +149,7 @@ def confirm_and_verify_from_dir(report_dir: str, testgen_llm, tracker=None) -> d
             ]
             if not fn_findings:
                 continue
+            mapped += len(fn_findings)
             report = confirmer.confirm_findings(
                 func=func,
                 findings=fn_findings,
@@ -155,6 +165,17 @@ def confirm_and_verify_from_dir(report_dir: str, testgen_llm, tracker=None) -> d
                 d["file"] = name
                 if d.get("verdict") == "confirmed":
                     confirmed_verdicts.append(d)
+        if findings and mapped == 0:
+            # Findings exist but none mapped to a function: usually the finding
+            # line falls outside every function span (module-level finding) or
+            # the line is 0/missing. Surfaced so it is diagnosable, not silent.
+            logger.info(
+                "Confirm/verify: %s has %d finding(s) but none mapped to a "
+                "function (lines: %s; spans: %s).",
+                name, len(findings),
+                [f.get("line") for f in findings],
+                [(s.name, s.start, s.end) for s in spans],
+            )
 
     denom = confirmed + refuted
     confirm_summary = {
