@@ -67,6 +67,13 @@ class GapExperimentConfig:
     # execution-only (gap) function and attach a confidence. Needs full
     # retention (reads round-0 source and tests from disk), like --confirm.
     mutation_confidence: bool = False
+    # Sampling: run a representative subset instead of the whole dataset, useful
+    # for a fast signal while the full run is still going. sample_n=0 means no
+    # sampling (run everything). Stratified sampling buckets files by size so the
+    # subset spans small/medium/large rather than over-representing one band.
+    sample_n: int = 0
+    sample_seed: int = 42
+    sample_stratify: bool = False
 
     def to_manifest(self) -> dict:
         return {
@@ -127,6 +134,44 @@ def _discover_inputs(dataset_dir: Path, pattern: str) -> list[Path]:
         p for p in dataset_dir.rglob(pattern)
         if not _is_backup_or_cruft(p)
     )
+
+
+def _sample_inputs(inputs: list[Path], n: int, seed: int,
+                   stratify: bool) -> list[Path]:
+    """Pick a representative subset of n inputs.
+
+    With stratify=False this is a plain uniform random sample. With
+    stratify=True the inputs are bucketed by file size into small/medium/large
+    (tertiles) and sampled proportionally, so the subset spans the size range
+    rather than over-representing whichever band is most common. The result is
+    sorted for determinism, and the seed makes the choice reproducible (so the
+    sampled run can be cited and repeated).
+    """
+    import random
+    if n <= 0 or n >= len(inputs):
+        return inputs
+    rng = random.Random(seed)
+    if not stratify:
+        return sorted(rng.sample(inputs, n))
+
+    sized = sorted(inputs, key=lambda p: p.stat().st_size)
+    third = len(sized) // 3 or 1
+    bands = [sized[:third], sized[third:2 * third], sized[2 * third:]]
+    picked: list[Path] = []
+    # proportional allocation, with at least one from each non-empty band
+    for band in bands:
+        if not band:
+            continue
+        share = max(1, round(n * len(band) / len(sized)))
+        picked.extend(rng.sample(band, min(share, len(band))))
+    # trim or top up to exactly n
+    picked = list(dict.fromkeys(picked))
+    if len(picked) > n:
+        picked = rng.sample(picked, n)
+    elif len(picked) < n:
+        remaining = [p for p in inputs if p not in set(picked)]
+        picked.extend(rng.sample(remaining, min(n - len(picked), len(remaining))))
+    return sorted(picked)
 
 
 def _effective_retention(config: GapExperimentConfig) -> str:
@@ -196,6 +241,14 @@ def run_gap_experiment(
         orchestrator_factory = _default_orchestrator_factory
 
     inputs = _discover_inputs(config.dataset_dir, config.pattern)
+    discovered = len(inputs)
+    if config.sample_n and config.sample_n < discovered:
+        inputs = _sample_inputs(inputs, config.sample_n, config.sample_seed,
+                                config.sample_stratify)
+        logger.info(
+            "Sampling %d of %d input(s) (seed=%d, stratify=%s).",
+            len(inputs), discovered, config.sample_seed, config.sample_stratify,
+        )
 
     # Manifest = config + provenance (commit, version, env, dataset
     # fingerprint), so every number from this run traces back to exact
@@ -232,6 +285,18 @@ def run_gap_experiment(
             confidence_blocks.append(row["gap_confidence"])
 
     pending = [p for p in inputs if str(p) not in already]
+    # Progress is counted against the whole run (already-done + this run's
+    # pending), so the percentage reflects true position in the dataset, not
+    # just this invocation. A single counter, incremented as rows land.
+    total_target = len(already) + len(pending)
+    progress = {"done": len(already)}
+
+    def _log_progress(input_path: str) -> None:
+        progress["done"] += 1
+        pct = (100.0 * progress["done"] / total_target) if total_target else 100.0
+        logger.info("Progress: %d/%d (%.1f%%) complete; last=%s",
+                    progress["done"], total_target, pct,
+                    os.path.basename(input_path))
 
     def _handle_row(row: dict) -> None:
         out.write(json.dumps(row) + "\n")
@@ -242,6 +307,7 @@ def run_gap_experiment(
             metrics.append(_metrics_from_dict(row["metrics"]))
         if row.get("gap_confidence"):
             confidence_blocks.append(row["gap_confidence"])
+        _log_progress(row.get("input", "?"))
 
     with open(results_path, "a", encoding="utf-8") as out:
         if config.workers and config.workers > 1 and len(pending) > 1:
