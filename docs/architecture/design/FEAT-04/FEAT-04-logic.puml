@@ -23,7 +23,7 @@ deactivate EB
 ORC -> PC : build_test_prompt(bundle_obj)
 activate PC STAGE3
 PC -> PC : Inject Oracle Instructions
-note right: Instructs LLM on Crash, Property,\nand Metamorphic oracles [cite: 221]
+note right: Instructs LLM on Crash, Property,\nand Metamorphic oracles
 PC --> ORC : formatted_prompt_string
 deactivate PC
 @enduml

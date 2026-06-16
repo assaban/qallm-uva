@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AlertTriangle, FileCode2, Search, Shield, CheckSquare, Square, FolderTree } from "lucide-react";
+import { AlertTriangle, FileCode2, Search, Shield, CheckSquare, Square, FolderTree, ChevronRight } from "lucide-react";
 import { StatCard } from "../components/Shared";
 import type { SessionState } from "../hooks/useSession";
 import type { Finding } from "../types";
@@ -15,18 +15,19 @@ const SEV_CLS: Record<string, string> = {
 export default function AnalyseScreen({ state, patch }: { state: SessionState; patch: (p: Partial<SessionState>) => void; autoMode?: boolean }) {
   const [availableTools, setAvailableTools] = useState<string[]>([]);
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState<number | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set(state.files));
   const [filter, setFilter] = useState("");
   const [sevF, setSevF] = useState("");
   const [toolF, setToolF] = useState("");
 
-  // Fetch available analysis tools from the server on component mount[cite: 35]
+  // Fetch available analysis tools from the server on component mount
   useEffect(() => {
     api.getAnalysisTools()
       .then(res => {
         if (res.tools) {
           setAvailableTools(res.tools);
-          setSelectedTools(res.tools); // Default to all tools enabled[cite: 35]
+          setSelectedTools(res.tools); // Default to all tools enabled
         }
       })
       .catch(err => patch({ error: "Failed to load tools: " + err.message }));
@@ -34,14 +35,14 @@ export default function AnalyseScreen({ state, patch }: { state: SessionState; p
 
   const has = state.findings.length > 0 || state.summary !== null;
 
-  // Toggle selection for analysis tools[cite: 35]
+  // Toggle selection for analysis tools
   const toggleTool = (tool: string) => {
     setSelectedTools(prev =>
       prev.includes(tool) ? prev.filter(t => t !== tool) : [...prev, tool]
     );
   };
 
-  // Toggle selection for specific files in the directory[cite: 35]
+  // Toggle selection for specific files in the directory
   const toggleFile = (file: string) => {
     const next = new Set(selectedFiles);
     if (next.has(file)) {
@@ -53,15 +54,15 @@ export default function AnalyseScreen({ state, patch }: { state: SessionState; p
   };
 
   async function run() {
-    // Ensure both files and tools are selected before proceeding[cite: 35]
+    // Ensure both files and tools are selected before proceeding
     if (!state.sessionId || selectedTools.length === 0 || selectedFiles.size === 0) return;
 
     patch({ loading: true, error: null });
     try {
-      // Execute multi-tool analysis via the API with three required arguments[cite: 30, 35]
+      // Execute multi-tool analysis via the API with three required arguments
       const r = await api.runAnalysis(state.sessionId, Array.from(selectedFiles), selectedTools);
 
-      // Retrieve the updated analysis history[cite: 30, 35]
+      // Retrieve the updated analysis history
       const rounds = await api.getAnalysisHistory(state.sessionId).catch(() => []);
 
       patch({
@@ -75,7 +76,7 @@ export default function AnalyseScreen({ state, patch }: { state: SessionState; p
     }
   }
 
-  // Filter findings based on user input for severity, tool, or search text[cite: 35]
+  // Filter findings based on user input for severity, tool, or search text
   const shown = state.findings.filter((f: Finding) => {
     if (sevF && f.severity !== sevF) return false;
     if (toolF && f.tool.toLowerCase() !== toolF.toLowerCase()) return false;
@@ -88,7 +89,7 @@ export default function AnalyseScreen({ state, patch }: { state: SessionState; p
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Tool Selection Section[cite: 35] */}
+        {/* Tool Selection Section */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="mb-4 flex items-center gap-2 font-semibold">
             <Shield className="h-4 w-4" /> Analysis Tools
@@ -106,7 +107,7 @@ export default function AnalyseScreen({ state, patch }: { state: SessionState; p
               </label>
             ))}
           </div>
-          <p className="mt-3 text-[10px] text-slate-400">At least one tool must be selected[cite: 35].</p>
+          <p className="mt-3 text-[10px] text-slate-400">At least one tool must be selected.</p>
         </div>
 
         {/* File Selection Section */}
@@ -147,7 +148,7 @@ export default function AnalyseScreen({ state, patch }: { state: SessionState; p
             ))}
           </div>
 
-          {/* Analysis Trigger: Disabled if selections are missing[cite: 35] */}
+          {/* Analysis Trigger: Disabled if selections are missing */}
           <button
             onClick={run}
             disabled={state.loading || selectedTools.length === 0 || selectedFiles.size === 0}
@@ -221,20 +222,9 @@ export default function AnalyseScreen({ state, patch }: { state: SessionState; p
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {shown.map((f, i) => (
-                    <tr key={i} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-3 py-2.5">
-                        <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${SEV_CLS[f.severity]}`}>
-                          {f.severity}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 font-medium text-slate-600">{f.tool}</td>
-                      <td className="px-3 py-2.5">
-                        <div className="font-mono text-[10px] text-slate-500">
-                          {f.file || "\u2014"}:{f.line || "\u2014"}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5 text-slate-600 leading-relaxed">{f.message}</td>
-                    </tr>
+                    <FindingRow key={i} f={f}
+                      open={expanded === i}
+                      onToggle={() => setExpanded(expanded === i ? null : i)} />
                   ))}
                   {shown.length === 0 && (
                     <tr>
@@ -250,5 +240,57 @@ export default function AnalyseScreen({ state, patch }: { state: SessionState; p
         </>
       )}
     </div>
+  );
+}
+function FindingRow({ f, open, onToggle }: { f: Finding; open: boolean; onToggle: () => void }) {
+  // A finding carries more than the table columns show (its type, rule id, and
+  // the offending code snippet). Clicking the row reveals that detail, which is
+  // what testers asked for: "how do I see the details of a finding?".
+  const hasDetail = Boolean(f.code_snippet || f.rule_id || f.type);
+  return (
+    <>
+      <tr
+        onClick={hasDetail ? onToggle : undefined}
+        className={`transition-colors ${hasDetail ? "cursor-pointer hover:bg-slate-50/80" : ""} ${open ? "bg-slate-50" : ""}`}
+      >
+        <td className="px-3 py-2.5">
+          <div className="flex items-center gap-1.5">
+            {hasDetail && (
+              <ChevronRight className={`h-3.5 w-3.5 text-slate-400 transition-transform ${open ? "rotate-90" : ""}`} />
+            )}
+            <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${SEV_CLS[f.severity]}`}>
+              {f.severity}
+            </span>
+          </div>
+        </td>
+        <td className="px-3 py-2.5 font-medium text-slate-600">{f.tool}</td>
+        <td className="px-3 py-2.5">
+          <div className="font-mono text-[10px] text-slate-500">
+            {f.file || "\u2014"}:{f.line || "\u2014"}
+          </div>
+        </td>
+        <td className="px-3 py-2.5 text-slate-600 leading-relaxed">{f.message}</td>
+      </tr>
+      {open && (
+        <tr className="bg-slate-50">
+          <td colSpan={4} className="px-3 pb-3 pt-0">
+            <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs">
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-slate-600">
+                {f.type && <span><span className="font-semibold text-slate-700">Type:</span> {f.type}</span>}
+                {f.rule_id && <span><span className="font-semibold text-slate-700">Rule:</span> <span className="font-mono">{f.rule_id}</span></span>}
+                <span><span className="font-semibold text-slate-700">Tool:</span> {f.tool}</span>
+                {f.line ? <span><span className="font-semibold text-slate-700">Line:</span> {f.line}</span> : null}
+              </div>
+              <p className="mt-2 text-slate-600">{f.message}</p>
+              {f.code_snippet && (
+                <pre className="mt-2 overflow-auto rounded-md bg-slate-900 p-3 font-mono text-[11px] leading-relaxed text-slate-100">
+                  {f.code_snippet}
+                </pre>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

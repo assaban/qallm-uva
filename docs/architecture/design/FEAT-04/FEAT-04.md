@@ -1,12 +1,12 @@
 # FEAT-04: Prompt Construction Module (Test Case Agent)
 
 ## 1. Requirement Analysis
-* [cite_start]**Context**: Stage 3 - RL-Based Verification[cite: 79].
-* [cite_start]**Goal**: Construct "Evidence Bundles" that provide the LLM with sufficient context to generate high-quality test cases[cite: 73, 215].
+* [cite_start]**Context**: Stage 3 - RL-Based Verification.
+* [cite_start]**Goal**: Construct "Evidence Bundles" that provide the LLM with sufficient context to generate high-quality test cases.
 * **Oracle Support**: The prompt must guide the LLM toward:
-    * [cite_start]**Crash Oracles**: Unhandled runtime exceptions[cite: 223].
-    * [cite_start]**Property Oracles**: Invariants from docstrings/hints[cite: 225, 227].
-    * [cite_start]**Metamorphic Oracles**: Domain-general relations[cite: 228, 230].
+    * [cite_start]**Crash Oracles**: Unhandled runtime exceptions.
+    * [cite_start]**Property Oracles**: Invariants from docstrings/hints.
+    * [cite_start]**Metamorphic Oracles**: Domain-general relations.
 
 ## 2. Technical Scope
 * Implement `EvidenceBundle` to pair source code with its `StructuredDiagnostics` (from Stage 2).

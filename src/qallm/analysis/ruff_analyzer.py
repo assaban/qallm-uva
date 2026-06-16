@@ -24,7 +24,7 @@ class RuffAnalyzer(StaticCodeAnalyzer):
         if shutil.which("ruff") is None:
             return RawToolResult("ruff", 127, "", "ruff not installed")
 
-        # Run ruff check on stdin[cite: 19]
+        # Run ruff check on stdin
         process = subprocess.run(
             ["ruff", "check", "--format", "json", "-"],
             input=unit.source_code,

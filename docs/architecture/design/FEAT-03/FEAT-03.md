@@ -1,7 +1,7 @@
 # FEAT-03: Lifecycle-Aware Normalizer
 
 ## 1. Requirement Analysis
-* [cite_start]**Goal**: Normalize raw static metrics into quality states based on the research software lifecycle[cite: 170].
+* [cite_start]**Goal**: Normalize raw static metrics into quality states based on the research software lifecycle.
 * **Lifecycle Stages**:
     * [cite_start]**Initialization**: Focus on basic structure; high complexity is tolerated.
     * **Implementation**: Standard thresholds apply; security is prioritized.

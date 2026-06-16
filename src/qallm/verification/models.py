@@ -22,13 +22,13 @@ class TestedCodeUnit:
     @property
     def total_bugs(self) -> int:
         """Sum of bugs found across all function sessions."""
-        return sum(s.final_bugs for s in self.sessions) #[cite: 41]
+        return sum(s.final_bugs for s in self.sessions)
 
     @property
     def avg_coverage(self) -> float:
         """Average coverage across all tested functions."""
         valid_covs = [s.final_coverage for s in self.sessions if s.final_coverage is not None]
-        return sum(valid_covs) / len(valid_covs) if valid_covs else 0.0 #[cite: 41]
+        return sum(valid_covs) / len(valid_covs) if valid_covs else 0.0
 
 @dataclass(frozen=True)
 class FunctionInfo:
@@ -200,7 +200,7 @@ class TestGenerationSession:
 
     @property
     def learning_curve(self) -> list[float]:
-        """Cumulative reward trend across rounds[cite: 28]."""
+        """Cumulative reward trend across rounds."""
         curve = []
         cumulative = 0.0
         for r in self.rounds:
