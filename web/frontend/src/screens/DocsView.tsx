@@ -29,7 +29,7 @@ export default function DocsView() {
   const contentRef = useRef<HTMLElement | null>(null);
   const activeKind = docs.find((d) => d.id === activeId)?.kind ?? "md";
 
-  // Load the doc list once, then select the first (README).
+  // Load the doc list once, then select the first (the user getting-started guide).
   useEffect(() => {
     let alive = true;
     api.listDocs()

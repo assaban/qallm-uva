@@ -172,7 +172,32 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
   const selectedOracle = ORACLE_INFO[config.oracle];
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="space-y-6">
+      <details className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5" open>
+        <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+          New here? What this tool does
+        </summary>
+        <div className="mt-3 space-y-2 text-sm text-slate-600">
+          <p>
+            Static analysers tell you whether code <em>looks</em> right. This tool
+            checks whether it <em>runs</em> right. It takes your Python or Jupyter
+            notebook code, runs static analysis to get a baseline, then generates
+            and executes tests to find defects that pass static analysis but fail
+            at runtime, the verification gap. Where it finds a defect it can also
+            propose a fix and verify the fix by execution.
+          </p>
+          <p className="text-slate-500">
+            Three steps: <strong>1.</strong> upload your code and pick a quality
+            model, <strong>2.</strong> get the baseline (static findings plus what
+            execution reveals), <strong>3.</strong> review the gap, the
+            confidence in each finding, and any verified fixes. Pick Manual mode
+            below to step through and inspect each stage, or load the sample
+            project to see it work first.
+          </p>
+        </div>
+      </details>
+
+      <div className="grid gap-6 lg:grid-cols-2">
       {/* Left: configuration */}
       <div className="rounded-2xl border bg-white p-6 shadow-sm space-y-5">
         <h2 className="text-xl font-semibold">Research Pipeline Setup</h2>
@@ -424,6 +449,11 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
         {/* Execution mode toggle */}
         <div className="border-t pt-4 space-y-3">
           <label className="text-xs font-bold text-slate-500 uppercase">Execution Mode</label>
+          <p className="text-xs text-slate-500">
+            Both run the same pipeline. Manual lets you inspect each stage before
+            moving on; Automatic runs everything and shows you the result. New
+            here? Manual is the better way to understand what the tool does.
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setAutoMode(false)}
@@ -432,7 +462,7 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
               <MousePointerClick className={`h-5 w-5 ${!autoMode ? "text-slate-900" : "text-slate-400"}`} />
               <div>
                 <div className="text-sm font-medium">Manual</div>
-                <div className="text-xs text-slate-500">Click through each step</div>
+                <div className="text-xs text-slate-500">Step through and inspect each stage</div>
               </div>
             </button>
             <button
@@ -442,7 +472,7 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
               <Play className={`h-5 w-5 ${autoMode ? "text-indigo-600" : "text-slate-400"}`} />
               <div>
                 <div className="text-sm font-medium">Automatic</div>
-                <div className="text-xs text-slate-500">Run all steps, observe</div>
+                <div className="text-xs text-slate-500">Run end to end, then review</div>
               </div>
             </button>
           </div>
@@ -485,6 +515,7 @@ export default function UploadScreen({ state, patch, onSessionReady }: any) {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

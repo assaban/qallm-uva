@@ -21,7 +21,10 @@ def test_list_docs_includes_readme():
     r = client.get("/api/docs")
     assert r.status_code == 200
     ids = [d["id"] for d in r.json()["docs"]]
-    assert ids and ids[0] == "readme"
+    # The user getting-started guide leads (first thing a tester should see);
+    # the README is still present in the list.
+    assert ids and ids[0] == "getting-started"
+    assert "readme" in ids
 
 
 def test_listed_docs_all_exist_and_render():
