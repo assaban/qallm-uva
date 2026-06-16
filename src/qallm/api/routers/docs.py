@@ -93,6 +93,7 @@ def _resolve(rel: str) -> Path | None:
 # rather than injected inline, where their full-page markup would clash with
 # the app shell.
 _DOCS: dict[str, tuple[str, str, str]] = {
+    "getting-started": ("Getting started (for users)", "docs/guides/getting-started.md", "md"),
     "readme": ("Overview (README)", "README.md", "md"),
     "workflow": ("How QALLM works", "docs/architecture/workflow-design.md", "md"),
     "surpassing": ("Why execution beats static analysis", "docs/concepts/surpassing-static-analysers.md", "md"),

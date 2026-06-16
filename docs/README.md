@@ -13,7 +13,8 @@ The reasoning the thesis rests on.
 - [`concepts/oracles-and-defect-classes.md`](concepts/oracles-and-defect-classes.md): which oracle catches which defect class, and why the correctness oracle withholds the implementation (illustrated).
 - [`concepts/oracle-confidence-mutation-testing.md`](concepts/oracle-confidence-mutation-testing.md): mutation-testing the oracle to give every gap finding a confidence (the positive soundness check; illustrated).
 
-## guides/ — how to run and operate QALLM
+## guides/
+- [`guides/getting-started.md`](guides/getting-started.md): first-time user guide (what the tool does, your first run, manual vs automatic, reading results). — how to run and operate QALLM
 
 Practical, task-oriented.
 
