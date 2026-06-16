@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { RotateCw, TrendingUp, AlertTriangle, Layers } from "lucide-react";
+import { RotateCw, TrendingUp, AlertTriangle, Layers, CheckCircle2, PlusCircle, MinusCircle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { StatCard } from "../components/Shared";
 import type { SessionState } from "../hooks/useSession";
+import type { AnalysisRound, RoundFinding } from "../types";
 import * as api from "../api";
 import PaperMetricsPanel from "./PaperMetricsPanel";
 
@@ -127,6 +128,9 @@ export default function ReanalyseScreen({ state, patch }: { state: SessionState;
         </div>
       )}
 
+      {/* What changed: per-finding diff between the first and latest round */}
+      <FindingsDiff rounds={analysisRounds} />
+
       {/* Paper metrics panel (Table 6 view) */}
       {metricsHistory.length > 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -142,5 +146,77 @@ export default function ReanalyseScreen({ state, patch }: { state: SessionState;
         </div>
       )}
     </div>
+  );
+}
+
+function _key(f: RoundFinding): string {
+  // Identity of a finding across rounds: same rule at the same place. Message
+  // is excluded so a reworded message does not look like a different finding.
+  return `${f.tool}|${f.rule_id || f.type}|${f.file || ""}|${f.line ?? ""}`;
+}
+
+function FindingsDiff({ rounds }: { rounds: AnalysisRound[] }) {
+  // Compare the first (baseline) and latest round that carry finding lists.
+  const withFindings = rounds.filter(r => Array.isArray(r.findings));
+  if (withFindings.length < 2) return null;
+  const before = withFindings[0].findings ?? [];
+  const after = withFindings[withFindings.length - 1].findings ?? [];
+
+  const beforeKeys = new Map(before.map(f => [_key(f), f]));
+  const afterKeys = new Map(after.map(f => [_key(f), f]));
+
+  const resolved = before.filter(f => !afterKeys.has(_key(f)));
+  const introduced = after.filter(f => !beforeKeys.has(_key(f)));
+  const persisting = after.filter(f => beforeKeys.has(_key(f)));
+
+  if (!resolved.length && !introduced.length && !persisting.length) return null;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h3 className="mb-1 font-semibold">What changed</h3>
+      <p className="mb-4 text-sm text-slate-500">
+        Findings resolved, newly introduced, and still present, comparing the
+        baseline to the latest re-analysis.
+      </p>
+      <div className="space-y-4">
+        <DiffGroup title="Resolved" count={resolved.length} items={resolved}
+          icon={<CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+          tone="text-emerald-700" />
+        <DiffGroup title="Newly introduced" count={introduced.length} items={introduced}
+          icon={<PlusCircle className="h-4 w-4 text-rose-600" />}
+          tone="text-rose-700" />
+        <DiffGroup title="Still present" count={persisting.length} items={persisting}
+          icon={<MinusCircle className="h-4 w-4 text-slate-400" />}
+          tone="text-slate-600" collapsed />
+      </div>
+    </div>
+  );
+}
+
+function DiffGroup({ title, count, items, icon, tone, collapsed }: {
+  title: string; count: number; items: RoundFinding[];
+  icon: React.ReactNode; tone: string; collapsed?: boolean;
+}) {
+  if (count === 0) return (
+    <div className="flex items-center gap-2 text-sm text-slate-400">
+      {icon}<span>{title}: none</span>
+    </div>
+  );
+  return (
+    <details open={!collapsed}>
+      <summary className={`flex cursor-pointer items-center gap-2 text-sm font-semibold ${tone}`}>
+        {icon}{title}: {count}
+      </summary>
+      <ul className="mt-2 space-y-1">
+        {items.map((f, i) => (
+          <li key={i} className="flex flex-wrap items-center gap-2 rounded-md border border-slate-100 bg-slate-50/60 px-2 py-1.5 text-xs">
+            <span className="rounded bg-slate-200 px-1.5 py-0.5 font-medium text-slate-700">{f.tool}</span>
+            {f.rule_id && <span className="font-mono text-slate-500">{f.rule_id}</span>}
+            <span className="font-mono text-[10px] text-slate-400">{f.file || "\u2014"}:{f.line ?? "\u2014"}</span>
+            <span className="text-slate-600">{f.message}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

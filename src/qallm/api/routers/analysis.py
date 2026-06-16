@@ -243,7 +243,20 @@ async def run_analysis(req: dict):
             for s in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
         },
     }
-    state["analysis_rounds"].append({"round": len(state["analysis_rounds"]), **summary})
+    # Store a compact fingerprint of each finding so the re-analyse view can
+    # diff rounds and show which findings were resolved, which are new, and
+    # which persist, not just the totals. Keyed fields are enough to identify a
+    # finding across rounds without storing full snippets.
+    round_findings = [
+        {"tool": f.tool, "type": f.type, "severity": f.severity,
+         "file": f.file, "line": f.line, "rule_id": f.rule_id,
+         "message": f.message}
+        for f in all_findings
+    ]
+    state["analysis_rounds"].append({
+        "round": len(state["analysis_rounds"]), **summary,
+        "findings": round_findings,
+    })
 
     return {"findings": [asdict(f) for f in all_findings], "summary": summary}
 

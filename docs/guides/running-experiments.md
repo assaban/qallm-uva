@@ -68,9 +68,27 @@ datasets.
 
 Under `--workers N`, each worker logs to the same `run.log` (and stderr) with a
 `[pid NNNN]` prefix, so a parallel run is observable live (`tail -f run.log`)
-and interleaved lines stay attributable to their worker. Control verbosity with
+and interleaved lines stay attributable to their worker. Each completed file
+also logs a `Progress: k/total (pct%)` line, counted against the whole run
+(already-done on resume plus this run's pending), so the true position in the
+dataset is visible (`tail -f run.log | grep Progress`). Control verbosity with
 `--log-level` (DEBUG for per-step detail, WARNING to quieten); it applies to the
 workers too.
+
+To get a representative signal fast while a full run is still going, sample the
+dataset: `--sample N` runs a random subset of N files, `--sample-seed S` makes
+the subset reproducible (so a sampled run can be cited and repeated), and
+`--sample-stratify` buckets files by size into small/medium/large and samples
+proportionally so the subset spans the size range rather than over-representing
+one band. `--sample 0` (the default) runs everything. Example, a 150-file
+stratified pilot:
+
+```
+python scripts/run_gap_experiment.py \
+    --dataset datasets/envri_forest --output runs/pilot --pattern "*.ipynb" \
+    --llm fedllm --rounds 5 --oracle correctness --samples 1 --workers 4 \
+    --mutation-confidence --sample 150 --sample-seed 42 --sample-stratify
+```
 
 `--mutation-confidence` adds a soundness check to each gap finding: after the
 gap is measured, the oracle for each execution-only function is mutation-tested

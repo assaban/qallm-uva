@@ -57,6 +57,7 @@ The mechanics and design record.
 - [`thesis/rq-evolution.md`](thesis/rq-evolution.md): how the research questions changed from the proposal and why (defence-ready motivation).
 - [`thesis/llm-training-analysis.md`](thesis/llm-training-analysis.md): what training an LLM would take, its value, a staged plan, and why it is future work.
 - [`thesis/path-to-finish-2026-06.md`](thesis/path-to-finish-2026-06.md): status as E1 runs, the partial-data findings, and the ordered path to delivery.
+- [`thesis/status-checkpoint-2026-06-16.md`](thesis/status-checkpoint-2026-06-16.md): point-in-time checkpoint (done / in flight / remaining / risks).
 - [`thesis/enrichment-ideas.md`](thesis/enrichment-ideas.md): candidate features and experiments to enrich QALLM, with value/effort/risk and a thesis-scope vs future-work split.
 - [`thesis/security-confirmation-scope.md`](thesis/security-confirmation-scope.md): scope/feasibility/risk-benefit analysis for making security findings confirm rather than land inconclusive (decision aid).
 - [`thesis/session-log.md`](thesis/session-log.md): append-only, dated record of what changed each session and what is outstanding (for cross-session continuity).
