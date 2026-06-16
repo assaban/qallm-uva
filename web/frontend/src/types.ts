@@ -146,8 +146,19 @@ export interface VersionInfo {
   files: number;
 }
 
+export interface RoundFinding {
+  tool: string;
+  type: string;
+  severity: string;
+  file?: string;
+  line?: number;
+  rule_id?: string;
+  message: string;
+}
+
 export interface AnalysisRound {
   round: number;
   total: number;
   by_severity: Record<string, number>;
+  findings?: RoundFinding[];
 }

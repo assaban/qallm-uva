@@ -23,6 +23,22 @@ notebook code and:
 Each finding also comes with a **confidence**, an indication of how trustworthy
 the test that found it is, so you know which findings to act on first.
 
+## The pipeline at a glance
+
+```mermaid
+flowchart LR
+    A["1. Upload<br/>your .py or .ipynb"] --> B["2. Baseline<br/>static analysis"]
+    B --> C["3. Verify<br/>generate & run tests"]
+    C --> D["4. Repair<br/>fix found defects"]
+    D --> E["5. Judge<br/>accept or abandon"]
+    E --> F["6. Report<br/>gap, confidence, fixes"]
+    C -.the verification gap.-> G["defects static<br/>analysis missed"]
+```
+
+The first two steps tell you what your linter sees. The rest is what makes QALLM
+different: it runs the code to find what the linter missed, fixes it, and proves
+the fix.
+
 ## Your first run (5 minutes)
 
 1. **Open the tool** and stay on the default pipeline screen.
