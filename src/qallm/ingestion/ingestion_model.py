@@ -7,7 +7,7 @@ from qallm.common.model import CodeUnit
 
 
 class NotebookAdapter:
-    """Handles .ipynb files by stripping magics and preserving cell order[cite: 76]."""
+    """Handles .ipynb files by stripping magics and preserving cell order."""
     MAGIC_PATTERN = re.compile(r"^(%|!|%%).*$", re.MULTILINE)
 
     def parse(self, path: Path) -> List[CodeUnit]:

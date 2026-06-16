@@ -88,18 +88,18 @@ class TokenTracker:
         return max(0, self.budget - self.total_tokens)
 
     def record(self, resp: LLMResponse) -> None:
-        """Records the results of an LLM call and updates cumulative metrics[cite: 37]."""
+        """Records the results of an LLM call and updates cumulative metrics."""
         self.calls += 1
         self.last_activity = time.monotonic()
 
-        # Extract safe values once[cite: 37]
+        # Extract safe values once
         in_tokens = resp.input_tokens if resp.input_tokens is not None else 0
         out_tokens = resp.output_tokens if resp.output_tokens is not None else 0
 
         self.total_input += in_tokens
         self.total_output += out_tokens
 
-        # Calculate cost using the safe values[cite: 37]
+        # Calculate cost using the safe values
         call_cost = calculate_cost_usd(resp.model, in_tokens, out_tokens)
         self.total_cost_usd += call_cost
 

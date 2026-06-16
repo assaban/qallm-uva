@@ -9,12 +9,12 @@ package "qallm-uva (Root)" {
             [context.py]
         }
         package "stage1_qqe" {
-            note right: Quantitative Quality Engine [cite: 170]
+            note right: Quantitative Quality Engine
             [metrics.py]
             [normalizer.py]
         }
         package "stage2_lre" {
-            note right: LLM Refinement Engine [cite: 172]
+            note right: LLM Refinement Engine
             [prompter.py]
             [refiner.py]
         }

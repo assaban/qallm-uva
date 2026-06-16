@@ -239,7 +239,7 @@ class TestGenerator:
             logger.info("Generating initial %s tests for %s", oracle, func.name)
             user_prompt = builder(func)
 
-        # 2. Call the LLM[cite: 39]
+        # 2. Call the LLM
         resp = self.llm.chat(SYSTEM_PROMPT, user_prompt, self.tracker)
 
         if resp.error:
@@ -255,7 +255,7 @@ class TestGenerator:
         extracted_code, strategy = CodeExtractor.extract(resp.content)
         logger.info("Extraction strategy: %s", strategy)
 
-        # Apply module name fixing and validation[cite: 39]
+        # Apply module name fixing and validation
         test_code = _fix_source_import(extracted_code, module_name)
         is_valid, validation_error = _validate_test_code(test_code)
 
