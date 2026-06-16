@@ -12,7 +12,7 @@
 
 
 # -------- Stage 1: build the frontend --------
-FROM --platform=$BUILDPLATFORM node:20-alpine AS node-build
+FROM node:20-alpine AS node-build
 
 WORKDIR /app/frontend
 
@@ -26,7 +26,7 @@ RUN npm run build
 
 
 # -------- Stage 2: Python runtime --------
-FROM --platform=$BUILDPLATFORM python:3.12-slim AS runtime
+FROM python:3.12-slim AS runtime
 
 # System dependencies:
 #   git           ingestion can clone repos

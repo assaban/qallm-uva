@@ -193,6 +193,13 @@ function FindingsDiff({ rounds }: { rounds: AnalysisRound[] }) {
   );
 }
 
+const DIFF_SEV_CLS: Record<string, string> = {
+  CRITICAL: "bg-red-100 text-red-800",
+  HIGH: "bg-orange-100 text-orange-800",
+  MEDIUM: "bg-yellow-100 text-yellow-800",
+  LOW: "bg-blue-100 text-blue-800",
+};
+
 function DiffGroup({ title, count, items, icon, tone, collapsed }: {
   title: string; count: number; items: RoundFinding[];
   icon: React.ReactNode; tone: string; collapsed?: boolean;
@@ -207,16 +214,29 @@ function DiffGroup({ title, count, items, icon, tone, collapsed }: {
       <summary className={`flex cursor-pointer items-center gap-2 text-sm font-semibold ${tone}`}>
         {icon}{title}: {count}
       </summary>
-      <ul className="mt-2 space-y-1">
-        {items.map((f, i) => (
-          <li key={i} className="flex flex-wrap items-center gap-2 rounded-md border border-slate-100 bg-slate-50/60 px-2 py-1.5 text-xs">
-            <span className="rounded bg-slate-200 px-1.5 py-0.5 font-medium text-slate-700">{f.tool}</span>
-            {f.rule_id && <span className="font-mono text-slate-500">{f.rule_id}</span>}
-            <span className="font-mono text-[10px] text-slate-400">{f.file || "\u2014"}:{f.line ?? "\u2014"}</span>
-            <span className="text-slate-600">{f.message}</span>
-          </li>
-        ))}
-      </ul>
+      {/* Same column layout as the baseline findings table: severity, tool,
+          location, message. Keeps the two views visually consistent. */}
+      <table className="mt-2 w-full text-left text-xs">
+        <tbody className="divide-y divide-slate-100">
+          {items.map((f, i) => (
+            <tr key={i} className="hover:bg-slate-50/80">
+              <td className="px-3 py-2 align-top">
+                <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${DIFF_SEV_CLS[f.severity] || "bg-slate-100 text-slate-600"}`}>
+                  {f.severity}
+                </span>
+              </td>
+              <td className="px-3 py-2 align-top font-medium text-slate-600">
+                {f.tool}
+                {f.rule_id && <span className="ml-1.5 font-mono text-[10px] text-slate-400">{f.rule_id}</span>}
+              </td>
+              <td className="px-3 py-2 align-top">
+                <span className="font-mono text-[10px] text-slate-500">{f.file || "\u2014"}:{f.line ?? "\u2014"}</span>
+              </td>
+              <td className="px-3 py-2 align-top leading-relaxed text-slate-600">{f.message}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </details>
   );
 }
