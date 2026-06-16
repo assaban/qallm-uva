@@ -127,3 +127,28 @@ def test_function_scored_once_across_units(tmp_path):
             "from source_module import f\ndef t(): assert f(0) == 1\n")
     res = score_gap_confidence_from_dir(str(rd), ["f"])
     assert res["scored"] == 1
+
+
+def test_gap_function_scored_against_repaired_not_buggy_original(tmp_path):
+    """A gap function's round-0 source is buggy (the suite fails on it), so
+    mutation scoring must use the repaired source where the suite passes, else
+    every mutant is not-viable and the function wrongly scores 'unknown'."""
+    rd = tmp_path / "report"
+    u0 = rd / "lineage" / "round_00" / "u0"
+    (u0 / "tests").mkdir(parents=True)
+    # buggy original: off-by-one
+    (u0 / "source.py").write_text(
+        "def inc(start, end):\n    return end - start\n")
+    (u0 / "tests" / "test_inc.py").write_text(
+        "from source_module import inc\n"
+        "def test_a(): assert inc(1, 5) == 5\n"
+        "def test_b(): assert inc(0, 0) == 1\n")
+    # repaired version in a later round
+    u1 = rd / "lineage" / "round_01" / "u0"
+    u1.mkdir(parents=True)
+    (u1 / "source.py").write_text(
+        "def inc(start, end):\n    return end - start + 1\n")
+    res = score_gap_confidence_from_dir(str(rd), ["inc"])
+    pf = res["per_function"]["inc"]
+    assert pf["confidence"] in ("high", "medium", "low")  # not unknown
+    assert pf["viable"] > 0

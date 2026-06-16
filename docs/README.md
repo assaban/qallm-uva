@@ -50,6 +50,7 @@ The mechanics and design record.
 - [`thesis/roadmap.md`](thesis/roadmap.md): priorities and rationale.
 - [`thesis/status-update-2026-06.md`](thesis/status-update-2026-06.md): supervisor-facing status summary (the story, architecture, judge/EVERSE, calibration evidence) with diagrams.
 - [`thesis/experiment-plan.md`](thesis/experiment-plan.md): the experiments that answer each RQ, with exact commands and outputs.
+- [`thesis/experiment-catalog.md`](thesis/experiment-catalog.md): additional experiments beyond the core set (.py vs .ipynb, oracle ablation, rounds sensitivity, sampling pilot, cross-model), with commands and scope.
 - [`thesis/thesis-structure-and-plan.md`](thesis/thesis-structure-and-plan.md): chapter structure, the three-contribution framing, per-section checklist, and writing-status tracker.
 - [`thesis/audit-2026-06.md`](thesis/audit-2026-06.md): full project audit (strengths, prioritised risks, web-UI assessment, punch list).
 - [`thesis/rq-evolution.md`](thesis/rq-evolution.md): how the research questions changed from the proposal and why (defence-ready motivation).

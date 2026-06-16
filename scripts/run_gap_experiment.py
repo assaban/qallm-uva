@@ -66,6 +66,15 @@ def main() -> None:
                              "summary.json, far less disk on large datasets. 'full' "
                              "writes every variant's provenance. --confirm forces 'full' "
                              "since it reads per-round artefacts from disk.")
+    parser.add_argument("--sample", type=int, default=0, dest="sample_n",
+                        help="Run a random subset of N files instead of the "
+                             "whole dataset (0 = run everything). Useful for a "
+                             "fast signal while the full run continues.")
+    parser.add_argument("--sample-seed", type=int, default=42,
+                        help="Seed for --sample, so the subset is reproducible.")
+    parser.add_argument("--sample-stratify", action="store_true",
+                        help="Stratify the sample by file size (small/medium/"
+                             "large), so the subset spans the size range.")
     parser.add_argument("--log-level", default="INFO",
                         choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     parser.add_argument("--log-file", default=None,
@@ -103,6 +112,9 @@ def main() -> None:
         confirm=args.confirm,
         mutation_confidence=args.mutation_confidence,
         artefact_retention=args.retention,
+        sample_n=args.sample_n,
+        sample_seed=args.sample_seed,
+        sample_stratify=args.sample_stratify,
     )
     result = run_gap_experiment(config)
 

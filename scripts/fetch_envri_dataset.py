@@ -26,7 +26,8 @@ import sys
 from pathlib import Path
 
 # BASE_URL = "https://search.envri.eu/notebookSearch/genericsearch"
-BASE_URL = "https://search.envri.eu/search/webSearch/genericsearch"
+# BASE_URL = "https://search.envri.eu/search/webSearch/genericsearch"
+BASE_URL = "https://search.envri.eu/search/notebookSearch/genericsearch"
 
 
 def fetch(term: str, pages: int, output: Path) -> int:

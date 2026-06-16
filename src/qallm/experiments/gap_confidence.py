@@ -81,6 +81,56 @@ def _functions_in(source: str) -> set[str]:
     }
 
 
+def _final_sources_map(report_dir: str) -> dict[str, str]:
+    """Map unit segment -> repaired (final accepted) source, highest round.
+
+    Reused from the confirm/verify logic. The repaired source is the version a
+    sound suite should pass, which is the right base for mutation scoring of a
+    gap function (whose round-0 source is the buggy code the suite catches).
+    """
+    finals: dict[str, str] = {}
+    lineage = os.path.join(report_dir, "lineage")
+    if not os.path.isdir(lineage):
+        return finals
+    round_dirs = []
+    for round_name in os.listdir(lineage):
+        if not round_name.startswith("round_"):
+            continue
+        try:
+            round_dirs.append((int(round_name.replace("round_", "")), round_name))
+        except ValueError:
+            continue
+    for _, round_name in sorted(round_dirs):  # ascending: later overwrites earlier
+        round_path = os.path.join(lineage, round_name)
+        for unit_seg in os.listdir(round_path):
+            src = _read_text(os.path.join(round_path, unit_seg, "source.py"))
+            if src:
+                finals[unit_seg] = src
+    return finals
+
+
+def _scoring_source(original: str, repaired: str | None,
+                    func_name: str, test_code: str) -> str:
+    """Pick the source to mutate so confidence measures oracle sensitivity.
+
+    Mutation testing assumes the base code is correct. For a gap function the
+    original is buggy (the suite fails on it), so we prefer a version the suite
+    PASSES: the repaired source if it exists and the suite passes on it. If the
+    repaired source is absent or the suite does not pass on it either, fall back
+    to the original (score_oracle's own baseline handling then applies).
+    """
+    if not repaired or func_name not in _functions_in(repaired):
+        return original
+    try:
+        from qallm.verification.executor import run_tests
+        r = run_tests(repaired, test_code, "source_module.py")
+        if r.passed > 0 and r.failed == 0:
+            return repaired
+    except Exception:  # any execution issue: fall back to the original
+        pass
+    return original
+
+
 def score_gap_confidence_from_dir(
     report_dir: str,
     gap_functions: list[str] | None = None,
@@ -125,9 +175,21 @@ def score_gap_confidence_from_dir(
         if source and os.path.isdir(tests_dir):
             units.append((source, unit_dir))
 
+    # For a GAP function the round-0 source is, by definition, the buggy code
+    # the suite was written to catch, so the suite FAILS on it. Mutation testing
+    # assumes the base code is correct (inject a fault, see if the suite catches
+    # it), so scoring against the buggy original makes every mutant look
+    # not-viable and the function scores "unknown". To measure the oracle's
+    # sensitivity properly we score against a version the suite PASSES: the
+    # repaired source from a later lineage round if one exists, else the
+    # original. _scoring_source picks that per function.
+    finals = _final_sources_map(report_dir)
+
     scored_funcs: set[str] = set()
     for source, unit_dir in units:
         defined = _functions_in(source)
+        unit_seg = os.path.basename(unit_dir.rstrip(os.sep))
+        repaired = finals.get(unit_seg)
         for name in sorted(os.listdir(os.path.join(unit_dir, "tests"))):
             if not (name.startswith("test_") and name.endswith(".py")):
                 continue
@@ -146,8 +208,9 @@ def score_gap_confidence_from_dir(
                 logger.debug("No test code for %s in %s; skipping.",
                              func_name, unit_dir)
                 continue
+            base_source = _scoring_source(source, repaired, func_name, test_code)
             score = score_oracle(
-                source, func_name, test_code,
+                base_source, func_name, test_code,
                 max_per_operator=max_per_operator,
             )
             out["per_function"][func_name] = score.to_dict()
