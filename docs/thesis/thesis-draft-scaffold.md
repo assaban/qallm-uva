@@ -68,6 +68,13 @@ Research questions (carried from the proposal, refined):
   how often does a repair that satisfies static analysis fail to fix the
   underlying defect?
 
+These refine the proposal's questions. The object of study, execution-based
+assessment of AI-generated notebook code, is unchanged; the questions are stated
+in the measurable form the implementation made possible, namely the size of the
+verification gap (RQ1), the reliability of confirming or refuting individual
+findings (RQ2), and the verifiability of repairs (RQ3). The longer justification
+is recorded in docs/thesis/rq-evolution.md.
+
 ## 2. Background and related work
 
 Purpose: situate the work; show the gap in the literature is real.

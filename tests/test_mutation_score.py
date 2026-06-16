@@ -57,3 +57,25 @@ def test_confidence_thresholds():
     assert MutationScore("f", killed=5, survived=5).confidence == "medium" # 0.5
     assert MutationScore("f", killed=1, survived=9).confidence == "low"    # 0.1
     assert MutationScore("f").confidence == "unknown"                      # no viable
+
+
+def test_errored_mutant_counts_as_killed_when_baseline_works():
+    """A mutant that turns a clean suite into errors is detected (killed), not
+    discarded as not-viable, so data functions get a real confidence."""
+    from qallm.verification.mutation_score import score_oracle
+    source = (
+        "def scale(values, factor):\n"
+        "    out = []\n"
+        "    for v in values:\n"
+        "        out.append(v * factor + 1)\n"
+        "    return out\n"
+    )
+    test = (
+        "from source_module import scale\n"
+        "def test_basic():\n"
+        "    assert scale([1, 2], 2) == [3, 5]\n"
+    )
+    s = score_oracle(source, "scale", test)
+    assert s.total_mutants > 0
+    assert s.viable > 0
+    assert s.confidence in ("high", "medium", "low")

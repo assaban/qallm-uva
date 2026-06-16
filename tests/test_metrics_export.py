@@ -158,3 +158,19 @@ def test_confirm_columns_present():
     from qallm.metrics_export import CSV_COLUMNS
     assert "inconclusive" in CSV_COLUMNS
     assert "not_execution_testable" in CSV_COLUMNS
+
+
+def test_metrics_roundtrip_preserves_confirm_fields():
+    """The aggregate must not drop inconclusive/not_testable when rebuilding
+    SessionMetrics from row dicts (the resume / re-aggregate path)."""
+    from qallm.metrics_export import build_session_metrics, aggregate_sessions
+    from qallm.experiments.gap_runner import _metrics_from_dict
+    cs = {"confirmed": 0, "refuted": 0, "inconclusive": 3,
+          "not_execution_testable": 1, "confirmation_rate": None}
+    m = build_session_metrics("s", {"model": "m", "oracle": "correctness"}, [], cs)
+    m2 = _metrics_from_dict(m.to_dict())
+    assert m2.inconclusive == 3
+    assert m2.not_execution_testable == 1
+    agg = aggregate_sessions([m2]).to_dict()
+    assert agg["total_inconclusive"] == 3
+    assert agg["total_not_execution_testable"] == 1

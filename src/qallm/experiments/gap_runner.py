@@ -18,6 +18,7 @@ same per-session record and aggregate.
 from __future__ import annotations
 
 import json
+import traceback
 import logging
 import os
 from dataclasses import dataclass, field
@@ -398,6 +399,7 @@ def _run_one(
         return row
     except Exception as e:  # one bad notebook should not sink the run
         logger.warning("Input failed: %s: %s", input_path, e)
+        logger.debug("Traceback for %s:\n%s", input_path, traceback.format_exc())
         return {"input": str(input_path), "metrics": None, "error": str(e)}
 
 
@@ -435,6 +437,9 @@ def _metrics_from_dict(d: dict) -> SessionMetrics:
         confirmed=d.get("confirmed"),
         refuted=d.get("refuted"),
         confirmation_rate=d.get("confirmation_rate"),
+        inconclusive=d.get("inconclusive"),
+        not_execution_testable=d.get("not_execution_testable"),
+        incoherent_oracles_dropped=int(d.get("incoherent_oracles_dropped", 0) or 0),
         verified_fixed=d.get("verified_fixed"),
         not_fixed=d.get("not_fixed"),
         verified_fix_rate=d.get("verified_fix_rate"),

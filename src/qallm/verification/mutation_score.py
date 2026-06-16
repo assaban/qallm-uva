@@ -79,21 +79,29 @@ class MutationScore:
         }
 
 
-def _suite_kills(source: str, test_code: str, module_name: str) -> str:
+def _suite_kills(source: str, test_code: str, module_name: str,
+                 baseline_works: bool = True) -> str:
     """Run the suite against one mutant. Returns 'killed', 'survived', or
     'not_viable'.
 
-    A mutant is KILLED if at least one test fails (the suite detected the
-    injected fault). It SURVIVED if every test passes (the suite missed it). It
-    is NOT_VIABLE if every test errors (the mutant cannot even run, so it tells
-    us nothing about discrimination, e.g. it broke an import the tests need).
+    A mutant is KILLED if the suite detects the injected fault, which happens
+    when at least one test fails OR (for a suite that worked on the original
+    code) the mutant turns a working run into errors. Erroring is a detectable
+    behavioural change, not a non-result, so when the suite ran cleanly on the
+    original we count an all-error mutant run as killed rather than discarding
+    it. It SURVIVED if every test still passes (the suite missed the fault). It
+    is NOT_VIABLE only when the suite could not run on the original either (so
+    the mutant tells us nothing), the trivial/broken-suite case.
     """
     result = run_tests(source, test_code, f"{module_name}.py")
     if result.failed > 0:
         return "killed"
     if result.passed > 0:
         return "survived"
-    return "not_viable"
+    # No pass, no fail: the suite errored on this mutant. If the suite worked on
+    # the original, the mutant changed behaviour detectably -> killed. If the
+    # suite did not work on the original, it is genuinely uninformative.
+    return "killed" if baseline_works else "not_viable"
 
 
 def score_oracle(
@@ -118,9 +126,17 @@ def score_oracle(
     if not mutants:
         return score
 
+    # Does the suite actually run on the ORIGINAL code? If it does, a mutant
+    # that turns this clean run into errors has been detected (killed). If it
+    # does not (the suite was broken to begin with), an all-error mutant run is
+    # genuinely uninformative (not viable). Computed once, reused per mutant.
+    base = run_tests(source, test_code, f"{module_name}.py")
+    baseline_works = (base.passed > 0 and base.failed == 0)
+
     for m in mutants:
         try:
-            outcome = _suite_kills(m.source, test_code, module_name)
+            outcome = _suite_kills(m.source, test_code, module_name,
+                                   baseline_works=baseline_works)
         except Exception as exc:  # a mutant that breaks execution entirely
             logger.debug("Mutant errored (%s): %s", m.description, exc)
             outcome = "not_viable"
