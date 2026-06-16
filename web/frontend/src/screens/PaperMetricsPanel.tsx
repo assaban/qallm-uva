@@ -1,23 +1,30 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 interface PaperMetrics {
-  cs: number;
-  mi: number;
-  codu: number;
-  code: number;
-  loc: number;
-  cc: number;
+  cs: number | null;
+  mi: number | null;
+  codu: number | null;
+  code: number | null;
+  loc: number | null;
+  cc: number | null;
   round?: number;
   label?: string;
 }
 
 interface Comparison {
   round: number;
-  vs_baseline?: Record<string, number>;
-  vs_previous?: Record<string, number>;
+  vs_baseline?: Record<string, number | null>;
+  vs_previous?: Record<string, number | null>;
 }
 
-function DeltaBadge({ value, inverted }: { value: number; inverted?: boolean }) {
+function fmtMetric(v: number | null | undefined): string {
+  return v === null || v === undefined ? "\u2014" : String(v);
+}
+
+function DeltaBadge({ value, inverted }: { value: number | null | undefined; inverted?: boolean }) {
+  if (value === null || value === undefined) {
+    return <span className="inline-block rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-400">{"\u2014"}</span>;
+  }
   const improved = inverted ? value > 0 : value < 0;
   const cls = improved
     ? "bg-emerald-100 text-emerald-800"
@@ -70,12 +77,12 @@ export default function PaperMetricsPanel({
             {rounds.map((r, i) => (
               <tr key={i} className={`border-b border-slate-100 ${i === 0 ? "bg-slate-50 font-medium" : "hover:bg-slate-50"}`}>
                 <td className="px-3 py-2">{r.label || (r.round === 0 ? "Baseline" : `Round ${r.round}`)}</td>
-                <td className="px-3 py-2">{r.cs}</td>
-                <td className="px-3 py-2">{r.mi}</td>
-                <td className="px-3 py-2">{r.codu}</td>
-                <td className="px-3 py-2">{r.code}</td>
-                <td className="px-3 py-2">{r.loc}</td>
-                <td className="px-3 py-2">{r.cc}</td>
+                <td className="px-3 py-2">{fmtMetric(r.cs)}</td>
+                <td className="px-3 py-2">{fmtMetric(r.mi)}</td>
+                <td className="px-3 py-2">{fmtMetric(r.codu)}</td>
+                <td className="px-3 py-2">{fmtMetric(r.code)}</td>
+                <td className="px-3 py-2">{fmtMetric(r.loc)}</td>
+                <td className="px-3 py-2">{fmtMetric(r.cc)}</td>
               </tr>
             ))}
           </tbody>
@@ -89,27 +96,27 @@ export default function PaperMetricsPanel({
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
             <div className="text-center">
               <div className="text-xs text-slate-500">CS</div>
-              <DeltaBadge value={latestComparison.vs_baseline.cs_delta || 0} />
+              <DeltaBadge value={latestComparison.vs_baseline.cs_delta} />
             </div>
             <div className="text-center">
               <div className="text-xs text-slate-500">MI</div>
-              <DeltaBadge value={latestComparison.vs_baseline.mi_delta || 0} inverted />
+              <DeltaBadge value={latestComparison.vs_baseline.mi_delta} inverted />
             </div>
             <div className="text-center">
               <div className="text-xs text-slate-500">CoDu</div>
-              <DeltaBadge value={latestComparison.vs_baseline.codu_delta || 0} />
+              <DeltaBadge value={latestComparison.vs_baseline.codu_delta} />
             </div>
             <div className="text-center">
               <div className="text-xs text-slate-500">CoDe</div>
-              <DeltaBadge value={latestComparison.vs_baseline.code_delta || 0} inverted />
+              <DeltaBadge value={latestComparison.vs_baseline.code_delta} inverted />
             </div>
             <div className="text-center">
               <div className="text-xs text-slate-500">LoC</div>
-              <DeltaBadge value={latestComparison.vs_baseline.loc_delta || 0} />
+              <DeltaBadge value={latestComparison.vs_baseline.loc_delta} />
             </div>
             <div className="text-center">
               <div className="text-xs text-slate-500">CC</div>
-              <DeltaBadge value={latestComparison.vs_baseline.cc_delta || 0} inverted />
+              <DeltaBadge value={latestComparison.vs_baseline.cc_delta} inverted />
             </div>
           </div>
         </div>

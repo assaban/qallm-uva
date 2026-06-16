@@ -16,8 +16,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      platforms:
-        - $BUILDPLATFORM
       args:
         WITH_SONAR_SCANNER: ${WITH_SONAR_SCANNER:-0}
     image: qallm:latest

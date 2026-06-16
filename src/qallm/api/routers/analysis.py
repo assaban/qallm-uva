@@ -22,6 +22,52 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _round_code_metrics(sources: list[str]) -> dict:
+    """Compute real code metrics for a round from its analysed sources.
+
+    Uses Radon for maintainability index (mi, averaged across units),
+    cyclomatic complexity (cc, summed), and lines of code (loc, summed). These
+    are the metrics we can compute directly and honestly. Cognitive complexity
+    (cs), code duplication (codu), and comment density (code) require SonarQube
+    measures that are not retained per round, so they are reported as null
+    rather than fabricated. Returns a dict with numeric values where available.
+    """
+    if not sources:
+        return {"mi": None, "cc": None, "loc": None,
+                "cs": None, "codu": None, "code": None}
+    try:
+        from radon.complexity import cc_visit
+        from radon.metrics import mi_visit
+        from radon.raw import analyze as raw_analyze
+    except Exception:  # radon missing for some reason: report nothing rather than fake
+        return {"mi": None, "cc": None, "loc": None,
+                "cs": None, "codu": None, "code": None}
+
+    mis: list[float] = []
+    cc_total = 0
+    loc_total = 0
+    for src in sources:
+        try:
+            mis.append(float(mi_visit(src, True)))
+        except Exception:
+            pass
+        try:
+            cc_total += sum(b.complexity for b in cc_visit(src))
+        except Exception:
+            pass
+        try:
+            loc_total += raw_analyze(src).loc
+        except Exception:
+            pass
+    return {
+        "mi": round(sum(mis) / len(mis), 2) if mis else None,
+        "cc": cc_total,
+        "loc": loc_total,
+        # Not computed here (need SonarQube measures); null, not zero.
+        "cs": None, "codu": None, "code": None,
+    }
+
+
 @router.post("/api/session/{session_id}/confirm-findings")
 async def confirm_findings(session_id: str):
     """Confirm or refute each static finding individually by execution.
@@ -236,12 +282,25 @@ async def run_analysis(req: dict):
         sid, used_repaired, used_original,
     )
 
+    # Real code metrics for this round, computed from the analysed source via
+    # Radon (MI, CC, LoC), not faked from severity buckets. Averaged/summed
+    # across the analysed units. These feed the "paper metrics" panel honestly;
+    # metrics that need SonarQube measures (cognitive complexity, duplication,
+    # comment density) are left null when unavailable rather than shown as zero.
+    metrics = _round_code_metrics(
+        [state["analysed_units"][u.original_path.name].code_unit.source_code
+         for u in state["units"]
+         if u.original_path.name in selected_files
+         and u.original_path.name in state["analysed_units"]]
+    )
+
     summary = {
         "total": len(all_findings),
         "by_severity": {
             s: len([f for f in all_findings if f.severity == s])
             for s in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
         },
+        "metrics": metrics,
     }
     # Store a compact fingerprint of each finding so the re-analyse view can
     # diff rounds and show which findings were resolved, which are new, and
@@ -279,15 +338,19 @@ async def get_paper_metrics_history(session_id: str):
     state = get_state(session_id)
     rounds_data = []
     for i, ar in enumerate(state.get("analysis_rounds", [])):
+        m = ar.get("metrics") or {}
         rounds_data.append({
             "round": i,
             "label": "Baseline" if i == 0 else f"Round {i}",
-            "cs": ar.get("by_severity", {}).get("HIGH", 0) + ar.get("by_severity", {}).get("CRITICAL", 0),
-            "mi": 0,  # Would need radon re-run for real MI
-            "codu": 0,
-            "code": 0,
-            "loc": 0,
-            "cc": ar.get("by_severity", {}).get("MEDIUM", 0),
+            # Real metrics computed from the round's source. null where a metric
+            # is not available (e.g. SonarQube measures not retained per round),
+            # rather than fabricated as zero.
+            "cs": m.get("cs"),
+            "mi": m.get("mi"),
+            "codu": m.get("codu"),
+            "code": m.get("code"),
+            "loc": m.get("loc"),
+            "cc": m.get("cc"),
         })
     return {"rounds": rounds_data}
 
@@ -301,18 +364,27 @@ async def get_comparisons(session_id: str):
     for i in range(1, len(rounds)):
         prev = rounds[i - 1]
         curr = rounds[i]
+        cm = curr.get("metrics") or {}
+        bm = rounds[0].get("metrics") or {}
+
+        def _delta(a, b):
+            # Delta only when both ends are real numbers; else null.
+            return (a - b) if isinstance(a, (int, float)) and isinstance(b, (int, float)) else None
+
         comparisons.append({
             "round": i,
             "vs_baseline": {
-                "cs_delta": curr.get("total", 0) - rounds[0].get("total", 0),
-                "mi_delta": 0,
-                "codu_delta": 0,
-                "code_delta": 0,
-                "loc_delta": 0,
-                "cc_delta": 0,
+                "cs_delta": _delta(cm.get("cs"), bm.get("cs")),
+                "mi_delta": _delta(cm.get("mi"), bm.get("mi")),
+                "codu_delta": _delta(cm.get("codu"), bm.get("codu")),
+                "code_delta": _delta(cm.get("code"), bm.get("code")),
+                "loc_delta": _delta(cm.get("loc"), bm.get("loc")),
+                "cc_delta": _delta(cm.get("cc"), bm.get("cc")),
+                # Total findings delta is a real, separate signal worth keeping.
+                "findings_delta": curr.get("total", 0) - rounds[0].get("total", 0),
             },
             "vs_previous": {
-                "cs_delta": curr.get("total", 0) - prev.get("total", 0),
+                "findings_delta": curr.get("total", 0) - prev.get("total", 0),
             },
         })
     return {"comparisons": comparisons}
