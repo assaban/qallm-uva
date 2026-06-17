@@ -4,6 +4,21 @@ Newest first. Append-only.
 
 ---
 
+## 2026-06-17 (reporter dir separation: experiments stop bloating the web-UI dir)
+
+The orchestrator hardcoded outputs/quality_reporter as its reporter base, so
+experiment runs (one session subdir + lineage per file) bloated the web-UI
+session directory and filled the VM disk. Added a reporter_dir param to the
+orchestrator (defaults to settings.QALLM_SESSIONS_DIR). The web UI does not
+override it; the gap runner now writes reporter artefacts under its own
+--output/reports (self-contained per run), and the HumanEval runner uses
+QALLM_EXPERIMENT_REPORTER_DIR (default outputs/experiment_reporter). New config
+setting + doc update in sessions-vs-experiments.md. +3 tests. Suite 724.
+
+Also gave Mohssin the fast-delete recipe for the already-bloated dir (mv to
+.trash then background rm; or rsync --delete an empty dir over it).
+
+
 ## 2026-06-17 (HumanEvalFix: parallel runner + clearer purpose)
 
 - run_humaneval.py / humaneval_runner.py now take --workers N: combinations run

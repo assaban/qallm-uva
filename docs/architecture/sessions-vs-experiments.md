@@ -48,11 +48,24 @@ are not lost, they are simply not mixed into the interactive Sessions tab.
 ## Directory conventions
 
 Interactive sessions: `outputs/quality_reporter/<run_id>` (the orchestrator's
-default reporter base; overridable via `QALLM_SESSIONS_DIR`).
+default reporter base, the configured `QALLM_SESSIONS_DIR`). The web layer does
+not override the reporter dir, so interactive runs land here.
 
-Experiment runs: wherever `--output` points, by convention `runs/<name>`, with
-`results.jsonl`, `manifest.json`, `aggregate.json`, and (under full retention)
-per-unit artefacts.
+Experiment reporter artefacts: written away from the web-UI directory. The batch
+gap runner writes them under its own `--output/reports`, so each experiment run
+is fully self-contained (deleting `runs/<name>` removes its artefacts too). The
+HumanEval runner uses `QALLM_EXPERIMENT_REPORTER_DIR`
+(default `outputs/experiment_reporter`). Either way the orchestrator's
+`reporter_dir` parameter is what selects this; experiments pass it, the web UI
+does not.
+
+Experiment run outputs (results.jsonl, manifest.json, aggregate.json): wherever
+`--output` points, by convention `runs/<name>`.
+
+This matters operationally: a large run creates one reporter subdirectory per
+processed file plus its lineage artefacts, which is tens to hundreds of
+thousands of directories. Keeping that out of `outputs/quality_reporter` is what
+prevents the session directory (and the host disk) from being swamped.
 
 ## Why a marker rather than just separate directories
 
