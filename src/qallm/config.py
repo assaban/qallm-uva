@@ -59,6 +59,14 @@ class Settings:
         "QALLM_SESSIONS_DIR", "outputs/quality_reporter"
     )
 
+    # Reporter base dir for EXPERIMENT runs (batch runner). Kept separate from
+    # QALLM_SESSIONS_DIR so a large experiment, which creates one session
+    # subdirectory per processed file plus its lineage artefacts, never bloats
+    # the Web-UI session directory. Defaults to a sibling under outputs/.
+    QALLM_EXPERIMENT_REPORTER_DIR: str = os.getenv(
+        "QALLM_EXPERIMENT_REPORTER_DIR", "outputs/experiment_reporter"
+    )
+
     # Budget caps. All are floors, not ceilings: code-level ceilings in
     # `qallm.cost` override these if they are too large. The intent is
     # that a typo in this file or an .env cannot blow the budget.

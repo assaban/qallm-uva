@@ -204,6 +204,11 @@ def _default_orchestrator_factory(config: GapExperimentConfig):
         judge_strategy=config.judge_strategy,
         artefact_retention=_effective_retention(config),
         stage=config.stage,
+        # Reporter artefacts live UNDER this run's own output dir, not the
+        # shared Web-UI session directory. Each experiment run is then fully
+        # self-contained: deleting runs/<name> removes its artefacts too, and a
+        # large run never bloats outputs/quality_reporter.
+        reporter_dir=str(config.output_dir / "reports"),
     )
 
 

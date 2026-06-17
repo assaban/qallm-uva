@@ -364,9 +364,11 @@ def _default_orchestrator_factory(
     rounds: int,
     oracle: str,
     judge_strategy: str,
+    reporter_dir: str | None = None,
 ):
     """Build a real QALLMOrchestrator from a model id like ``openai:gpt-4o-mini``."""
     from qallm.orchestrator import QALLMOrchestrator
+    from qallm.config import settings
     llm_type, _, model_name = model.partition(":")
     return QALLMOrchestrator(
         llm_type=llm_type,
@@ -375,6 +377,9 @@ def _default_orchestrator_factory(
         rounds=rounds,
         oracle=oracle,
         judge_strategy=judge_strategy,
+        # Experiments write reporter artefacts to a separate dir (defaulting to
+        # the experiment reporter dir), never the Web-UI session directory.
+        reporter_dir=reporter_dir or settings.QALLM_EXPERIMENT_REPORTER_DIR,
     )
 
 

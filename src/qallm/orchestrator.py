@@ -50,6 +50,7 @@ import uuid
 from typing import Literal, Optional
 
 from qallm.analysis.normalizer import LifecycleStage
+from qallm.config import settings
 from qallm.ingestion.ingestion_manager import IngestionManager
 from qallm.common.model import CodeUnit
 from qallm.cost import BudgetCaps, BudgetState, HaltReason
@@ -134,6 +135,7 @@ class QALLMOrchestrator:
             tags: list[str] | None = None,
             artefact_retention: str = "full",
             origin: str = "experiment",
+            reporter_dir: str | None = None,
     ) -> None:
         """Construct the orchestrator.
 
@@ -186,7 +188,7 @@ class QALLMOrchestrator:
                 + "_" + uuid.uuid4().hex[:8]
             )
             self.reporter = QualityReporter(
-                "outputs/quality_reporter", effective_run_id,
+                reporter_dir or settings.QALLM_SESSIONS_DIR, effective_run_id,
                 artefact_retention=artefact_retention,
                 origin=origin,
             )
