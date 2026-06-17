@@ -7,6 +7,7 @@ import type { JobProgress } from "../api";
 
 const ORACLES: Record<string, { title: string; desc: string }> = {
   crash: { title: "Crash oracle", desc: "Feeds edge cases (empty inputs, None, overflow) and asserts the function fails cleanly rather than crashing." },
+  correctness: { title: "Correctness oracle", desc: "Reasons from the spec (signature and docstring, never the body) to find functions that do not crash but return wrong values. This is the reliability oracle behind the verification gap." },
   property: { title: "Property oracle", desc: "Checks output invariants: correct return types, size relationships, value range constraints." },
   metamorphic: { title: "Metamorphic oracle", desc: "Tests input/output relationships: permutations, negation, composition. Catches logic bugs without expected outputs." },
 };
@@ -27,6 +28,7 @@ interface ProgressRow {
   roundLabel: string;
   stage: string;
   fn: string | null;
+  unit: string | null;
   fnIndex: number;
   fnTotal: number;
   accepted: number;
@@ -154,6 +156,11 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
         : liveProgress.phase;
     const stage = liveProgress.current_stage || liveProgress.phase;
     const fn = liveProgress.current_function;
+    // current_unit_id looks like "path/to/file.py::cellindex"; show just the
+    // file name so analyse/repair/judge rows (which are unit-level, not
+    // per-function) still say which file they acted on instead of a bare dash.
+    const rawUnit = liveProgress.current_unit_id as string | null | undefined;
+    const unit = rawUnit ? rawUnit.split("::")[0].split("/").pop() || rawUnit : null;
     const key = `${roundLabel}|${stage}|${fn ?? ""}|${liveProgress.function_index}`;
     setTimeline(prev => {
       if (prev.length && prev[prev.length - 1].key === key) return prev;
@@ -162,6 +169,7 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
         roundLabel,
         stage,
         fn,
+        unit,
         fnIndex: liveProgress.function_index,
         fnTotal: liveProgress.function_total,
         accepted: liveProgress.rounds_accepted,
@@ -359,6 +367,8 @@ export default function TestGenScreen({ state, patch, autoMode }: { state: Sessi
                           <td className="px-2 py-1.5 font-mono text-slate-700">
                             {row.fn ? (
                               <span>{row.fn}{row.fnTotal > 0 && <span className="text-slate-400"> ({row.fnIndex}/{row.fnTotal})</span>}</span>
+                            ) : row.unit ? (
+                              <span className="font-mono text-xs text-slate-500">{row.unit}</span>
                             ) : <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-2 py-1.5 text-right whitespace-nowrap">

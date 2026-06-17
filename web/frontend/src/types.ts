@@ -154,6 +154,7 @@ export interface RoundFinding {
   line?: number;
   rule_id?: string;
   message: string;
+  code_snippet?: string;
 }
 
 export interface AnalysisRound {

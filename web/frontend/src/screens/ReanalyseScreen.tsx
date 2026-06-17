@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { RotateCw, TrendingUp, AlertTriangle, Layers, CheckCircle2, PlusCircle, MinusCircle } from "lucide-react";
+import { RotateCw, TrendingUp, AlertTriangle, Layers, CheckCircle2, PlusCircle, MinusCircle, ChevronRight } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { StatCard } from "../components/Shared";
 import type { SessionState } from "../hooks/useSession";
@@ -214,29 +214,63 @@ function DiffGroup({ title, count, items, icon, tone, collapsed }: {
       <summary className={`flex cursor-pointer items-center gap-2 text-sm font-semibold ${tone}`}>
         {icon}{title}: {count}
       </summary>
-      {/* Same column layout as the baseline findings table: severity, tool,
-          location, message. Keeps the two views visually consistent. */}
+      {/* Same column layout as the baseline findings table, and rows expand to
+          the same detail (type, rule, line, code snippet) that Koen asked for. */}
       <table className="mt-2 w-full text-left text-xs">
         <tbody className="divide-y divide-slate-100">
-          {items.map((f, i) => (
-            <tr key={i} className="hover:bg-slate-50/80">
-              <td className="px-3 py-2 align-top">
-                <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${DIFF_SEV_CLS[f.severity] || "bg-slate-100 text-slate-600"}`}>
-                  {f.severity}
-                </span>
-              </td>
-              <td className="px-3 py-2 align-top font-medium text-slate-600">
-                {f.tool}
-                {f.rule_id && <span className="ml-1.5 font-mono text-[10px] text-slate-400">{f.rule_id}</span>}
-              </td>
-              <td className="px-3 py-2 align-top">
-                <span className="font-mono text-[10px] text-slate-500">{f.file || "\u2014"}:{f.line ?? "\u2014"}</span>
-              </td>
-              <td className="px-3 py-2 align-top leading-relaxed text-slate-600">{f.message}</td>
-            </tr>
-          ))}
+          {items.map((f, i) => <DiffFindingRow key={i} f={f} />)}
         </tbody>
       </table>
     </details>
+  );
+}
+
+function DiffFindingRow({ f }: { f: RoundFinding }) {
+  const [open, setOpen] = useState(false);
+  const hasDetail = Boolean(f.code_snippet || f.rule_id || f.type);
+  return (
+    <>
+      <tr
+        onClick={hasDetail ? () => setOpen(o => !o) : undefined}
+        className={`${hasDetail ? "cursor-pointer hover:bg-slate-50/80" : ""} ${open ? "bg-slate-50" : ""}`}
+      >
+        <td className="px-3 py-2 align-top">
+          <div className="flex items-center gap-1.5">
+            {hasDetail && <ChevronRight className={`h-3.5 w-3.5 text-slate-400 transition-transform ${open ? "rotate-90" : ""}`} />}
+            <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${DIFF_SEV_CLS[f.severity] || "bg-slate-100 text-slate-600"}`}>
+              {f.severity}
+            </span>
+          </div>
+        </td>
+        <td className="px-3 py-2 align-top font-medium text-slate-600">
+          {f.tool}
+          {f.rule_id && <span className="ml-1.5 font-mono text-[10px] text-slate-400">{f.rule_id}</span>}
+        </td>
+        <td className="px-3 py-2 align-top">
+          <span className="font-mono text-[10px] text-slate-500">{f.file || "\u2014"}:{f.line ?? "\u2014"}</span>
+        </td>
+        <td className="px-3 py-2 align-top leading-relaxed text-slate-600">{f.message}</td>
+      </tr>
+      {open && (
+        <tr className="bg-slate-50">
+          <td colSpan={4} className="px-3 pb-3 pt-0">
+            <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs">
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-slate-600">
+                {f.type && <span><span className="font-semibold text-slate-700">Type:</span> {f.type}</span>}
+                {f.rule_id && <span><span className="font-semibold text-slate-700">Rule:</span> <span className="font-mono">{f.rule_id}</span></span>}
+                <span><span className="font-semibold text-slate-700">Tool:</span> {f.tool}</span>
+                {f.line ? <span><span className="font-semibold text-slate-700">Line:</span> {f.line}</span> : null}
+              </div>
+              <p className="mt-2 text-slate-600">{f.message}</p>
+              {f.code_snippet && (
+                <pre className="mt-2 overflow-auto rounded-md bg-slate-900 p-3 font-mono text-[11px] leading-relaxed text-slate-100">
+                  {f.code_snippet}
+                </pre>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
