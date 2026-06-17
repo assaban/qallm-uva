@@ -72,3 +72,9 @@ The mechanics and design record.
 Lab and validation corpora live outside `docs/`, under [`datasets/`](../datasets/):
 the committed lab set ([`datasets/lab/MANIFEST.md`](../datasets/lab/MANIFEST.md))
 and the ENVRI fetcher (`scripts/fetch_envri_dataset.py`).
+
+- [`docs/architecture/sessions-vs-experiments.md`](architecture/sessions-vs-experiments.md): how interactive web sessions are kept separate from batch experiment runs.
+
+- [`docs/thesis/e1-results-analysis.md`](thesis/e1-results-analysis.md): first-pass analysis of the E1 headline run, with the counts and the gap-rate caveat.
+
+- [`docs/thesis/doc-consolidation-plan.md`](thesis/doc-consolidation-plan.md): proposal to consolidate the docs (for sign-off).
