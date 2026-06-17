@@ -72,14 +72,20 @@ USER root
 RUN if [ "$WITH_SONAR_SCANNER" = "1" ]; then \
         apt-get update \
         && apt-get install -y --no-install-recommends default-jre-headless unzip curl \
+        && rm -rf /var/lib/apt/lists/* \
+        && case "$(dpkg --print-architecture)" in \
+              amd64) SONAR_ARCH=x64 ;; \
+              arm64) SONAR_ARCH=aarch64 ;; \
+              *) echo "Unsupported arch for sonar-scanner: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+           esac \
         && curl -fsSL -o /tmp/scanner.zip \
-            "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-aarch64.zip" \
+            "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-${SONAR_ARCH}.zip" \
         && unzip -q /tmp/scanner.zip -d /opt \
-        && ln -s "/opt/sonar-scanner-${SONAR_SCANNER_VERSION}-linux-aarch64/bin/sonar-scanner" /usr/local/bin/sonar-scanner \
+        && ln -s "/opt/sonar-scanner-${SONAR_SCANNER_VERSION}-linux-${SONAR_ARCH}/bin/sonar-scanner" /usr/local/bin/sonar-scanner \
         && rm /tmp/scanner.zip \
         && apt-get purge -y unzip curl \
         && apt-get autoremove -y \
-        && rm -rf /var/lib/apt/lists/* ; \
+        && apt-get clean ; \
     fi
 
 # Copy the built frontend into the location FastAPI will serve from.
