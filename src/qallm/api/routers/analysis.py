@@ -302,14 +302,14 @@ async def run_analysis(req: dict):
         },
         "metrics": metrics,
     }
-    # Store a compact fingerprint of each finding so the re-analyse view can
-    # diff rounds and show which findings were resolved, which are new, and
-    # which persist, not just the totals. Keyed fields are enough to identify a
-    # finding across rounds without storing full snippets.
+    # Store a per-finding record so the re-analyse view can diff rounds (which
+    # findings were resolved, introduced, or persist) AND expand each one to its
+    # detail, the same as the baseline view. code_snippet is included so the
+    # diff rows can show the offending code, matching the baseline finding rows.
     round_findings = [
         {"tool": f.tool, "type": f.type, "severity": f.severity,
          "file": f.file, "line": f.line, "rule_id": f.rule_id,
-         "message": f.message}
+         "message": f.message, "code_snippet": f.code_snippet}
         for f in all_findings
     ]
     state["analysis_rounds"].append({

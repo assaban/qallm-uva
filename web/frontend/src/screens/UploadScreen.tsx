@@ -27,6 +27,10 @@ const ORACLE_INFO: Record<string, { title: string; desc: string }> = {
     title: "Crash oracle",
     desc: "Feeds edge-case inputs (empty lists, None, zero, overflow) and asserts the function does not raise unhandled exceptions. The simplest but most effective oracle: if the code crashes on valid-typed inputs, it has a bug.",
   },
+  correctness: {
+    title: "Correctness oracle",
+    desc: "Reasons from the spec (signature and docstring only, never the implementation body) to catch functions that run without crashing but return wrong values. This is the reliability oracle behind the verification gap finding.",
+  },
   property: {
     title: "Property oracle",
     desc: "Checks output invariants derivable from docstrings and type hints: correct return types, value range constraints, size relationships. Catches logic errors where the code runs but returns wrong results.",
