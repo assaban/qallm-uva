@@ -133,6 +133,7 @@ class QALLMOrchestrator:
             reporter: QualityReporter | None = None,
             tags: list[str] | None = None,
             artefact_retention: str = "full",
+            origin: str = "experiment",
     ) -> None:
         """Construct the orchestrator.
 
@@ -187,6 +188,7 @@ class QALLMOrchestrator:
             self.reporter = QualityReporter(
                 "outputs/quality_reporter", effective_run_id,
                 artefact_retention=artefact_retention,
+                origin=origin,
             )
 
         self.stage = stage if isinstance(stage, LifecycleStage) else LifecycleStage(stage)
@@ -826,6 +828,10 @@ class QALLMOrchestrator:
             # here so the gap rate stays computable from summary.json alone.
             "gap_rounds": self.reporter.gap_rounds,
             "artefact_retention": self.reporter.artefact_retention,
+            # How this session was created: "interactive" (web UI) or
+            # "experiment" (batch runner). The Sessions library lists only
+            # interactive sessions so it is not swamped by experiment artefacts.
+            "origin": self.reporter.origin,
         }
         self.reporter._ensure_dir()
         summary_path = self.reporter.report_dir / "summary.json"

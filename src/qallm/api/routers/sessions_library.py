@@ -128,6 +128,14 @@ async def list_sessions(tag: str | None = None):
         if not os.path.isdir(path) or not _is_session_dir(path):
             continue
         summary = _read_json(os.path.join(path, "summary.json")) or {}
+        # Only list interactive (web UI) sessions. Experiment runs from the
+        # batch runner produce thousands of unit directories that would swamp
+        # the library and slow it to a crawl. Sessions created before the
+        # origin marker existed have no "origin" key; treat those as
+        # interactive so existing web sessions are not hidden, but skip
+        # anything explicitly marked "experiment".
+        if summary.get("origin") == "experiment":
+            continue
         card = _summarise(name, summary)
         card["has_report"] = os.path.isfile(os.path.join(path, "report.md"))
         all_tags.update(card.get("tags") or [])
