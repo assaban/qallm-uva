@@ -1,5 +1,10 @@
 # Lab calibration result: the correctness oracle works
 
+> NOTE. This record predates the single-sample decision. Any `--samples 5`
+> invocation below is superseded; the calibrated setting is `--samples 1`
+> (5/5 reliability recall confirmed). See docs/thesis/methodology-decisions.md.
+
+
 Status: result record, 2026-06-10. This is the calibration milestone that makes
 the verification gap trustworthy on the reliability defect class.
 

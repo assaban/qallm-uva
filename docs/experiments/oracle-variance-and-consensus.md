@@ -1,5 +1,13 @@
 # Oracle variance and the case for consensus test generation
 
+> SUPERSEDED. Consensus by union (samples > 1) was evaluated and abandoned; the
+> pipeline runs single-sample (samples = 1). The durable insight is kept below
+> and folded into threats-to-validity: independent samples propose different
+> inputs, so call-keyed voting never triggers and the union accumulates one-off
+> wrong expected values instead of cancelling them. Do not run `--samples 5`.
+> See docs/thesis/methodology-decisions.md for the decision of record.
+
+
 A design analysis grounded in three lab-calibration runs. It explains why
 single-shot correctness-oracle generation is unreliable, what the evidence
 shows, and the proposed fix (multi-sample consensus). This is a source-of-truth
