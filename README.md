@@ -25,7 +25,7 @@ flowchart LR
     Decision -->|With QALLM| Evidence[Answered with<br/>runtime evidence]
 ```
 
-Pilot results across 31 functions, 5 files, and three models (gpt-4o-mini, gpt-5-mini, gemma3:4b) showed a 91.3 percent false confidence rate when relying on static signals alone: code that passed every static check but contained a logic bug surfaced only once it was executed. That finding motivates execution-based verification inside the loop. The verification-strategy ablation supports the design choice: the iterative-feedback verifier found significantly more bugs than the one-shot and Hypothesis baselines (all pairwise Wilcoxon tests at p < 0.005).
+A pilot across 31 functions, 5 files, and three models (gpt-4o-mini, gpt-5-mini, gemma3:4b) indicated a large verification gap: code that passed every static check but contained a logic bug surfaced only once it was executed. The pilot's headline figure (a 91.3 percent false confidence rate) is a provisional estimate produced under the pre-MD-001 protocol and is pending the validated re-run; it is reported here as motivation, not as a final result. The validated figure, with its bootstrap confidence interval, will come from the full MD-001 run. That signal is what motivates execution-based verification inside the loop. The verification-strategy ablation supports the design choice: the iterative-feedback verifier found significantly more bugs than the one-shot and Hypothesis baselines (all pairwise Wilcoxon tests at p < 0.005).
 
 ## EVERSE alignment
 

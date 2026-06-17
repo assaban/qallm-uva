@@ -1,7 +1,5 @@
 """Sampling selects a reproducible, size-spanning subset of inputs."""
 
-from pathlib import Path
-
 from qallm.experiments.gap_runner import _sample_inputs
 
 

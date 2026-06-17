@@ -60,3 +60,6 @@ where = ["src"]
 [tool.ruff]
 line-length = 88
 target-version = "py310"
+# qallm-demo-case is an intentional demonstration input with deliberate defects
+# (it exists to be analysed, not to pass linting), so it is excluded from ruff.
+extend-exclude = ["qallm-demo-case"]
