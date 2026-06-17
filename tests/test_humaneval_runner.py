@@ -315,3 +315,38 @@ class TestProblemAggregation:
             on_problem_complete=lambda r: callback_calls.append(r.task_id),
         )
         assert sorted(callback_calls) == ["Python/0", "Python/1"]
+
+
+class TestParallelExecution:
+    def test_workers_runs_all_combinations(self, tmp_path):
+        # With multiple workers every combination must still run exactly once
+        # and every result must be written, same as the serial path.
+        problems = [_problem(f"Python/{i}") for i in range(5)]
+        config = _config(
+            tmp_path, models=["m_a", "m_b"], strategies=["rl"], workers=4,
+        )
+        results = run_experiment(
+            config, orchestrator_factory=_make_factory(), problems=problems,
+        )
+        # 5 problems * 1 strategy * 2 models = 10 combinations.
+        assert len(results) == 10
+        keys = {(r.task_id, r.strategy, r.model) for r in results}
+        assert len(keys) == 10  # no duplicates, no drops
+        lines = (config.output_dir / "results.jsonl").read_text().strip().splitlines()
+        assert len(lines) == 10
+
+    def test_workers_resumes_skipping_done(self, tmp_path):
+        problems = [_problem("Python/0"), _problem("Python/1")]
+        config = _config(tmp_path, models=["m_a"], strategies=["rl"], workers=2)
+        run_experiment(config, orchestrator_factory=_make_factory(), problems=problems)
+        # Re-run: everything is already done, nothing new should be appended.
+        results = run_experiment(
+            config, orchestrator_factory=_make_factory(), problems=problems,
+        )
+        lines = (config.output_dir / "results.jsonl").read_text().strip().splitlines()
+        assert len(lines) == 2  # not duplicated on the parallel resume
+        assert len(results) == 2
+
+    def test_workers_in_manifest(self, tmp_path):
+        config = _config(tmp_path, workers=8)
+        assert config.to_manifest()["workers"] == 8

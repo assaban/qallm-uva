@@ -80,6 +80,12 @@ def main() -> int:
         help="Judge strategy (default lexicographic).",
     )
     parser.add_argument(
+        "--workers", type=int, default=1,
+        help="Parallel worker threads (default 1 = serial). Combinations run "
+             "concurrently; results are written as each completes. Resumption "
+             "and per-combination isolation are unaffected.",
+    )
+    parser.add_argument(
         "--log-level", default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Logging verbosity (default INFO).",
@@ -111,6 +117,7 @@ def main() -> int:
         rounds=args.rounds,
         oracle=args.oracle,
         judge_strategy=args.judge_strategy,
+        workers=args.workers,
     )
 
     if not config.models or not config.strategies:

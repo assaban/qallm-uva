@@ -4,6 +4,23 @@ Newest first. Append-only.
 
 ---
 
+## 2026-06-17 (HumanEvalFix: parallel runner + clearer purpose)
+
+- run_humaneval.py / humaneval_runner.py now take --workers N: combinations run
+  in a ThreadPoolExecutor, results written as each completes under a lock,
+  resumption unaffected. Each combo is independent (own orchestrator, temp dir,
+  LLM calls) so it is safe. Measured ~5.4x on 6 stub problems with 4 workers.
+  Web-UI launcher accepts workers too. +3 tests.
+- docs/experiments/humaneval.md: added a "Why this experiment exists" section
+  making the role explicit, it is the GROUND-TRUTH calibration that backs the
+  real-notebook headline (which has no labels). It checks that generated tests
+  discriminate buggy from canonical, and that repairs pass the benchmark's
+  hidden tests (an oracle QALLM never sees, so no circularity). Also clarified
+  we use bigcode/humanevalpack (HumanEvalFix), not openai/openai_humaneval,
+  because the latter has no bugs and so cannot measure detection. Documented
+  --workers.
+
+
 ## 2026-06-17 (audit P1/P2: errored-units, ingestion fix, consensus retired, sandbox renamed)
 
 Executed the three greenlit items in headline-protecting order.

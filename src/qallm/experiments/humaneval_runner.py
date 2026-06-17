@@ -61,6 +61,7 @@ class ExperimentConfig:
     rounds: int                  # QALLM rounds per run
     oracle: str                  # crash / property / metamorphic
     judge_strategy: str          # strict / lexicographic / model
+    workers: int = 1             # parallel worker threads (1 = serial)
 
     def to_manifest(self) -> dict:
         return {
@@ -71,6 +72,7 @@ class ExperimentConfig:
             "rounds": self.rounds,
             "oracle": self.oracle,
             "judge_strategy": self.judge_strategy,
+            "workers": self.workers,
             "output_dir": str(self.output_dir),
         }
 
@@ -143,31 +145,62 @@ def run_experiment(
         total, done, total - done,
     )
 
-    # The triple-nested loop. Order: problem → strategy → model. This means
-    # the report ends up grouped by problem, which is what most readers want.
+    # Build the list of combinations still to run (resumable: skip done ones).
+    # Order problem -> strategy -> model so a serial run still groups the report
+    # by problem, which is what most readers want.
+    pending: list[tuple[HumanEvalProblem, str, str]] = []
+    for problem in problems:
+        for strategy in config.strategies:
+            for model in config.models:
+                key = (problem.task_id, strategy, model)
+                if key not in completed_keys:
+                    pending.append((problem, strategy, model))
+
+    # Writing to the JSONL, appending to results, and invoking the progress
+    # callback must be serialised even when workers run in parallel; a lock
+    # around just those steps keeps the file and the in-memory list consistent
+    # while the expensive _run_one work (LLM calls, execution) stays concurrent.
+    import threading
+    write_lock = threading.Lock()
+
+    def _record(result: ProblemResult, out) -> None:
+        with write_lock:
+            out.write(json.dumps(result.to_dict()) + "\n")
+            out.flush()
+            results.append(result)
+            if on_problem_complete is not None:
+                on_problem_complete(result)
+
+    def _run_combo(problem, strategy, model) -> ProblemResult:
+        logger.info("Running %s [strategy=%s, model=%s]",
+                    problem.task_id, strategy, model)
+        return _run_one(
+            problem=problem, strategy=strategy, model=model,
+            config=config, orchestrator_factory=orchestrator_factory,
+        )
+
+    workers = max(1, int(getattr(config, "workers", 1) or 1))
     with results_path.open("a", encoding="utf-8") as out:
-        for problem in problems:
-            for strategy in config.strategies:
-                for model in config.models:
-                    key = (problem.task_id, strategy, model)
-                    if key in completed_keys:
-                        continue
-                    logger.info(
-                        "Running %s [strategy=%s, model=%s]",
-                        problem.task_id, strategy, model,
-                    )
-                    result = _run_one(
-                        problem=problem,
-                        strategy=strategy,
-                        model=model,
-                        config=config,
-                        orchestrator_factory=orchestrator_factory,
-                    )
-                    out.write(json.dumps(result.to_dict()) + "\n")
-                    out.flush()
-                    results.append(result)
-                    if on_problem_complete is not None:
-                        on_problem_complete(result)
+        if workers == 1:
+            # Serial path unchanged, so single-worker behaviour is identical.
+            for problem, strategy, model in pending:
+                _record(_run_combo(problem, strategy, model), out)
+        else:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = {
+                    pool.submit(_run_combo, p, s, m): (p, s, m)
+                    for (p, s, m) in pending
+                }
+                for fut in as_completed(futures):
+                    p, s, m = futures[fut]
+                    try:
+                        result = fut.result()
+                    except Exception as exc:  # a worker crashed; record it
+                        logger.exception("Worker failed for %s [%s, %s]",
+                                         p.task_id, s, m)
+                        result = _error_result(p, s, m, exc)
+                    _record(result, out)
 
     # Final aggregation and report.
     aggs = aggregate(results)
@@ -302,6 +335,26 @@ def _run_one(
 
 
 # ---------- helpers ----------
+
+
+def _error_result(problem: "HumanEvalProblem", strategy: str, model: str,
+                  exc: BaseException) -> "ProblemResult":
+    """Build an error ProblemResult for a combination that crashed at the
+    worker boundary. _run_one catches its own exceptions, so this is a
+    defensive fallback for the parallel path only."""
+    return ProblemResult(
+        task_id=problem.task_id,
+        strategy=strategy,
+        model=model,
+        bug_detected=False,
+        repair_successful=False,
+        rounds_run=0,
+        total_bugs_reported=0,
+        final_coverage=0.0,
+        cost_usd=0.0,
+        elapsed_seconds=0.0,
+        error=f"{type(exc).__name__}: {exc}",
+    )
 
 
 def _default_orchestrator_factory(

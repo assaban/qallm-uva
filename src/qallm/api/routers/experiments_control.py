@@ -161,6 +161,7 @@ def _run_experiment_work(run_id: str, spec_id: str, params: dict) -> dict:
         rounds=params.get("rounds", 5),
         oracle=params.get("oracle", "crash"),
         judge_strategy=params.get("judge_strategy", "lexicographic"),
+        workers=params.get("workers", 1),
     )
     try:
         results = run_experiment(config, on_problem_complete=on_complete)
