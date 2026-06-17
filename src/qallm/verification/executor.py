@@ -1,8 +1,11 @@
-"""Test executor: runs generated pytest code in an isolated subprocess.
+"""Test executor: runs generated pytest code in a subprocess with a timeout.
 
-Creates a temporary directory with the source file and generated test,
-then runs pytest with coverage.py. DependencyMapper copies sibling
-modules so that the target code's own imports resolve.
+Creates a temporary directory with the source file and generated test, then runs
+pytest with coverage.py in a subprocess bounded by a wall-clock timeout. This is
+NOT isolation: the subprocess inherits the invoking user's full filesystem,
+network, and resource access; the timeout is the only bound. Run only in the
+provided container or an equivalent throwaway environment. DependencyMapper
+copies sibling modules so the target code's own imports resolve.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ import time
 from pathlib import Path
 
 from qallm.verification.models import ExecutionResult, TestDetail
-from qallm.verification.sandbox import DependencyMapper
+from qallm.verification.extraction import DependencyMapper
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +106,10 @@ def run_tests(
     source_origin: Path | None = None,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> ExecutionResult:
-    """Execute generated tests against source code in an isolated subprocess.
+    """Execute generated tests against source code in a subprocess.
+
+    Not isolated: the subprocess has the invoking user's full access and is
+    bounded only by ``timeout``. Run in the provided container.
 
     Args:
         source_code: Python source code of the module under test.

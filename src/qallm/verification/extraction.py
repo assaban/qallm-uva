@@ -1,9 +1,17 @@
-"""Sandbox utilities for test execution isolation.
+"""Code extraction and dependency mapping for test execution.
+
+This module prepares LLM-generated tests for execution. It does NOT provide
+sandboxing or isolation, despite the former module name: it neither restricts
+the filesystem, network, nor resources of the subprocess that later runs the
+tests (see executor.py, which uses a temp dir and a wall-clock timeout only).
+Run QALLM in the provided container or an equivalent throwaway environment, and
+never against untrusted notebooks on a host holding secrets. This operational
+constraint is recorded in the thesis threats-to-validity section.
 
 CodeExtractor: multi-strategy extraction of valid Python from LLM output,
 with AST validation as a gate. Addresses the 'LLM Chatter' problem.
 
-DependencyMapper: copies sibling modules/packages into the sandbox so
+DependencyMapper: copies sibling modules/packages into the working directory so
 that target code imports resolve correctly. Addresses the 'Import
 Hallucinations' problem.
 """

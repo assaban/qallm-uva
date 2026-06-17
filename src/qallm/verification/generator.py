@@ -20,7 +20,7 @@ from qallm.verification.prompts import (
     build_property_oracle_prompt,
     build_feedback_prompt
 )
-from qallm.verification.sandbox import CodeExtractor
+from qallm.verification.extraction import CodeExtractor
 from qallm.verification.test_validator import (
     strip_unsatisfied_fixture_tests,
     strip_incoherent_oracle_tests,

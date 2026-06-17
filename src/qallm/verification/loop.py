@@ -137,7 +137,7 @@ class TestGenerationLoop:
                 )
                 # Call LLM directly with feedback prompt
                 from qallm.verification.generator import _fix_source_import, _validate_test_code
-                from qallm.verification.sandbox import CodeExtractor
+                from qallm.verification.extraction import CodeExtractor
                 from qallm.verification.models import GeneratedTest
 
                 resp = self.llm.chat(SYSTEM_PROMPT, feedback_prompt, self.tracker)

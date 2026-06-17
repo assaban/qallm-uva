@@ -41,7 +41,7 @@ from qallm.verification.prompts import (
     SYSTEM_PROMPT,
     build_finding_targeted_prompt,
 )
-from qallm.verification.sandbox import CodeExtractor
+from qallm.verification.extraction import CodeExtractor
 from qallm.verification.test_validator import strip_unsatisfied_fixture_tests
 
 logger = logging.getLogger(__name__)
