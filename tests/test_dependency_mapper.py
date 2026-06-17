@@ -1,5 +1,5 @@
 """Tests for DependencyMapper: validates sibling module copying and import sanitization."""
-from qallm.verification.sandbox import DependencyMapper
+from qallm.verification.extraction import DependencyMapper
 
 
 class TestResolveAndCopy:

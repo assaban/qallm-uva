@@ -344,6 +344,31 @@ def run_gap_experiment(
     aggregate = aggregate_sessions(metrics).to_dict()
     per_session = [m.to_dict() for m in metrics]
 
+    # Surface errored inputs in the aggregate, not just the log. Without this a
+    # reader of aggregate.json cannot tell "measured and clean" from "could not
+    # be measured": a batch that silently drops a tenth of its inputs would look
+    # identical to one where every input was analysed. The headline rate is over
+    # measured inputs; the error accounting makes the denominator honest. The
+    # by-type breakdown surfaces a recurring failure (e.g. one ingestion bug)
+    # instead of burying it in the per-input log.
+    n_ok = len(metrics)
+    n_errored = len(errors)
+    n_total = n_ok + n_errored
+    error_types: dict[str, int] = {}
+    for e in errors:
+        msg = str(e.get("error", "unknown"))
+        # Collapse to a short signature so similar errors group together.
+        sig = msg.split("\n")[0][:80]
+        error_types[sig] = error_types.get(sig, 0) + 1
+    aggregate["inputs"] = {
+        "total": n_total,
+        "measured": n_ok,
+        "errored": n_errored,
+        "errored_fraction": round(n_errored / n_total, 4) if n_total else 0.0,
+        "error_types": dict(sorted(error_types.items(),
+                                   key=lambda kv: kv[1], reverse=True)),
+    }
+
     # When mutation-confidence ran, add a run-level confidence distribution and
     # a high-confidence gap count, so the headline can be reported filtered to
     # high-confidence findings (direct evidence the gap is not test noise).

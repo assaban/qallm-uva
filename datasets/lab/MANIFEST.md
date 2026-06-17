@@ -10,7 +10,8 @@ Run the whole set:
 ```
 python scripts/run_gap_experiment.py \
     --dataset datasets/lab --output runs/lab --pattern "*.py" \
-    --llm fedllm --rounds 3 --confirm
+    --llm fedllm --rounds 5 --oracle correctness --samples 1 \
+    --confirm --mutation-confidence
 ```
 
 The fixtures are organised by what they exercise. Findings below were verified

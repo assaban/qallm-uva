@@ -20,11 +20,7 @@ from qallm.verification.prompts import (
     build_property_oracle_prompt,
     build_feedback_prompt
 )
-from qallm.verification.consensus_vote import (
-    drop_outvoted_assertions,
-    majority_expected,
-)
-from qallm.verification.sandbox import CodeExtractor
+from qallm.verification.extraction import CodeExtractor
 from qallm.verification.test_validator import (
     strip_unsatisfied_fixture_tests,
     strip_incoherent_oracle_tests,
@@ -73,131 +69,19 @@ class TestGenerator:
             existing_session: TestGenerationSession | None = None,
             samples: int = 1,
     ) -> GeneratedTest:
-        """Generate a test suite, optionally from several samples (consensus).
+        """Generate a test suite with a single LLM generation.
 
-        With ``samples == 1`` this is a single LLM generation (the historical
-        behaviour, nothing changes). With ``samples > 1`` it generates the
-        suite ``samples`` times and merges the valid ones into a single suite.
-
-        Why: a correctness test is only as good as the expected value it
-        asserts, and a single generation derives that value with meaningful
-        variance, different samples catch different reliability bugs (shown on
-        the lab set: one sample caught normalise_unit, another caught
-        accumulate). Merging samples collects the union, so a bug any sample
-        would catch is caught. Test-function names are made unique per sample so
-        concatenated suites do not collide. See
-        docs/experiments/oracle-variance-and-consensus.md.
-
-        Consensus is only applied to the initial (round-0) generation; feedback
-        rounds (existing_session present) use a single sample, since they are
-        refining a specific prior suite rather than measuring the gap.
+        ``samples`` is retained only for backward compatibility of the call
+        signature and is ignored: the pipeline runs single-sample. Consensus by
+        union (samples > 1, merge the valid suites) was evaluated and abandoned,
+        see the methodology log. The reason it failed: independent samples
+        propose different inputs, so call-keyed voting never triggers, and the
+        union simply accumulates every sample's one-off wrong expected value
+        rather than cancelling it. The calibrated setting is samples = 1, with
+        5/5 reliability recall confirmed on the lab set. A future, sounder
+        approach (fixed-input voting) is tracked separately and is not this code.
         """
-        # Consensus applies only to the INITIAL generation (round 0). A
-        # feedback round is one where the session already has prior rounds; an
-        # empty session attached before round 0 is NOT a feedback round. The
-        # earlier guard tested `existing_session is not None`, but the manager
-        # attaches an empty session before the first generate(), so that guard
-        # disabled consensus entirely (samples was silently ignored). Test the
-        # round count, matching how _generate_once selects the feedback prompt.
-        is_feedback = bool(existing_session and len(existing_session.rounds) > 0)
-        if samples <= 1 or is_feedback:
-            return self._generate_once(func, oracle, module_name, existing_session)
-
-        suites: list[GeneratedTest] = []
-        for i in range(samples):
-            logger.info("Consensus sample %d/%d for %s", i + 1, samples, func.name)
-            suites.append(
-                self._generate_once(func, oracle, module_name, existing_session)
-            )
-
-        return self._merge_samples(suites, func, oracle, module_name)
-
-    def _merge_samples(
-        self,
-        suites: list[GeneratedTest],
-        func: FunctionInfo,
-        oracle: OracleType,
-        module_name: str,
-    ) -> GeneratedTest:
-        """Merge several sampled suites into one (union of their tests).
-
-        Keeps every valid sample's tests, namespacing test-function names by
-        sample index so they do not collide, and concatenating imports once.
-        If no sample is valid, returns the first (carrying its error). Token
-        counts and discarded lists are summed across samples for honest
-        accounting.
-        """
-        valid = [s for s in suites if s.is_valid and s.test_code.strip()]
-        if not valid:
-            return suites[0]
-
-        # Majority vote on expected values before unioning. For each call to the
-        # function under test, the expected value a majority of samples agree on
-        # wins; assertions in any sample that assert a minority value are
-        # dropped. This removes the one-off wrong expected value that union
-        # alone keeps (the lab `cryptic` false positive). Calls with no majority
-        # are left untouched (we cannot say which value is wrong).
-        winners = majority_expected([s.test_code for s in valid], func.name)
-        sample_sources = [
-            drop_outvoted_assertions(s.test_code, func.name, winners)
-            for s in valid
-        ]
-
-        import_lines: list[str] = []
-        seen_imports: set[str] = set()
-        body_blocks: list[str] = []
-
-        for idx, source in enumerate(sample_sources):
-            for line in source.splitlines():
-                stripped = line.strip()
-                is_import = stripped.startswith(("import ", "from "))
-                if is_import:
-                    if stripped not in seen_imports:
-                        seen_imports.add(stripped)
-                        import_lines.append(stripped)
-                    continue
-                # Namespace test function names so samples never collide.
-                if stripped.startswith("def test"):
-                    line = re.sub(
-                        r"\bdef (test\w*)",
-                        rf"def \1_s{idx}",
-                        line,
-                        count=1,
-                    )
-                body_blocks.append(line)
-            body_blocks.append("")  # blank line between samples
-
-        merged_code = "\n".join(import_lines) + "\n\n" + "\n".join(body_blocks)
-        merged_code = _fix_source_import(merged_code, module_name)
-        is_valid, validation_error = _validate_test_code(merged_code)
-
-        total_in = sum(s.input_tokens or 0 for s in suites)
-        total_out = sum(s.output_tokens or 0 for s in suites)
-        discarded: list[str] = []
-        incoherent: list[str] = []
-        for s in suites:
-            discarded.extend(s.discarded_tests or [])
-            incoherent.extend(s.incoherent_oracle_tests or [])
-
-        logger.info(
-            "Consensus merge for %s: %d/%d samples valid, merged suite %s",
-            func.name, len(valid), len(suites),
-            "valid" if is_valid else f"invalid ({validation_error})",
-        )
-
-        return GeneratedTest(
-            function_name=func.name,
-            oracle=oracle,
-            test_code=merged_code,
-            is_valid=is_valid,
-            generation_error=validation_error,
-            model=valid[0].model,
-            provider=valid[0].provider,
-            input_tokens=total_in,
-            output_tokens=total_out,
-            discarded_tests=discarded,
-            incoherent_oracle_tests=incoherent,
-        )
+        return self._generate_once(func, oracle, module_name, existing_session)
 
     def _generate_once(
             self,

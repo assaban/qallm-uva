@@ -4,6 +4,26 @@ Newest first. Append-only.
 
 ---
 
+## 2026-06-17 (audit P1/P2: errored-units, ingestion fix, consensus retired, sandbox renamed)
+
+Executed the three greenlit items in headline-protecting order.
+
+1. Errored-units surfaced + ingestion bug fixed: aggregate.json now has an
+   "inputs" block (total/measured/errored/errored_fraction/error_types); fixed
+   NotebookAdapter.parse assuming dict cells and list source (the 'str' object
+   has no attribute 'get' bug behind 186 of 203 E1 errors). +4 tests.
+2. Consensus apparatus retired: deleted consensus_vote.py, _merge_samples, the
+   samples>1 branch, both consensus tests; superseded the two consensus docs;
+   aligned the lab MANIFEST. Suite 734 -> 718.
+3. sandbox.py renamed to extraction.py (it never sandboxed); docstrings
+   downgraded to the truth; execution-safety threats paragraph added to scaffold
+   5.5.
+
+Three commits; suite 718; ruff clean. Still on Mohssin: rotate the SonarQube
+token; send the new E1 aggregate; run E2 (--confirm) for the real gap rate.
+
+---
+
 ## 2026-06-15 (thesis: drafted the results-independent sections)
 
 ### Delivered for review (`docs/thesis-results-independent-draft`)

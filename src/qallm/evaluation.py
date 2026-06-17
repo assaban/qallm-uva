@@ -355,7 +355,7 @@ def _repro_manifest(source: str, context: dict[str, Any]) -> float | None:
 def _repro_determinism(source: str, context: dict[str, Any]) -> float | None:
     """Determinism check is sandbox-backed; skipped at the evaluator level.
 
-    The verification sandbox already runs each test session once.
+    The verification subprocess already runs each test session once.
     Determinism would require a second run and a comparison. That is not
     free, and we don't want plain profile evaluation to silently invoke
     it. Returns ``None`` so the indicator is reported as SKIPPED until

@@ -417,7 +417,7 @@ A related construct point is the asymmetry between defect classes. Execution
 adjudicates reliability (wrong-value) defects strongly, because a correctness
 test reproduces the defect directly. Security findings are weaker: demonstrating
 that an `eval` or shell call is genuinely exploitable, safely and observably,
-under the sandbox is hard, so security findings frequently land inconclusive
+in the execution environment is hard, so security findings frequently land inconclusive
 rather than confirmed. This is reported honestly rather than forced to a number;
 it shows QALLM is conservative exactly where execution-based confirmation is
 least reliable.
@@ -438,6 +438,17 @@ almost no mutable structure yields no viable mutant and so scores "unknown"
 rather than high or low. This is reported as unknown rather than hidden; it
 reflects that an oracle cannot be stress-tested when there is nothing to mutate,
 and it does not affect functions with ordinary structure.
+
+Execution safety (operational). QALLM executes model-generated code to verify
+it. That execution is a subprocess bounded by a wall-clock timeout; it is not
+sandboxed in the security sense (no filesystem jail, network cut-off, resource
+caps, or syscall filtering), and the subprocess inherits the invoking user's
+privileges. The mitigation is operational rather than architectural: runs are
+performed in the provided container, which executes as a non-root user, and the
+tool must not be pointed at untrusted notebooks on a host holding secrets.
+Stronger isolation (a network-disabled, resource-capped, read-only container per
+test run) is a low-effort hardening recorded as future work; it is noted here so
+no reader mistakes the current execution for a security boundary.
 
 External validity. The findings are bounded by the representativeness of the
 notebook corpus, the choice of model, and the focus on Python. The calibration-
