@@ -2,6 +2,21 @@
 
 This experiment validates QALLM's bug-detection and repair capability against an external, peer-reviewed benchmark: BigCode's HumanEvalFix (the Python subset of `bigcode/humanevalpack`). It is the headline methodology validation cited in the thesis.
 
+## Why this experiment exists (what it does for us)
+
+QALLM's main claim is measured on real research notebooks (the ENVRI and Li corpora): static analysis misses defects that execution catches. But that headline number has an obvious weakness on its own, there is no ground truth. On scraped notebooks nobody has labelled which functions are actually buggy, so "QALLM found a defect" rests on QALLM's own generated test being trustworthy. A committee will press exactly there: how do you know the bugs you count are real bugs and not artifacts of your test generator?
+
+HumanEvalFix answers that question with an independent ground truth. Each of the 164 problems ships a known-buggy solution, a known-correct (canonical) solution, and a hidden test suite written by the benchmark's authors, not by us. That lets us measure QALLM against truth it did not author:
+
+- We can verify that QALLM's generated tests actually discriminate buggy from correct code (fail on the buggy solution, pass on the canonical one), which is a direct, externally-grounded check that the bug-detection signal is real and not a test that fails everything.
+- We can verify that a repair genuinely fixes the defect, by running the benchmark's hidden tests (an oracle QALLM never sees) against the repaired code, which avoids the circularity of grading a repair with the same tests that found the bug.
+
+So the role of this experiment is calibration and credibility, not the headline number itself. The ENVRI run shows the gap exists at scale on real code; HumanEvalFix shows, on labelled data with an external oracle, that QALLM's detection-and-repair machinery is sound. The two are complementary: one provides scale and realism, the other provides ground truth. It is also where the verification-strategy comparison (iterative feedback vs one-shot vs Hypothesis) is run as a controlled, paired benchmark, which is what makes the "feedback significantly outperforms the baselines" claim defensible.
+
+### A note on which dataset
+
+The original `openai/openai_humaneval` (164 problems with correct solutions and tests) is the ancestor of this benchmark, but it contains no bugs, so it cannot measure bug detection. We use BigCode's `bigcode/humanevalpack` HumanEvalFix split, which extends those 164 problems with a buggy variant and a richer hidden test suite per problem. That buggy-plus-canonical-plus-hidden-test structure is exactly what the two checks above require; the original OpenAI HumanEval could only test code generation, not the find-and-fix loop QALLM is about.
+
 ## What it measures
 
 Two outcomes per (problem, strategy, model) combination:
@@ -34,6 +49,17 @@ python scripts/run_humaneval.py \
 ```
 
 This runs all 164 problems against both models with all three strategies. Roughly 982 QALLM runs (the `hypothesis` strategy is identical across models so its second model run is a no-op for cost, but does re-run). The strategy name `feedback` is the current name for the iterative-feedback verifier; `rl` is still accepted as a back-compat alias.
+
+Add `--workers N` to run combinations in parallel (default 1 = serial). Each combination is independent (its own orchestrator, its own temp dir, its own LLM calls), so parallelism is safe; results are written to `results.jsonl` as each completes, and resumption is unaffected. On a hosted model the bottleneck is the LLM API, so 4 to 8 workers typically gives a near-linear speedup; for a local Ollama model, match the workers to the cores the model server can use. Example:
+
+```
+python scripts/run_humaneval.py \
+    --output runs/heval_2026-05-23 \
+    --models fedllm:gpt-oss-120b \
+    --strategies feedback,oneshot,hypothesis \
+    --rounds 5 --workers 6 --seed 42
+```
+
 
 For a pilot, restrict the sample:
 
