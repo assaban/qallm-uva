@@ -59,51 +59,79 @@ for scale, Yutong Li's ~2,800 notebook dataset.
 
 ```
 python scripts/run_gap_experiment.py \
-    --dataset datasets/envri --output runs/e1_rq1 \
+    --dataset datasets/envri_forest --output runs/e1_rq1_headline \
     --pattern "*.ipynb" \
     --llm fedllm --rounds 5 --oracle correctness --samples 1 \
-    --workers 4 --retention metrics_only --mutation-confidence
+    --workers 4 --mutation-confidence
 ```
 
-Produces: the gap rate with its bootstrap 95% CI (`aggregate.json` →
-`verification_gap_rate` and `confidence_intervals`), plus the run-level
-confidence distribution (`gap_confidence`). Report the gap rate twice, over all
-findings and restricted to high-confidence findings; if close, that is direct
-evidence the gap is real and not test noise. This is the central result of the
-thesis.
+Produces the per-function defect counts and the run-level confidence
+distribution (`aggregate.json` → `total_execution_only_bugs`,
+`gap_confidence`). 
 
-Note: `--mutation-confidence` forces full retention, so for the very large run,
-consider a two-pass approach, one `metrics_only` pass for the headline rate, one
-`--mutation-confidence` pass on a representative subset for the confidence story,
-if disk is a constraint.
+IMPORTANT, how to read the RQ1 number. The aggregate `verification_gap_rate` is
+`execution_only_bugs / (confirmed_findings + execution_only_bugs)`. In an
+RQ1-only run (`--confirm` off) `confirmed_findings` is always 0, so the rate is
+trivially 1.0 and carries no information. The real RQ1 result is therefore the
+COUNT story, not that ratio: how many execution-testable functions there were,
+how many had an execution-only defect static analysis missed, and in how many
+notebooks static analysis found nothing testable yet execution did. Report the
+counts (and the per-function defect rate, execution-only bugs over testable
+functions) for RQ1; the meaningful gap RATE comes from the `--confirm` run (E2),
+where `confirmed_findings` is populated. Do not quote the 1.0 as a result.
 
-### E2: RQ2 (confirm/refute of static findings)
+Fast representative pass while the full run proceeds (sampling): add
+`--sample 150 --sample-seed 42 --sample-stratify` to run a reproducible,
+size-stratified subset. Compare the sampled counts to the full run once it
+finishes to check the sample is representative.
+
+Note: `--mutation-confidence` forces full retention. For the very large run,
+consider two passes if disk is a constraint: one `--retention metrics_only` pass
+for the counts, one `--mutation-confidence` pass on a `--sample` subset for the
+confidence story.
+
+### E2: RQ2 (confirm/refute of static findings) and the meaningful gap rate
 
 ```
 python scripts/run_gap_experiment.py \
-    --dataset datasets/envri --output runs/e2_rq2 \
+    --dataset datasets/envri_forest --output runs/e2_rq2 \
     --pattern "*.ipynb" \
     --llm fedllm --rounds 5 --oracle correctness --samples 1 \
-    --workers 4 --confirm
+    --workers 4 --confirm --mutation-confidence
 ```
 
-Produces: `total_confirmed`, `total_refuted`, `confirmation_rate`. Interpreted
+Produces `total_confirmed`, `total_refuted`, `confirmation_rate`, AND the
+meaningful `verification_gap_rate` (because `--confirm` populates
+`confirmed_findings`, so the denominator is no longer degenerate). Interpreted
 as: how often a static finding corresponds to a behaviour execution can
 reproduce. A high refute rate is itself a finding (static analysis raising
-issues execution cannot substantiate).
+issues execution cannot substantiate). This is the run that yields the gap rate
+with its bootstrap CI for the thesis headline.
+
+Fast pass: same `--sample 150 --sample-seed 42 --sample-stratify` flags.
 
 ### E3: RQ3 (verified-fix rate)
 
 E3 is produced by the same `--confirm` run as E2 (`verified_fix_rate`,
-`total_verified_fixed`). It measures how often the repair loop turns a found
-defect into code that passes the same execution check. Report per EVERSE
-dimension where the sample allows.
+`total_verified_fixed`, `total_not_fixed`). No separate command. It measures how
+often the repair loop turns a found defect into code that passes the same
+execution check. Report per EVERSE dimension where the sample allows.
 
 ### E4: scale and external validity (Li corpus)
 
-Repeat E1 on Yutong Li's ~2,800 notebooks once acquired. Purpose: show the gap
-rate is stable at scale and not an artifact of the smaller ENVRI slice. Same
-command, larger `--dataset`.
+```
+python scripts/run_gap_experiment.py \
+    --dataset datasets/li_notebooks --output runs/e4_scale \
+    --pattern "*.ipynb" \
+    --llm fedllm --rounds 5 --oracle correctness --samples 1 \
+    --workers 4 --confirm --mutation-confidence
+```
+
+Repeat the E2 protocol on Yutong Li's ~2,800 notebooks once acquired, so the
+headline gap rate (not the degenerate RQ1-only ratio) is what scales. Purpose:
+show the gap rate is stable at scale and not an artifact of the ENVRI slice. For
+a first look without waiting for the full corpus, run with
+`--sample 300 --sample-seed 42 --sample-stratify`.
 
 ## Supporting analyses (not new runs)
 

@@ -134,6 +134,7 @@ async def upload_session(
             testgen_model_name=testgen_model_name,
             run_id=run_id,
             tags=tag_list,
+            origin="interactive",
         )
         units = orchestrator.ingestion_manager.collect(target)
 
@@ -201,6 +202,7 @@ async def ingest_source(req: dict):
             oracle=req.get("oracle", "crash"),
             rounds=req.get("rounds", 5),
             tags=req.get("tags") or [],
+            origin="interactive",
         )
 
         sessions[session_id] = {

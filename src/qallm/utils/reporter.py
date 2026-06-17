@@ -81,7 +81,15 @@ class QualityReporter:
         base_dir: str = "outputs/reports",
         run_id: Optional[str] = None,
         artefact_retention: str = "full",
+        origin: str = "experiment",
     ) -> None:
+        # origin distinguishes how this session was created, so the web Sessions
+        # library can show only interactive runs and not be swamped by the
+        # thousands of per-unit directories a large dataset experiment produces.
+        #   "interactive" : started from the web UI (upload/analyse/run).
+        #   "experiment"  : produced by the batch runner (scripts/run_gap_*).
+        # The web layer passes origin="interactive"; the runner uses the default.
+        self.origin = origin
         # Allow run_id override for deterministic test directories. The default
         # is "{timestamp}_{short-uuid}", the same shape the web upload/analyse
         # paths use, so every session directory has a consistent name and two

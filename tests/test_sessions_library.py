@@ -78,3 +78,33 @@ def test_path_traversal_guard_blocks_escapes():
         with pytest.raises(HTTPException) as exc:
             _session_path_or_404(bad)
         assert exc.value.status_code == 400
+
+
+def test_experiment_sessions_excluded_from_library(tmp_path, monkeypatch):
+    """The library lists interactive sessions; experiment runs are excluded so
+    a large batch run does not swamp the Sessions tab."""
+    # An interactive session (origin marker present).
+    inter = tmp_path / "20260601_100000_aaaa"
+    inter.mkdir()
+    (inter / "summary.json").write_text(json.dumps({
+        "source": "x.py", "origin": "interactive", "functions_verified": 1}))
+    # An experiment session (origin = experiment): must be hidden.
+    exp = tmp_path / "20260601_110000_bbbb"
+    exp.mkdir()
+    (exp / "summary.json").write_text(json.dumps({
+        "source": "y.py", "origin": "experiment", "functions_verified": 1}))
+    # A legacy session with no origin marker: treated as interactive (shown).
+    legacy = tmp_path / "20260601_120000_cccc"
+    legacy.mkdir()
+    (legacy / "summary.json").write_text(json.dumps({
+        "source": "z.py", "functions_verified": 1}))
+    monkeypatch.setattr("qallm.config.settings.QALLM_SESSIONS_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "qallm.api.routers.sessions_library.settings.QALLM_SESSIONS_DIR",
+        str(tmp_path))
+    r = client.get("/api/library")
+    assert r.status_code == 200
+    ids = {s["id"] for s in r.json()["sessions"]}
+    assert "20260601_100000_aaaa" in ids   # interactive shown
+    assert "20260601_120000_cccc" in ids   # legacy shown
+    assert "20260601_110000_bbbb" not in ids  # experiment hidden
