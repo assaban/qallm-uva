@@ -46,6 +46,8 @@ export default function RoundDiffView({ sessionId }: { sessionId: string }) {
   const [data, setData] = useState<RoundDiff | null>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [toRound, setToRound] = useState<number | null>(null);
+  // null means "immediate parent" (to_round - 1); a number is an explicit base.
+  const [fromRound, setFromRound] = useState<number | null>(null);
   const [mode, setMode] = useState<"unified" | "raw">("unified");
   const [openFile, setOpenFile] = useState<string | null>(null);
 
@@ -68,11 +70,11 @@ export default function RoundDiffView({ sessionId }: { sessionId: string }) {
     };
   }, [sessionId]);
 
-  // Reload when the selected round changes.
+  // Reload when either selected round changes. fromRound null => parent.
   useEffect(() => {
     if (toRound === null) return;
     let live = true;
-    getRoundDiff(sessionId, toRound)
+    getRoundDiff(sessionId, toRound, fromRound ?? undefined)
       .then((res) => {
         if (!live) return;
         if (res.available) {
@@ -84,7 +86,7 @@ export default function RoundDiffView({ sessionId }: { sessionId: string }) {
     return () => {
       live = false;
     };
-  }, [sessionId, toRound]);
+  }, [sessionId, toRound, fromRound]);
 
   if (reason) {
     return (
@@ -98,24 +100,49 @@ export default function RoundDiffView({ sessionId }: { sessionId: string }) {
     return <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-400">Loading round diff…</div>;
   }
 
-  const selectable = data.rounds.filter((r) => r > 0); // round 0 has no parent
+  const allRounds = data.rounds; // every round present, including 0
+  const laterRounds = allRounds.filter((r) => r > 0); // the "to" side needs a parent to exist
+  // Valid bases for the chosen "to" round: any round strictly below it.
+  const baseChoices = allRounds.filter((r) => r < (toRound ?? 0));
   const active = data.files.find((f) => f.label === openFile) ?? data.files[0];
+
+  // Keep the explicit base valid if the later round moves below it.
+  const onChangeTo = (next: number) => {
+    setToRound(next);
+    if (fromRound !== null && fromRound >= next) setFromRound(null); // revert to parent
+  };
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-slate-700">Round diff</h3>
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <label className="text-slate-500">Compare round</label>
+          <label className="text-slate-500">Compare</label>
           <select
-            value={toRound}
-            onChange={(e) => setToRound(Number(e.target.value))}
+            value={fromRound === null ? "parent" : String(fromRound)}
+            onChange={(e) => setFromRound(e.target.value === "parent" ? null : Number(e.target.value))}
             className="rounded-md border border-slate-200 px-1.5 py-0.5"
+            title="Base round to diff against"
           >
-            {selectable.map((r) => (
-              <option key={r} value={r}>{r} vs {r - 1}</option>
+            <option value="parent">parent (R{(toRound ?? 1) - 1})</option>
+            {baseChoices.map((r) => (
+              <option key={r} value={r}>R{r}</option>
             ))}
           </select>
+          <span className="text-slate-400">→</span>
+          <select
+            value={toRound}
+            onChange={(e) => onChangeTo(Number(e.target.value))}
+            className="rounded-md border border-slate-200 px-1.5 py-0.5"
+            title="Later round to compare"
+          >
+            {laterRounds.map((r) => (
+              <option key={r} value={r}>R{r}</option>
+            ))}
+          </select>
+          <span className="ml-1 text-slate-400">
+            ({fromRound === null ? (toRound ?? 1) - 1 : fromRound} vs {toRound})
+          </span>
           <div className="ml-2 flex overflow-hidden rounded-md border border-slate-200">
             <button onClick={() => setMode("unified")} className={`px-2 py-0.5 font-medium ${mode === "unified" ? "bg-slate-900 text-white" : "bg-white text-slate-600"}`}>Unified</button>
             <button onClick={() => setMode("raw")} className={`px-2 py-0.5 font-medium ${mode === "raw" ? "bg-slate-900 text-white" : "bg-white text-slate-600"}`}>Raw</button>
