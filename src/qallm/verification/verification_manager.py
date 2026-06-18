@@ -163,8 +163,11 @@ class VerificationManager:
                 models: without this, the orchestrator's snapshot would stay
                 on the previous function's name for the full duration of the
                 next function's LLM call. Signature: ``(name, idx, total)``.
-            round_number: 1-indexed QALLM round number. Used to label stored
-                tests with their origin round.
+            round_number: the QALLM round number, matching the orchestrator's
+                convention: 0 for the baseline (original code, no repair) and
+                1..N for improvement rounds. Used to label stored tests and the
+                session RoundResult with their origin round. Defaults to 1 for
+                direct callers that are not running a baseline.
         """
         unit = repaired_unit.repaired_code_unit
         source, path = unit.source_code, unit.original_path
@@ -419,7 +422,16 @@ class VerificationManager:
 
             session.rounds.append(
                 RoundResult(
-                    round_number=len(session.rounds) + 1,
+                    # Use the orchestrator's round number, not a session-local
+                    # 1-indexed counter. The orchestrator labels the baseline as
+                    # round 0 (original code, no repair) and improvement rounds
+                    # as 1..N; the gap metrics and lineage already use that
+                    # convention. Stamping the session-local counter here made
+                    # verification.json label the baseline as "round 1", which
+                    # disagreed with every other artefact. verify() appends
+                    # exactly one RoundResult per orchestrator round, so this is
+                    # unambiguous.
+                    round_number=round_number,
                     generated_test=generated_for_record,
                     execution=execution,
                     reward=reward,

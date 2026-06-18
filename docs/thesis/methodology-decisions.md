@@ -104,3 +104,26 @@ the mismatch; the fixture now uses the real naming.
 
 **Implication**: RQ2/RQ3 should be re-run; the confirmation and verified-fix
 rates that previously read as null/zero are expected to populate.
+
+
+## MD-004: verification round numbering aligned to the baseline-0 convention
+
+**Date**: 2026-06-18
+
+**Decision**: the verification session's `RoundResult.round_number` now uses the
+orchestrator's round number, where 0 is the baseline (original code, no repair)
+and 1..N are improvement rounds. It previously used a session-local 1-indexed
+counter, so `verification.json` labelled the baseline as "round 1".
+
+**Why**: the orchestrator, the gap metrics, and the lineage directories all use
+round 0 for the baseline (see MD-003). Only the verification session was out of
+step, which made the same baseline appear as "round 0" in one artefact and
+"round 1" in another. `verify()` appends exactly one `RoundResult` per
+orchestrator round, so stamping it with the orchestrator round is unambiguous.
+The gap runner and results reader already treated `round_number == 0` as the
+baseline, so they need no change.
+
+**Implication**: artefacts are now internally consistent on round numbering.
+Any external tooling that assumed the verification session was 1-indexed should
+read 0 as the baseline. The learning-curve helpers iterate rounds positionally
+and are unaffected.
