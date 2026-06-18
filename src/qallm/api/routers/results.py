@@ -333,6 +333,27 @@ async def get_gap_confidence(session_id: str):
     return result
 
 
+@router.get("/api/session/{session_id}/cross-evaluation")
+async def get_cross_evaluation(session_id: str):
+    """The variant x final-suite matrix for this session.
+
+    Runs each function's final accumulated test suite against every code
+    variant (baseline, accepted, and abandoned), so all variants are compared
+    on the same yardstick. Returns a matrix the UI can render as a comparison
+    table: rows are functions, columns are rounds, each cell is the outcome
+    (pass/fail/error) of the final suite against that variant. Read-only and
+    post-hoc; it does not affect the live judging loop.
+    """
+    report_dir = _resolve_report_dir(session_id)
+    if not report_dir:
+        return {"available": False,
+                "reason": "No run artefacts yet. Run the pipeline first."}
+    from qallm.analysis.cross_evaluation import cross_evaluate
+    matrix = cross_evaluate(report_dir).to_dict()
+    matrix["available"] = True
+    return matrix
+
+
 @router.get("/api/session/{session_id}/metrics")
 async def get_session_metrics(session_id: str):
     """Thesis-ready metrics for one session: run metadata plus the
