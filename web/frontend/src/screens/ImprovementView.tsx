@@ -18,6 +18,7 @@ import {
 import * as api from "../api";
 import GapPanel from "./GapPanel";
 import CrossEvalTable from "./CrossEvalTable";
+import RoundDiffView from "./RoundDiffView";
 import type {
   ImprovementRound, ImprovementUnit, IndicatorDelta, LLMCall,
 } from "../api";
@@ -357,6 +358,7 @@ export default function ImprovementView({ sessionId }: { sessionId: string }) {
     <div className="space-y-3">
       <GapPanel sessionId={sessionId} />
       <CrossEvalTable sessionId={sessionId} />
+      <RoundDiffView sessionId={sessionId} />
       <div className="flex items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-slate-800">Improvement audit</h2>
