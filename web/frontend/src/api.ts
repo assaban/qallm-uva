@@ -818,3 +818,37 @@ export async function getDoc(docId: string): Promise<{ id: string; title: string
 export function docRawUrl(docId: string): string {
   return `/api/docs/${encodeURIComponent(docId)}/raw`;
 }
+
+// ----- Cross-evaluation: variant x final-suite matrix -----
+
+export interface CrossEvalCellTest {
+  name: string;
+  status: "passed" | "failed" | "error" | "skipped";
+  origin_round: number | null;
+}
+
+export interface CrossEvalCell {
+  function_name: string;
+  round_number: number;
+  bucket: "lineage" | "abandoned";
+  passed: number;
+  failed: number;
+  errors: number;
+  skipped: number;
+  total: number;
+  outcome: "pass" | "fail" | "error" | "none";
+  execution_error: string | null;
+  tests: CrossEvalCellTest[];
+}
+
+export interface CrossEvaluation {
+  available: boolean;
+  reason?: string;
+  functions: string[];
+  rounds: number[];
+  cells: CrossEvalCell[];
+}
+
+export async function getCrossEvaluation(sid: string): Promise<CrossEvaluation> {
+  return req<CrossEvaluation>(`/api/session/${sid}/cross-evaluation`);
+}

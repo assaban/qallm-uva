@@ -73,3 +73,6 @@ class TestMatrix:
         assert by_round[1].failed == 0
         assert by_round[1].passed >= 1
         assert by_round[1].outcome == "pass"
+        # Per-test detail is populated for the heat map.
+        assert len(by_round[0].tests) >= 1
+        assert by_round[0].tests[0].status in {"passed", "failed", "error", "skipped"}
