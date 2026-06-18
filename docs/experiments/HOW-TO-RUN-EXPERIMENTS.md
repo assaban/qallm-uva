@@ -1,4 +1,96 @@
-# QALLM experiment outline
+# How to run the QALLM experiments
+
+If you are unsure what to run, read THIS section only. Copy the block for the
+step you are on, paste it, wait. The rest of the document explains why each step
+exists; you do not need it to run them.
+
+Before any run, once per shell:
+
+    cd ~/qallm-uva
+    source .venv/bin/activate
+    export FEDLLM_API_KEY=...        # from Nafis
+
+## The decision: which command do I run?
+
+- Just want to prove the pipeline works? -> Step 0 (smoke).
+- Validating the instrument against the answer key? -> Step 1 (lab).
+- Want the RQ1 gap counts on real notebooks? -> Step 2 (E1).
+- Want the real gap RATE plus RQ2 and RQ3? -> Step 3 (E2). This is the one the
+  thesis headline needs. RQ1 alone gives a degenerate rate of 1.0.
+- Strategy comparison / "RL beats baseline"? -> Step 4 (HumanEvalFix).
+- Bigger corpus for breadth? -> Step 5 (Li dataset).
+
+## Copy-paste commands
+
+Step 0, smoke test (minutes):
+
+    python scripts/run_gap_experiment.py \
+        --dataset datasets/lab --output runs/smoke \
+        --pattern "*.py" --llm fedllm --rounds 2
+
+Step 1, lab calibration (the control, ~40 min):
+
+    python scripts/run_gap_experiment.py \
+        --dataset datasets/lab --output runs/lab_calibration \
+        --pattern "*.py" --llm fedllm --rounds 5 --oracle correctness \
+        --samples 1 --confirm --mutation-confidence
+
+Step 2, E1 ENVRI headline RQ1 (free, hours):
+
+    python scripts/run_gap_experiment.py \
+        --dataset datasets/envri_forest --output runs/e1_rq1_headline \
+        --pattern "*.ipynb" --llm fedllm --rounds 5 --oracle correctness \
+        --samples 1 --workers 4 --mutation-confidence
+
+Step 3, E2 ENVRI RQ2 + RQ3 + the real gap rate (free, hours). Same as E1 plus
+--confirm. E3 is not a separate run; verified_fix_rate comes out of this one:
+
+    python scripts/run_gap_experiment.py \
+        --dataset datasets/envri_forest --output runs/e2_rq2 \
+        --pattern "*.ipynb" --llm fedllm --rounds 5 --oracle correctness \
+        --samples 1 --workers 4 --confirm --mutation-confidence
+
+Step 4, E4 HumanEvalFix validation + strategy comparison:
+
+    python scripts/run_humaneval.py \
+        --output runs/humaneval --workers 4 --strategy feedback
+    # repeat with --strategy oneshot and --strategy hypothesis to compare
+
+Step 5, Li corpus at scale (free, long; same as E2, bigger dataset):
+
+    python scripts/run_gap_experiment.py \
+        --dataset datasets/li_notebooks --output runs/e4_scale \
+        --pattern "*.ipynb" --llm fedllm --rounds 5 --oracle correctness \
+        --samples 1 --workers 4 --confirm --mutation-confidence
+
+## Knobs you may add to any command
+
+- Fast trial on a subset: --sample 150 --sample-seed 42 --sample-stratify
+- Spend cap on a paid model: --max-cost-usd 5 (halts cleanly at the cap)
+- Switch model: --llm openai --model gpt-4o-mini (or --llm anthropic)
+- Keep full per-round artefacts (large): --retention full
+
+## After a run, send these four files
+
+From the output directory you chose (for example runs/e2_rq2):
+
+    aggregate.json      the count-weighted rates plus the inputs block
+    manifest.json       provenance: commit, model, environment, dataset hash
+    metrics.csv         one row per session, easy to scan
+    results.jsonl       per-session metrics
+
+If unsure of names, run: `find <output_dir> -maxdepth 2 -type f` and send that.
+
+## Reading the result in one glance (metrics.csv columns)
+
+- verification_gap_rate: RQ1. Trustworthy only when confirm was on.
+- confirmation_rate: RQ2. confirmed / (confirmed + refuted).
+- verified_fix_rate: RQ3. verified_fixed / (verified_fixed + not_fixed).
+- not_execution_testable: complexity/maintainability findings, excluded by design.
+- inconclusive: could not be decided (for example security without an oracle).
+- confidence on a gap finding: needs --mutation-confidence AND a working scorer.
+
+---
 
 The full set of runs to produce the thesis results, in order. Each step gives
 the exact command, what it produces, and what to record. Run them from the repo
