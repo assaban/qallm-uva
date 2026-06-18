@@ -1,6 +1,10 @@
 """Tests for mutation-based oracle confidence scoring."""
 
-from qallm.verification.mutation_score import score_oracle, MutationScore
+from qallm.verification.mutation_score import (
+    MutationScore,
+    _module_name_from_tests,
+    score_oracle,
+)
 
 
 SRC = "def inc(start, end):\n    return end - start + 1\n"
@@ -79,3 +83,35 @@ def test_errored_mutant_counts_as_killed_when_baseline_works():
     assert s.total_mutants > 0
     assert s.viable > 0
     assert s.confidence in ("high", "medium", "low")
+
+
+# --- regression: module name must be derived from the tests' import line ---
+# A suite imports the function from a specific module (for example
+# `from source_foo_c0 import f`). If the scorer writes the source under a
+# different filename, the import fails, every mutant errors, and the suite
+# spuriously detects nothing (killed=0, confidence=unknown). These tests pin
+# that the derived name keeps the suite live so real kills are counted.
+
+
+def test_module_name_derived_from_import():
+    suite = "from source_reliability_gap_c0 import f\ndef test_x(): pass"
+    assert _module_name_from_tests(suite) == "source_reliability_gap_c0"
+
+
+def test_module_name_none_without_import():
+    assert _module_name_from_tests("def test_x(): pass") is None
+
+
+def test_suite_with_named_import_kills_mutants():
+    # The off-by-one is detected only if the suite can import the source under
+    # the name it expects. With the derivation, mutants of `f` are killed.
+    source = "def f(a, b):\n    return a + b\n"
+    suite = (
+        "from source_widget_c0 import f\n"
+        "def test_add(): assert f(2, 3) == 5\n"
+        "def test_zero(): assert f(0, 0) == 0\n"
+    )
+    score = score_oracle(source, "f", suite)  # module_name auto-derived
+    assert score.total_mutants > 0
+    assert score.killed > 0
+    assert score.confidence != "unknown"
