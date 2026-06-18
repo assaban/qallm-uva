@@ -123,7 +123,12 @@ def _scoring_source(original: str, repaired: str | None,
         return original
     try:
         from qallm.verification.executor import run_tests
-        r = run_tests(repaired, test_code, "source_module.py")
+        from qallm.verification.mutation_score import _module_name_from_tests
+        # Write the source under the name the tests import from, else the suite
+        # cannot import it and the check spuriously fails (sending us back to
+        # the buggy original, which makes every mutant look uninformative).
+        mod = _module_name_from_tests(test_code) or "source_module"
+        r = run_tests(repaired, test_code, f"{mod}.py")
         if r.passed > 0 and r.failed == 0:
             return repaired
     except Exception:  # any execution issue: fall back to the original

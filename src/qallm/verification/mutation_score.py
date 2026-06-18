@@ -104,11 +104,26 @@ def _suite_kills(source: str, test_code: str, module_name: str,
     return "killed" if baseline_works else "not_viable"
 
 
+def _module_name_from_tests(test_code: str) -> str | None:
+    """The source module name the tests import from.
+
+    Generated tests import the function under test with a line like
+    ``from source_reliability_gap_c0 import inclusive_range_count``. The source
+    being mutated must be written to a file of that exact name or the import
+    fails, every mutant run errors, and the suite appears to detect nothing
+    (killed=0, confidence=unknown). Recover the name from the first matching
+    import so the scorer does not depend on the caller passing it.
+    """
+    import re
+    m = re.search(r"(?m)^\s*from\s+(source_\w+)\s+import\b", test_code)
+    return m.group(1) if m else None
+
+
 def score_oracle(
     source: str,
     func_name: str,
     test_code: str,
-    module_name: str = "source_module",
+    module_name: str | None = None,
     max_per_operator: int = 3,
 ) -> MutationScore:
     """Mutation-test ``test_code`` against ``func_name`` in ``source``.
@@ -116,10 +131,18 @@ def score_oracle(
     Generates mutants of the function, runs the suite against each, and
     aggregates kills. Cost is bounded by max_per_operator mutants per operator
     class. A suite that is empty or invalid trivially scores nothing.
+
+    ``module_name`` is the filename stem the source is written under for the
+    test run; it must match what the generated tests import from. When None
+    (the default), it is derived from the tests' import line, falling back to
+    ``source_module`` if no import is found.
     """
     score = MutationScore(function_name=func_name)
     if not test_code or not test_code.strip():
         return score
+
+    if module_name is None:
+        module_name = _module_name_from_tests(test_code) or "source_module"
 
     mutants: list[Mutant] = generate_mutants(source, func_name, max_per_operator)
     score.total_mutants = len(mutants)
