@@ -852,3 +852,96 @@ export interface CrossEvaluation {
 export async function getCrossEvaluation(sid: string): Promise<CrossEvaluation> {
   return req<CrossEvaluation>(`/api/session/${sid}/cross-evaluation`);
 }
+
+// ----- Round diff: code + tests between two rounds -----
+
+export interface RoundFileDiff {
+  label: string;
+  kind: "code" | "test";
+  old_text: string;
+  new_text: string;
+  unified: string;
+  changed: boolean;
+}
+
+export interface RoundDiff {
+  available: boolean;
+  reason?: string;
+  unit: string;
+  from_round: number | null;
+  to_round: number;
+  files: RoundFileDiff[];
+  rounds: number[];
+}
+
+export async function getRoundDiff(
+  sid: string,
+  toRound: number,
+  fromRound?: number,
+): Promise<RoundDiff> {
+  const q = new URLSearchParams({ to_round: String(toRound) });
+  if (fromRound !== undefined) q.set("from_round", String(fromRound));
+  return req<RoundDiff>(`/api/session/${sid}/round-diff?${q.toString()}`);
+}
+
+// ----- Round diff: code + tests between two rounds -----
+
+export interface RoundFileDiff {
+  label: string;
+  kind: "code" | "test";
+  old_text: string;
+  new_text: string;
+  unified: string;
+  changed: boolean;
+}
+
+export interface RoundDiff {
+  available: boolean;
+  reason?: string;
+  unit: string;
+  from_round: number | null;
+  to_round: number;
+  files: RoundFileDiff[];
+  rounds: number[];
+}
+
+export async function getRoundDiff(
+  sid: string,
+  toRound: number,
+  fromRound?: number,
+): Promise<RoundDiff> {
+  const q = new URLSearchParams({ to_round: String(toRound) });
+  if (fromRound !== undefined) q.set("from_round", String(fromRound));
+  return req<RoundDiff>(`/api/session/${sid}/round-diff?${q.toString()}`);
+}
+
+// ----- Round diff: code + tests between two rounds -----
+
+export interface RoundFileDiff {
+  label: string;
+  kind: "code" | "test";
+  old_text: string;
+  new_text: string;
+  unified: string;
+  changed: boolean;
+}
+
+export interface RoundDiff {
+  available: boolean;
+  reason?: string;
+  unit: string;
+  from_round: number | null;
+  to_round: number;
+  files: RoundFileDiff[];
+  rounds: number[];
+}
+
+export async function getRoundDiff(
+  sid: string,
+  toRound: number,
+  fromRound?: number,
+): Promise<RoundDiff> {
+  const q = new URLSearchParams({ to_round: String(toRound) });
+  if (fromRound !== undefined) q.set("from_round", String(fromRound));
+  return req<RoundDiff>(`/api/session/${sid}/round-diff?${q.toString()}`);
+}

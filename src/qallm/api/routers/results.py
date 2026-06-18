@@ -354,6 +354,27 @@ async def get_cross_evaluation(session_id: str):
     return matrix
 
 
+@router.get("/api/session/{session_id}/round-diff")
+async def get_round_diff(session_id: str, to_round: int, from_round: int | None = None,
+                         unit: str | None = None):
+    """Diff the repaired code and generated tests between two rounds.
+
+    ``to_round`` is the later round; ``from_round`` defaults to its parent
+    (to_round - 1). Returns, per artefact (source.py and each test file), the
+    raw before/after text and a unified diff, so the UI can offer a raw view
+    and a GitHub-style unified view. Read-only.
+    """
+    report_dir = _resolve_report_dir(session_id)
+    if not report_dir:
+        return {"available": False,
+                "reason": "No run artefacts yet. Run the pipeline first."}
+    from qallm.analysis.round_diff import available_rounds, diff_rounds
+    result = diff_rounds(report_dir, to_round=to_round, from_round=from_round, unit=unit).to_dict()
+    result["available"] = True
+    result["rounds"] = available_rounds(report_dir)
+    return result
+
+
 @router.get("/api/session/{session_id}/metrics")
 async def get_session_metrics(session_id: str):
     """Thesis-ready metrics for one session: run metadata plus the
