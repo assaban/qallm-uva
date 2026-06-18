@@ -34,8 +34,10 @@ for the session.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import re
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -113,8 +115,34 @@ class StoredTest:
     # store does not modify it.
     original: GeneratedTest
 
+    @property
+    def content_hash(self) -> str:
+        """Short, stable hash of the test source.
+
+        Two regenerations with identical code share a hash (so they can be
+        deduplicated); the same test name with different logic across rounds
+        gets distinct hashes (so neither is silently lost). Whitespace is
+        normalised so cosmetic reformatting does not change the hash.
+        """
+        normalised = re.sub(r"\s+", " ", self.test_code).strip()
+        return hashlib.sha256(normalised.encode("utf-8")).hexdigest()[:8]
+
+    @property
+    def test_id(self) -> str:
+        """Unique identity for this stored test within a function record.
+
+        Round-stamped and content-hashed, so a test carried unchanged from an
+        earlier round, a test regenerated with new logic under the same name,
+        and a genuinely new test are all distinguishable. This is the key the
+        report and the executor should use instead of (filename, test_name),
+        which collapses same-named tests from different rounds.
+        """
+        return f"r{self.generated_in_round}_{self.content_hash}"
+
     def as_dict(self) -> dict:
         d = {
+            "test_id": self.test_id,
+            "content_hash": self.content_hash,
             "test_code": self.test_code,
             "generated_in_round": self.generated_in_round,
             "is_valid": self.is_valid,
@@ -131,15 +159,26 @@ class FunctionRecord:
     session: Optional[TestGenerationSession] = None
 
     def append_test(self, generated: GeneratedTest, round_number: int) -> None:
-        self.tests.append(
-            StoredTest(
-                test_code=generated.test_code,
-                generated_in_round=round_number,
-                is_valid=generated.is_valid,
-                model=generated.model or "unknown",
-                original=generated,
-            )
+        candidate = StoredTest(
+            test_code=generated.test_code,
+            generated_in_round=round_number,
+            is_valid=generated.is_valid,
+            model=generated.model or "unknown",
+            original=generated,
         )
+        # Deduplicate: if an identical test (same normalised source) was already
+        # stored in an earlier round, keep the earlier one rather than adding a
+        # byte-for-byte copy. This keeps the suite from inflating when a round
+        # regenerates the same test verbatim. A same-named test with *different*
+        # logic has a different content hash and is kept as a distinct entry.
+        existing_hashes = {t.content_hash for t in self.tests}
+        if candidate.content_hash in existing_hashes:
+            logger.debug(
+                "skip duplicate test (hash %s) regenerated in round %d",
+                candidate.content_hash, round_number,
+            )
+            return
+        self.tests.append(candidate)
 
     def valid_tests(self) -> List[StoredTest]:
         return [t for t in self.tests if t.is_valid]

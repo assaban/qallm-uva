@@ -11,6 +11,7 @@ copies sibling modules so the target code's own imports resolve.
 from __future__ import annotations
 
 import json
+import re
 import logging
 import shutil
 import subprocess
@@ -24,6 +25,26 @@ from qallm.verification.extraction import DependencyMapper
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT_SECONDS = 60
+
+
+def _parse_test_provenance(nodeid: str) -> tuple[int | None, str | None, str]:
+    """Recover (origin_round, test_id, display_name) from a pytest nodeid.
+
+    Accumulated tests are suffixed ``__r{round}_{hash}`` (see
+    test_persistence) so same-named tests from different rounds do not shadow
+    one another. This reverses that: it returns the round, the stored-test id,
+    and the original test name with the suffix removed for display. A nodeid
+    without the suffix yields (None, None, original_name).
+    """
+    # nodeid looks like "test_generated.py::test_name__r2_ab12cd34"
+    func = nodeid.split("::")[-1]
+    m = re.search(r"^(?P<base>.+?)__r(?P<round>\d+)_(?P<hash>[0-9a-f]{8})$", func)
+    if not m:
+        return None, None, func
+    base = m.group("base")
+    rnd = int(m.group("round"))
+    test_id = f"r{rnd}_{m.group('hash')}"
+    return rnd, test_id, base
 
 
 def _parse_pytest_json(report_path: Path) -> tuple[list[TestDetail], dict[str, int]]:
@@ -69,10 +90,15 @@ def _parse_pytest_json(report_path: Path) -> tuple[list[TestDetail], dict[str, i
                 message = (prefix + str(longrepr))[:2000]
                 break
 
+        nodeid = test.get("nodeid", "unknown")
+        origin_round, test_id, display_name = _parse_test_provenance(nodeid)
         details.append(TestDetail(
-            name=test.get("nodeid", "unknown"), status=status,
+            name=nodeid, status=status,
             message=message,
             duration_seconds=call_info.get("duration", 0.0) if call_info else 0.0,
+            origin_round=origin_round,
+            test_id=test_id,
+            display_name=display_name,
         ))
 
     return details, counts
