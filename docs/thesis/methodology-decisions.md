@@ -127,3 +127,41 @@ baseline, so they need no change.
 Any external tooling that assumed the verification session was 1-indexed should
 read 0 as the baseline. The learning-curve helpers iterate rounds positionally
 and are unaffected.
+
+
+## MD-005: cross-evaluation, judging variants against a common final test suite
+
+**Date**: 2026-06-18
+
+**Decision**: add a post-hoc cross-evaluation that runs each function's *final*
+accumulated test suite against *every* code variant of that function (baseline,
+accepted, and abandoned). The result is a variant x test-suite matrix in which
+every cell is measured against the same yardstick.
+
+**Why**: in the live loop, round N's tests run only against round N's code
+variant, so `test_pass_rate` and `bugs_caught` are computed against a different
+suite for each variant. Comparing variants on those numbers is apples-to-oranges:
+a variant can look stronger simply because its round generated gentler tests.
+Cross-evaluation removes that confound by holding the test suite fixed across
+variants, which is the sound basis for the reliability comparison the thesis
+makes for RQ3.
+
+**Evidence it works**: on the reliability_gap lab session, the baseline fails
+most of the final suite (for example inclusive_range_count 4 pass / 20 fail)
+while the repaired variant passes nearly all of it (23 pass / 1 fail), and the
+*abandoned* normalise_unit variant is measurably worse under the common suite
+(16 failures) than the accepted one (7 failures). The latter independently
+corroborates the judge's decision to abandon it, using a comparison the live
+loop could not make.
+
+**Scope and safety**: read-only and post-hoc. It reads the persisted source.py
+and tests/ artefacts and does not change the live judging path, so existing
+behaviour and tests are unaffected. It is exposed at
+`GET /api/session/{id}/cross-evaluation` for the comparison-table UI.
+
+**Implication for the thesis**: the RQ3 verified-fix argument can now cite a
+common-yardstick comparison rather than per-round suites, and the abandoned-vs-
+accepted contrast is a concrete demonstration that the judge's decisions hold up
+under a fairer test. A limitation to state: the final suite is itself generated,
+so it is the strongest suite the session produced, not an external ground truth;
+on the labelled set it can be cross-checked against the answer key.
