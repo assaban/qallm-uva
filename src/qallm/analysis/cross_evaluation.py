@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from qallm.verification.executor import run_tests
+from qallm.verification.executor import _parse_test_provenance, run_tests
 
 # ----- helpers -----
 
@@ -63,6 +63,18 @@ def _round_no(name: str) -> Optional[int]:
 
 
 @dataclass
+class CellTest:
+    """One test's outcome within a cell, for the per-test heat map."""
+
+    name: str  # display name, provenance suffix stripped
+    status: str  # passed | failed | error | skipped
+    origin_round: Optional[int] = None  # round the test was generated in
+
+    def to_dict(self) -> dict:
+        return {"name": self.name, "status": self.status, "origin_round": self.origin_round}
+
+
+@dataclass
 class VariantCell:
     """One cell of the matrix: a final suite run against one variant."""
 
@@ -74,6 +86,7 @@ class VariantCell:
     errors: int = 0
     skipped: int = 0
     execution_error: Optional[str] = None
+    tests: list[CellTest] = field(default_factory=list)
 
     @property
     def total(self) -> int:
@@ -106,6 +119,7 @@ class VariantCell:
             "total": self.total,
             "outcome": self.outcome,
             "execution_error": self.execution_error,
+            "tests": [t.to_dict() for t in self.tests],
         }
 
 
@@ -236,6 +250,16 @@ def cross_evaluate(report_dir: str) -> CrossEvaluation:
             exec_result = run_tests(
                 v.source, suite, f"{module_basename}.py", Path(v.unit_dir)
             )
+            cell_tests: list[CellTest] = []
+            for d in getattr(exec_result, "test_details", []) or []:
+                origin, _tid, display = _parse_test_provenance(d.name)
+                cell_tests.append(
+                    CellTest(
+                        name=display,
+                        status=d.status,
+                        origin_round=origin,
+                    )
+                )
             result.cells.append(
                 VariantCell(
                     function_name=func,
@@ -246,6 +270,7 @@ def cross_evaluate(report_dir: str) -> CrossEvaluation:
                     errors=getattr(exec_result, "errors", 0),
                     skipped=getattr(exec_result, "skipped", 0),
                     execution_error=exec_result.execution_error,
+                    tests=cell_tests,
                 )
             )
     return result
