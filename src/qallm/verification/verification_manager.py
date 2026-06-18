@@ -15,6 +15,7 @@ After each function completes, artifacts are saved immediately to disk.
 import dataclasses
 import json
 import logging
+import re
 import time
 import ast as _ast
 from dataclasses import asdict
@@ -53,17 +54,41 @@ def _has_test_function(code: str) -> bool:
     )
 
 
+def _suffix_test_functions(test_code: str, suffix: str) -> str:
+    """Append a unique suffix to every top-level ``test_*`` function name.
+
+    When tests from several rounds are stitched into one module, two rounds can
+    define a ``test_*`` function with the same name but different bodies. Python
+    keeps only the last definition, so pytest silently runs one and drops the
+    other, and the dropped test never executes. Suffixing each function with the
+    stored test's unique id keeps every version live and individually
+    identifiable in the pytest nodeid. Only the ``def`` site is renamed; helper
+    functions and references inside the body are left untouched because each
+    stored test is self-contained.
+    """
+    return re.sub(
+        r"(?m)^(def\s+)(test_\w+)(\s*\()",
+        lambda m: f"{m.group(1)}{m.group(2)}__{suffix}{m.group(3)}",
+        test_code,
+    )
+
+
 def _concatenate_test_codes(stored: list[StoredTest]) -> str:
     """Combine multiple stored test files into a single pytest module.
 
-    Each test's source is included with a small header indicating its origin
-    round. pytest is happy with multiple `def test_*` functions in one file
-    and we get a single coverage report.
+    Each test's source is included with a header indicating its origin round,
+    and its ``test_*`` functions are suffixed with the stored test's unique id
+    so that same-named tests from different rounds do not shadow one another.
+    pytest is happy with multiple ``def test_*`` functions in one file and we
+    get a single coverage report.
     """
     parts: list[str] = []
     for i, t in enumerate(stored):
-        parts.append(f"# --- stored test {i + 1} (generated in round {t.generated_in_round}) ---")
-        parts.append(t.test_code.strip())
+        parts.append(
+            f"# --- stored test {i + 1} "
+            f"(id {t.test_id}, generated in round {t.generated_in_round}) ---"
+        )
+        parts.append(_suffix_test_functions(t.test_code.strip(), t.test_id))
         parts.append("")  # blank line between blocks
     return "\n".join(parts)
 

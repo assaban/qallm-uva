@@ -239,8 +239,12 @@ class TestSummary:
         key_a = TestSuiteStore.make_key(src_a, -1, "f")
         key_b = TestSuiteStore.make_key(src_b, -1, "g")
 
-        store.record_generated(key_a, "f", _make_generated_test(), 1)
-        store.record_generated(key_a, "f", _make_generated_test(), 2)
+        store.record_generated(
+            key_a, "f", _make_generated_test(test_code="def test_a(): assert f() is None"), 1
+        )
+        store.record_generated(
+            key_a, "f", _make_generated_test(test_code="def test_b(): assert f() == None"), 2
+        )
         store.record_generated(key_b, "g", _make_generated_test(), 1)
 
         summary = store.summary()

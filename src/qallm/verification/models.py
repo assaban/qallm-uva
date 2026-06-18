@@ -79,6 +79,15 @@ class TestDetail:
     status: Literal["passed", "failed", "error", "skipped"]
     message: str | None = None
     duration_seconds: float = 0.0
+    # Provenance recovered from the suffixed nodeid (see test_persistence): the
+    # round the test was generated in, and the unique stored-test id. Both are
+    # None for tests whose name carries no suffix (for example a fresh
+    # PER_ROUND run, or confirm/refute tests that are not accumulated).
+    origin_round: int | None = None
+    test_id: str | None = None
+    # The display name with the provenance suffix stripped, so the report can
+    # show the original test name while still distinguishing rounds.
+    display_name: str | None = None
 
 
 @dataclass
