@@ -116,14 +116,70 @@ function Field({ label, body, highlight }: { label: string; body: string; highli
   );
 }
 
+// Outcome types a test result can have, in display order. "failed" is shown
+// as "bug" to match the rest of the UI. Generalising over this list (rather
+// than hardcoding bug/error) means a new status would surface automatically.
+const OUTCOME_ORDER: import("../api").BugTest["status"][] = ["passed", "failed", "error", "skipped"];
+const OUTCOME_LABEL: Record<string, string> = { passed: "pass", failed: "bug", error: "error", skipped: "skipped" };
+const OUTCOME_CHIP: Record<string, string> = {
+  passed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  failed: "bg-rose-50 text-rose-700 border-rose-200",
+  error: "bg-amber-50 text-amber-700 border-amber-200",
+  skipped: "bg-slate-50 text-slate-500 border-slate-200",
+};
+
 function BugDetailView({ functions }: { functions: import("../api").FunctionBugDetail[] }) {
+  // Which outcome types are present anywhere in this round, in display order.
+  const present = OUTCOME_ORDER.filter((s) =>
+    functions.some((fn) => fn.all_tests.some((t) => t.status === s)),
+  );
+  // Active filter: a set of statuses to show. Starts with all present statuses
+  // (no filtering). Unselecting a chip hides that outcome across every function.
+  const [active, setActive] = useState<Set<string>>(() => new Set(present));
+
   if (!functions.length) {
     return <div className="px-1 py-2 text-xs text-slate-400">No verification results recorded for this round.</div>;
   }
+
+  const toggle = (s: string) =>
+    setActive((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s); else next.add(s);
+      return next;
+    });
+  const allOn = present.every((s) => active.has(s));
+  const counts: Record<string, number> = {};
+  for (const fn of functions) for (const t of fn.all_tests) counts[t.status] = (counts[t.status] || 0) + 1;
+
   return (
     <div className="space-y-3">
+      {present.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="mr-1 font-semibold uppercase tracking-wide text-slate-400">Show</span>
+          {present.map((s) => {
+            const on = active.has(s);
+            return (
+              <button
+                key={s}
+                onClick={() => toggle(s)}
+                aria-pressed={on}
+                className={`rounded-full border px-2 py-0.5 font-medium transition ${on ? OUTCOME_CHIP[s] : "border-slate-200 bg-white text-slate-300"}`}
+              >
+                {OUTCOME_LABEL[s]} ({counts[s] || 0})
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setActive(allOn ? new Set() : new Set(present))}
+            className="ml-1 rounded-full px-2 py-0.5 font-medium text-slate-400 underline-offset-2 hover:underline"
+          >
+            {allOn ? "none" : "all"}
+          </button>
+        </div>
+      )}
       {functions.map((fn) => {
         const cov = fn.coverage_percent === null ? "n/a" : `${fn.coverage_percent.toFixed(0)}%`;
+        const shown = fn.all_tests.filter((t) => active.has(t.status));
         return (
           <div key={fn.function} className="rounded-lg border border-slate-100">
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
@@ -149,7 +205,10 @@ function BugDetailView({ functions }: { functions: import("../api").FunctionBugD
               {fn.all_tests.length === 0 && (
                 <div className="px-3 py-2 text-xs text-slate-400">No tests executed.</div>
               )}
-              {fn.all_tests.map((t, i) => {
+              {fn.all_tests.length > 0 && shown.length === 0 && (
+                <div className="px-3 py-2 text-xs text-slate-400">No tests match the selected outcomes.</div>
+              )}
+              {shown.map((t, i) => {
                 const isBug = t.status === "failed";
                 const isErr = t.status === "error";
                 const dot = isBug ? "bg-rose-500" : isErr ? "bg-amber-500" : t.status === "passed" ? "bg-emerald-500" : "bg-slate-300";
