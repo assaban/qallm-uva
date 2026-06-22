@@ -465,6 +465,7 @@ def _run_one(
                 report_dir,
                 testgen_llm=getattr(orch, "testgen_llm", None) or getattr(orch, "llm", None),
                 tracker=getattr(orch, "tracker", None),
+                gap_rounds=gap_rounds,
             )
             confirm_summary = cv["confirm_summary"]
             verify_summary = cv["verify_summary"]
@@ -494,8 +495,13 @@ def _run_one(
             row["gap_confidence"] = gap_confidence
         return row
     except Exception as e:  # one bad notebook should not sink the run
-        logger.warning("Input failed: %s: %s", input_path, e)
-        logger.debug("Traceback for %s:\n%s", input_path, traceback.format_exc())
+        # Log the full traceback at warning level (not debug): when a class of
+        # notebooks fails with the same message, the per-input message alone is
+        # not enough to locate the cause. The traceback points at the exact line.
+        logger.warning(
+            "Input failed: %s: %s\n%s",
+            input_path, e, traceback.format_exc(),
+        )
         return {"input": str(input_path), "metrics": None, "error": str(e)}
 
 
