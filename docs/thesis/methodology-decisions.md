@@ -165,3 +165,47 @@ accepted contrast is a concrete demonstration that the judge's decisions hold up
 under a fairer test. A limitation to state: the final suite is itself generated,
 so it is the strongest suite the session produced, not an external ground truth;
 on the labelled set it can be cross-checked against the answer key.
+
+
+## MD-006: RQ2 confirmation reframed for reliability via the gap defects
+
+**Date**: 2026-06-20
+
+**Decision**: confirmation (RQ2) for reliability is derived from the
+execution-only gap defects, not from static findings. Each execution-only defect,
+a function whose generated correctness test failed against the original code, is
+recorded as a confirmed RELIABILITY defect, with that failing test as its
+reproducing test. RQ3 (verified-fix) then re-runs each such test against the
+repaired code; a pass means the defect is fixed. Static-finding confirmation is
+retained and reported separately (confirmed_static), and remains inconclusive for
+security by design.
+
+**Why**: the E2 run (2026-06-20, confirm on) returned confirmed = 0 across the
+whole ENVRI corpus. The cause is not a bug in the run: the static analysers emit
+SECURITY, COMPLEXITY, and MAINTAINABILITY findings, never RELIABILITY. So the
+static-finding confirm path can only ever adjudicate SECURITY findings, which are
+inconclusive without a demonstrated exploit (the documented security-scope
+limit). The reliability defects that are the heart of the verification gap have
+no static finding for that path to confirm, because static analysis missing them
+is the entire premise of the gap. Confirming them therefore has to come from the
+execution evidence itself, which the gap pipeline already produces.
+
+**Why this is sound, not circular**: a gap defect is confirmed by a correctness
+test that asserts the specification (derived from the signature and docstring,
+never the body, see MD on the correctness oracle) and fails on the original code.
+That is independent evidence of a real defect, the same standard the static-
+finding path uses (a targeted test that reproduces the finding). The reframe
+applies that standard to the defects execution found rather than only to the
+findings static analysis raised.
+
+**Evidence**: on the reliability_gap lab session the reframe yields 5 confirmed
+reliability defects (was 0) and a verified-fix rate of 4/5 = 0.8. The one
+not-fixed (accumulate) is a true negative: its reproducing test still fails on
+the repaired variant, which the cross-evaluation independently corroborates.
+
+**Implication for the thesis**: RQ2 is reported as two confirmation sources kept
+distinct: reliability confirmation from the gap defects (a real, non-trivial
+count and rate), and static-finding confirmation (security, inconclusive by
+design). RQ3 follows from the reliability confirmations. State the framing
+explicitly so the confirmation rate is not mistaken for static-finding
+corroboration.
