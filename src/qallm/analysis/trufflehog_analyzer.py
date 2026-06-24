@@ -68,21 +68,31 @@ class TruffleHogAnalyzer(StaticCodeAnalyzer):
         if not raw_result.stdout.strip():
             return
 
-        try:
-            # TruffleHog outputs findings line-by-line (JSONL format)
-            for line in raw_result.stdout.splitlines():
-                if not line.strip():
-                    continue
-
+        # TruffleHog outputs findings line-by-line (JSONL format). Each line is
+        # parsed independently: a malformed finding skips only that line, never
+        # the rest of the unit's findings or the notebook.
+        for line in raw_result.stdout.splitlines():
+            if not line.strip():
+                continue
+            try:
                 finding = json.loads(line)
+                if not isinstance(finding, dict):
+                    continue  # a JSONL line that is not an object: skip it
 
                 # TruffleHog schema: extract detector name and partial secret for context
                 detector = finding.get("DetectorName", "Unknown Detector")
                 raw_snippet = finding.get("Raw", "")
 
-                # Attempt to extract line number from metadata
-                meta = finding.get("SourceMetadata", {}).get("Data", {}).get("Filesystem", {})
-                line_no = meta.get("line", 0)
+                # Attempt to extract line number from metadata. TruffleHog's
+                # schema is not guaranteed: SourceMetadata, Data, or Filesystem
+                # can be absent or a non-dict (a string has been observed in the
+                # wild). A naive chained .get then raises 'str' object has no
+                # attribute 'get', which previously aborted the whole notebook.
+                # Walk defensively: any non-dict link yields an empty mapping.
+                meta: Any = finding
+                for key in ("SourceMetadata", "Data", "Filesystem"):
+                    meta = meta.get(key, {}) if isinstance(meta, dict) else {}
+                line_no = meta.get("line", 0) if isinstance(meta, dict) else 0
 
                 report["issues"].append({
                     "test_id": "SECRET_EXPOSED",
@@ -92,6 +102,7 @@ class TruffleHogAnalyzer(StaticCodeAnalyzer):
                     "confidence": "HIGH",
                     "tool": "trufflehog"
                 })
-        except (json.JSONDecodeError, KeyError):
-            # Gracefully ignore parsing errors from individual lines
-            pass
+            except (json.JSONDecodeError, KeyError, AttributeError, TypeError):
+                # One malformed finding must never abort the unit, let alone the
+                # notebook. Skip this line and continue with the rest.
+                continue
