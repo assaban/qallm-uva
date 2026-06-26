@@ -27,10 +27,19 @@ class RadonNormalizer(ToolNormalizer):
         file_rel = raw_result.artifact or "source.py"
 
         # 1. Process Cyclomatic Complexity (CC)
-        cc_blocks = data.get("complexity", [])
+        # Radon can return a string (an error message) in place of the metrics
+        # list, or individual non-dict entries, when it cannot analyse a unit.
+        # A naive block.get then raises 'str' object has no attribute 'get',
+        # which previously aborted the whole notebook. Skip anything that is not
+        # a metrics dict.
+        cc_blocks = data.get("complexity", []) if isinstance(data, dict) else []
+        if not isinstance(cc_blocks, list):
+            cc_blocks = []
         for block in cc_blocks:
+            if not isinstance(block, dict):
+                continue
             cc_val = block.get("complexity", 0)
-            if cc_val > 5:  # Logic check: only report significant complexity
+            if isinstance(cc_val, (int, float)) and cc_val > 5:  # significant only
                 line = block.get("lineno", 1)
                 name = block.get("name", "unknown")
 
@@ -47,9 +56,9 @@ class RadonNormalizer(ToolNormalizer):
                 ))
 
         # 2. Process Maintainability Index (MI)
-        mi_data = data.get("maintainability", {})
-        mi_score = mi_data.get("mi")
-        if mi_score is not None and mi_score < 70:
+        mi_data = data.get("maintainability", {}) if isinstance(data, dict) else {}
+        mi_score = mi_data.get("mi") if isinstance(mi_data, dict) else None
+        if mi_score is not None and isinstance(mi_score, (int, float)) and mi_score < 70:
             findings.append(Finding(
                 tool= self.tool_name,
                 type="MAINTAINABILITY",
