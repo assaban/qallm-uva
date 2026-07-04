@@ -45,6 +45,14 @@ class SessionMetrics:
     verification_gap_rate: float | None = None
     # Confirmation (only if confirm/refute was run and recorded).
     confirmed: int | None = None
+    # The confirmed total splits into two sources kept distinct for RQ2:
+    # static-finding confirmations (security findings execution corroborated)
+    # and reliability-gap confirmations (execution-only defects, confirmed by
+    # construction because their test failed on the original code). Reporting a
+    # single blended confirmed count hides that the reliability confirmations
+    # dominate and that a raw confirmation rate is degenerate.
+    confirmed_static: int | None = None
+    confirmed_reliability_gap: int | None = None
     refuted: int | None = None
     confirmation_rate: float | None = None
     # Confirm/refute outcomes that are neither confirmed nor refuted, surfaced
@@ -76,6 +84,8 @@ class SessionMetrics:
             "execution_only_bugs": self.execution_only_bugs,
             "verification_gap_rate": self.verification_gap_rate,
             "confirmed": self.confirmed,
+            "confirmed_static": self.confirmed_static,
+            "confirmed_reliability_gap": self.confirmed_reliability_gap,
             "refuted": self.refuted,
             "confirmation_rate": self.confirmation_rate,
             "inconclusive": self.inconclusive,
@@ -92,7 +102,8 @@ CSV_COLUMNS: list[str] = [
     "units_analyzed", "functions_verified", "cost_usd", "tokens",
     "incoherent_oracles_dropped",
     "static_findings", "execution_only_bugs", "verification_gap_rate",
-    "confirmed", "refuted", "confirmation_rate",
+    "confirmed", "confirmed_static", "confirmed_reliability_gap",
+    "refuted", "confirmation_rate",
     "inconclusive", "not_execution_testable",
     "verified_fixed", "not_fixed", "verified_fix_rate",
 ]
@@ -162,6 +173,9 @@ def build_session_metrics(
 
     if confirm_summary:
         m.confirmed = int(confirm_summary.get("confirmed", 0) or 0)
+        m.confirmed_static = int(confirm_summary.get("confirmed_static", 0) or 0)
+        m.confirmed_reliability_gap = int(
+            confirm_summary.get("confirmed_reliability_gap", 0) or 0)
         m.refuted = int(confirm_summary.get("refuted", 0) or 0)
         m.confirmation_rate = confirm_summary.get("confirmation_rate")
         m.inconclusive = int(confirm_summary.get("inconclusive", 0) or 0)
@@ -187,6 +201,8 @@ class AggregateMetrics:
     total_confirmed_findings: int = 0
     total_execution_only_bugs: int = 0
     total_confirmed: int = 0
+    total_confirmed_static: int = 0
+    total_confirmed_reliability_gap: int = 0
     total_refuted: int = 0
     total_inconclusive: int = 0
     total_not_execution_testable: int = 0
@@ -248,6 +264,8 @@ class AggregateMetrics:
             "total_execution_only_bugs": self.total_execution_only_bugs,
             "verification_gap_rate": self.verification_gap_rate,
             "total_confirmed": self.total_confirmed,
+            "total_confirmed_static": self.total_confirmed_static,
+            "total_confirmed_reliability_gap": self.total_confirmed_reliability_gap,
             "total_refuted": self.total_refuted,
             "total_inconclusive": self.total_inconclusive,
             "total_not_execution_testable": self.total_not_execution_testable,
@@ -269,6 +287,8 @@ def aggregate_sessions(sessions: list[SessionMetrics]) -> AggregateMetrics:
         agg.total_confirmed_findings += s.confirmed_findings
         agg.total_execution_only_bugs += s.execution_only_bugs
         agg.total_confirmed += (s.confirmed or 0)
+        agg.total_confirmed_static += (s.confirmed_static or 0)
+        agg.total_confirmed_reliability_gap += (s.confirmed_reliability_gap or 0)
         agg.total_refuted += (s.refuted or 0)
         agg.total_inconclusive += (s.inconclusive or 0)
         agg.total_not_execution_testable += (s.not_execution_testable or 0)
