@@ -192,6 +192,24 @@ This is the integration point Zhao and Nafis flagged in the supervision meeting:
 
 QALLM ships as a Python package with a CLI entry point (`qallm`) and a FastAPI + React web UI for interactive use. You can run it three ways: as a containerised application (recommended for evaluation and deployment), from the CLI on a local Python install, or as two separate dev servers when developing the UI.
 
+### Quickstart (fresh machine, CLI for experiments)
+
+Copy-paste to go from nothing to a working CLI. This is the fastest path if you just need to run experiments (it does not build the web UI).
+
+```bash
+git clone -b dev https://github.com/assaban/qallm-uva.git
+cd qallm-uva
+python -m venv .venv && source .venv/bin/activate
+pip install -e . --break-system-packages
+export FEDLLM_API_KEY=...          # default provider; or OPENAI_API_KEY / ANTHROPIC_API_KEY
+
+# smoke test: the package imports and the CLI answers
+python -c "from qallm.api.main import app; print('qallm ok')"
+python scripts/run_gap_experiment.py --help
+```
+
+Bandit, Radon, and Ruff install with the package. TruffleHog is a separate binary (secret scanning is skipped gracefully if it is absent): install it with `brew install trufflehog` on macOS, or from the trufflesecurity/trufflehog releases on Linux. For the web UI or a one-command containerised run, see the Docker and dev-server subsections below.
+
 ### Hardware requirements
 
 These are the requirements for running QALLM itself. Local LLM inference via Ollama needs significantly more (see below).
