@@ -1,3 +1,5 @@
+> **Superseded.** Historical snapshot; the live status is `../STATUS.md`, the plan is `../roadmap.md`.
+
 # Path to finish: audit and calibration, June 16
 
 A clear-eyed status as E1 runs, what is solid, what the partial data revealed,

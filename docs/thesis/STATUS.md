@@ -1,4 +1,8 @@
-# QALLM status checkpoint, June 16 2026
+# Project status
+
+The single point-in-time status document, overwritten in place as the
+project moves; forward-looking planning lives in `roadmap.md`. Superseded
+dated snapshots are in `archive/`.
 
 A point-in-time snapshot to anchor where the project stands, what is done, what
 is in flight, and what remains. Use this as the reference when picking the work

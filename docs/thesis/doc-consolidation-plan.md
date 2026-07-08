@@ -1,3 +1,5 @@
+> **Executed 2026-07-09** (signed off). This document is the record of the plan; the changes below are live.
+
 # Documentation consolidation and cleanup proposal
 
 The repository carries 58 documentation files. Several overlap, a few are

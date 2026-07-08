@@ -9,8 +9,8 @@ deeper material.
 The reasoning the thesis rests on.
 
 - [`concepts/surpassing-static-analysers.md`](concepts/surpassing-static-analysers.md): the static-versus-execution argument (the verification gap, confirm/refute, verified fixes).
-- [`concepts/oracles.md`](concepts/oracles.md): the verification oracles (crash, property, metamorphic).
-- [`concepts/oracles-and-defect-classes.md`](concepts/oracles-and-defect-classes.md): which oracle catches which defect class, and why the correctness oracle withholds the implementation (illustrated).
+- [`concepts/oracles.md`](concepts/oracles.md): the verification oracles and the defect classes each targets (merged reference; illustrated).
+
 - [`concepts/oracle-confidence-mutation-testing.md`](concepts/oracle-confidence-mutation-testing.md): mutation-testing the oracle to give every gap finding a confidence (the positive soundness check; illustrated).
 
 ## guides/
@@ -49,15 +49,13 @@ The mechanics and design record.
 - [`thesis/thesis-draft-scaffold.md`](thesis/thesis-draft-scaffold.md): the thesis structure and metric definitions.
 - [`thesis/methodology-decisions.md`](thesis/methodology-decisions.md): the dated, append-only record of methodology decisions (MD-001, MD-002, ...).
 - [`thesis/roadmap.md`](thesis/roadmap.md): priorities and rationale.
-- [`thesis/status-update-2026-06.md`](thesis/status-update-2026-06.md): supervisor-facing status summary (the story, architecture, judge/EVERSE, calibration evidence) with diagrams.
+- [`thesis/STATUS.md`](thesis/STATUS.md): the single point-in-time status, overwritten in place; superseded dated snapshots are in [`thesis/archive/`](thesis/archive/).
 - [`thesis/experiment-plan.md`](thesis/experiment-plan.md): the experiments that answer each RQ, with exact commands and outputs.
 - [`thesis/experiment-catalog.md`](thesis/experiment-catalog.md): additional experiments beyond the core set (.py vs .ipynb, oracle ablation, rounds sensitivity, sampling pilot, cross-model), with commands and scope.
 - [`thesis/thesis-structure-and-plan.md`](thesis/thesis-structure-and-plan.md): chapter structure, the three-contribution framing, per-section checklist, and writing-status tracker.
 - [`thesis/audit-2026-06.md`](thesis/audit-2026-06.md): full project audit (strengths, prioritised risks, web-UI assessment, punch list).
 - [`thesis/rq-evolution.md`](thesis/rq-evolution.md): how the research questions changed from the proposal and why (defence-ready motivation).
 - [`thesis/llm-training-analysis.md`](thesis/llm-training-analysis.md): what training an LLM would take, its value, a staged plan, and why it is future work.
-- [`thesis/path-to-finish-2026-06.md`](thesis/path-to-finish-2026-06.md): status as E1 runs, the partial-data findings, and the ordered path to delivery.
-- [`thesis/status-checkpoint-2026-06-16.md`](thesis/status-checkpoint-2026-06-16.md): point-in-time checkpoint (done / in flight / remaining / risks).
 - [`thesis/enrichment-ideas.md`](thesis/enrichment-ideas.md): candidate features and experiments to enrich QALLM, with value/effort/risk and a thesis-scope vs future-work split.
 - [`thesis/security-confirmation-scope.md`](thesis/security-confirmation-scope.md): scope/feasibility/risk-benefit analysis for making security findings confirm rather than land inconclusive (decision aid).
 - [`thesis/session-log.md`](thesis/session-log.md): append-only, dated record of what changed each session and what is outstanding (for cross-session continuity).

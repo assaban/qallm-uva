@@ -1,3 +1,5 @@
+> **Superseded by the single-sample setting.** Consensus-by-union is abandoned (see `../thesis/methodology-decisions.md`); kept for history. The durable insight: independent samples pick different inputs, so call-keyed voting never triggers.
+
 # Oracle variance and the case for consensus test generation
 
 > SUPERSEDED. Consensus by union (samples > 1) was evaluated and abandoned; the

@@ -1,3 +1,5 @@
+> **Superseded.** Historical snapshot; the live status is `../STATUS.md`, the plan is `../roadmap.md`.
+
 # QALLM status update
 
 Prepared for Dr. Zhiming Zhao and Dr. Nafis Tanveer Islam. A summary of where

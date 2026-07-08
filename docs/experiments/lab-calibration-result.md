@@ -1,3 +1,5 @@
+> **Note.** The `--samples 5` recommendation below is superseded; single-sample is the calibrated live setting (see `../thesis/methodology-decisions.md`). Canonical calibration summary.
+
 # Lab calibration result: the correctness oracle works
 
 > NOTE. This record predates the single-sample decision. Any `--samples 5`
