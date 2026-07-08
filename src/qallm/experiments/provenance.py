@@ -43,16 +43,27 @@ def _git(*args: str) -> str | None:
 def _git_info() -> dict:
     """Commit hash, branch, and whether the working tree was dirty.
 
-    A dirty tree means the run did not correspond exactly to the recorded
-    commit, which is a reproducibility caveat worth recording, not hiding.
+    A dirty tree means tracked files were modified relative to the recorded
+    commit, so the run did not correspond exactly to that commit: a
+    reproducibility caveat worth recording, not hiding. Untracked files (data
+    sets, run outputs, zipped artefacts copied between machines) do not change
+    what code executed, so they are deliberately excluded from the dirty flag;
+    counting them made clean runs report as dirty. Their presence is still
+    recorded separately as ``untracked`` for transparency.
     """
     commit = _git("rev-parse", "HEAD")
     branch = _git("rev-parse", "--abbrev-ref", "HEAD")
-    status = _git("status", "--porcelain")
+    # --untracked-files=no: only tracked-file modifications count as dirty.
+    tracked_status = _git("status", "--porcelain", "--untracked-files=no")
+    full_status = _git("status", "--porcelain")
+    untracked = 0
+    if full_status:
+        untracked = sum(1 for ln in full_status.splitlines() if ln.startswith("??"))
     return {
         "commit": commit,
         "branch": branch,
-        "dirty": bool(status) if status is not None else None,
+        "dirty": bool(tracked_status) if tracked_status is not None else None,
+        "untracked": untracked,
     }
 
 

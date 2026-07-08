@@ -9,7 +9,7 @@ def test_capture_has_core_fields():
     for key in ("captured_at", "git", "python", "platform", "executable"):
         assert key in prov
     # git block always present, fields may be None outside a repo
-    assert set(prov["git"]) == {"commit", "branch", "dirty"}
+    assert set(prov["git"]) == {"commit", "branch", "dirty", "untracked"}
 
 
 def test_dataset_fingerprint_is_stable_and_order_independent():
