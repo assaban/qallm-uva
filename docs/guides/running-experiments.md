@@ -6,6 +6,10 @@ simpler to run QALLM directly in a Python virtual environment on the machine,
 so you can point at local notebook directories and watch progress in the
 terminal. This is the setup for that path.
 
+> **Scope.** Environment setup only. The experiment steps themselves live in
+> `../experiments/HOW-TO-RUN-EXPERIMENTS.md`; which runs matter for the thesis
+> is defined in `../thesis/experiment-plan.md`.
+
 ## One-time setup
 
 From the repository root:
