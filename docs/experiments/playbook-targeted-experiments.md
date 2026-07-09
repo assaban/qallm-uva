@@ -32,9 +32,37 @@ Common base (corpus comparisons):
     $BASE --dataset datasets/envri_forest --llm fedllm --oracle correctness \
       --output runs/x_oracle_correctness
 
-## 4. Notebook vs plain Python (one variable: the code form)
-The corpus is .ipynb; HumanEvalFix is .py. Self-containedness defects should
-appear only on the notebook side, which decomposes the gap by defect class.
+## 4. Notebook vs plain Python (one variable: --pattern)
+The forest and ocean corpora contain BOTH forms from the same repositories
+(forest: 2,034 .ipynb and 3,084 .py; ocean: 1,544 .ipynb and 1,303 .py), so the
+comparison is naturally controlled: same projects, same authors, same domain,
+only the code form differs. Plain .py files are self-contained by construction
+relative to notebook cells, so this run decomposes the verification gap: a gap
+that persists on .py is not an extraction artefact; a gap that drops measures
+the notebook-form fragility share. Pairs against the ablation's correctness arm
+(same corpus, seed, and commit; one variable):
+
+    python scripts/run_gap_experiment.py \
+      --dataset datasets/envri_forest --output runs/x_form_forest_py \
+      --pattern "*.py" --llm fedllm --rounds 5 --oracle correctness \
+      --samples 1 --workers 4 --confirm --mutation-confidence \
+      --sample 40 --sample-seed 42 --log-level INFO \
+      2>&1 | tee runs/x_form_forest_py/run.log
+
+Reading caveats (state in any write-up): the seeded 40 .py files are different
+files than the 40 notebooks (population-level comparison, no per-file pairing);
+repo .py files skew toward utility modules; some are scripts with __main__
+blocks. Optional completion: the same run on datasets/envri_ocean gives a 2x2
+(domain x form) table.
+
+## Launch order (after the headline runs finish)
+1. Oracle ablation pair: forest crash, then forest correctness (same commit,
+   no git pull between; back to back).
+2. Cross-domain: ocean .ipynb (the forest arm comes free from step 1).
+3. Form comparison: forest .py (pairs against step 1's correctness arm).
+4. Optional: ocean .py, completing the 2x2.
+Six seeded runs total; one variable per comparison; record the commit per run
+and check manifest.json shows dirty: false.
 
 ## 5. HumanEvalFix (external ground truth): USE THE DEDICATED RUNNER
 Do NOT use run_gap_experiment.py for this. The benchmark has its own runner and
