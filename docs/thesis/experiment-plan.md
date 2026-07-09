@@ -1,5 +1,11 @@
 # QALLM experiment plan
 
+> **Scope.** Authoritative for which runs exist and which RQ each answers. For
+> metric definitions, formulas, environment, and threats, see
+> `../experiments/protocol.md`. For copy-paste operator steps, see
+> `../experiments/HOW-TO-RUN-EXPERIMENTS.md`. If commands disagree across these
+> docs, this plan wins.
+
 The experiments needed to answer the research questions, what each produces,
 the exact command, and how it feeds the thesis. This is the empirical spine of
 the evaluation chapter.

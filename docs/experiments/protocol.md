@@ -1,5 +1,12 @@
 # QALLM experiment protocol
 
+> **Scope.** This document owns the definitions: what each metric measures, its
+> formula, the environment, the procedure, and the threats to validity. For
+> which runs answer which RQ, see `../thesis/experiment-plan.md` (authoritative
+> for the thesis runs). For copy-paste operator steps, see
+> `HOW-TO-RUN-EXPERIMENTS.md`. Commands here illustrate the procedure; if a
+> command disagrees with the experiment plan, the plan wins.
+
 This document is the reproducible protocol for the thesis evaluation. Its
 purpose is that any reader, the author months from now, the daily supervisor,
 or an examiner, can reproduce every number in the results chapter from the

@@ -1,4 +1,11 @@
-> **Executed 2026-07-09** (signed off). This document is the record of the plan; the changes below are live.
+> **Executed 2026-07-09** (signed off). This document is the record of the plan;
+> the changes below are live. Completed in two passes: the STATUS.md collapse,
+> the oracles merge, and the consensus-doc banners landed first; the precedence
+> rule and naming convention in `docs/README.md`, the session-log
+> non-authoritative marker, and the scope split across `protocol.md`,
+> `experiment-plan.md`, and `HOW-TO-RUN-EXPERIMENTS.md` landed in the second
+> pass, together with an index repair (stale `run-outline.md` entry removed,
+> missing experiment records indexed, mangled guides section fixed).
 
 # Documentation consolidation and cleanup proposal
 

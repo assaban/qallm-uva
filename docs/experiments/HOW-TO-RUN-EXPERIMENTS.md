@@ -1,5 +1,10 @@
 # How to run the QALLM experiments
 
+> **Scope.** The operator playbook: copy-paste steps in order. For why each run
+> exists and which RQ it answers, see `../thesis/experiment-plan.md`
+> (authoritative for the thesis runs; if commands disagree, the plan wins). For
+> metric definitions and formulas, see `protocol.md`.
+
 If you are unsure what to run, read THIS section only. Copy the block for the
 step you are on, paste it, wait. The rest of the document explains why each step
 exists; you do not need it to run them.

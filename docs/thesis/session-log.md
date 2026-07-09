@@ -1,5 +1,9 @@
 # QALLM session log
 
+> **Non-authoritative working notes.** This is an engineering diary for
+> cross-session continuity, not a source of truth. If anything here disagrees
+> with the code or with `methodology-decisions.md`, they win.
+
 Newest first. Append-only.
 
 ---
