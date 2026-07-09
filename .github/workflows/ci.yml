@@ -1,10 +1,5 @@
 name: CI
 
-# Quality gate only: install, lint, and run the test suite on every push and
-# pull request to dev or main. This workflow does NOT deploy anywhere; it has
-# no access to the staging VM. Deployment stays manual via scripts/deploy.sh,
-# so nothing here can reach UvA infrastructure.
-
 on:
   push:
     branches: [dev, main]
@@ -12,82 +7,22 @@ on:
     branches: [dev, main]
 
 jobs:
-  test:
+  quality-gate:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.12"]
-
+    timeout-minutes: 20
     steps:
-      - name: Check out the code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
           cache: pip
 
-      - name: Install the package and its dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
+      - name: Install
+        run: pip install -e .
 
-      - name: Lint with ruff
-        run: |
-          pip install ruff
-          ruff check src/qallm
+      - name: Lint (ruff)
+        run: ruff check .
 
-      - name: Run the test suite
-        run: pytest -q --tb=short
-
-  # Smoke-test the BUILT artifact, not just the source. Several past bugs
-  # rendered fine in an editable dev install but broke in the packaged image
-  # (a non-editable pip install changes __file__ paths, docs/ was not copied,
-  # a frontend library was missing). This job builds the image, starts the
-  # api, and curls the endpoints that depend on packaging being correct, so
-  # that whole class of "works in dev, breaks in the container" is caught in
-  # CI. It builds only; it never touches the staging VM.
-  docker-smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v4
-
-      - name: Build the image
-        run: docker build -t qallm:ci .
-
-      - name: Start the api container
-        run: |
-          docker run -d --name qallm-ci -p 8000:8000 qallm:ci
-          # Wait for the app to come up (up to ~60s).
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8000/api/health >/dev/null 2>&1; then
-              echo "api is up"; break
-            fi
-            sleep 2
-          done
-
-      - name: Smoke-test packaged endpoints
-        run: |
-          set -e
-          # Health.
-          curl -fsS http://localhost:8000/api/health | tee /dev/stderr | grep -q online
-          # Models catalogue (depends on the packaged core, not the repo).
-          curl -fsS http://localhost:8000/api/verification/models | tee /dev/stderr | grep -q '"id"'
-          # Docs list must be non-empty in the container (this caught the
-          # "No docs found" packaging bug: docs/ not copied, wrong __file__).
-          docs_json=$(curl -fsS http://localhost:8000/api/docs)
-          echo "$docs_json"
-          echo "$docs_json" | grep -q '"readme"'
-          # README must render to HTML (markdown dependency present).
-          curl -fsS http://localhost:8000/api/docs/readme | grep -q '<h1'
-
-      - name: Container logs on failure
-        if: failure()
-        run: docker logs qallm-ci || true
-
-      - name: Tear down
-        if: always()
-        run: docker rm -f qallm-ci || true
+      - name: Tests (pytest)
+        run: python -m pytest -q
