@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import re
 import tempfile
 import textwrap
 from dataclasses import dataclass, asdict
@@ -122,16 +123,35 @@ def run_tests_against_source(
         # Write the target as a top-level module.
         (td_path / f"{entry_point}_module.py").write_text(target_source)
 
+        # QALLM's harvested tests carry their OWN import line, typically
+        # `from source_<unit>_c0 import <fn>`, pointing at a module name that
+        # does not exist here. If the target is not also written under that
+        # name, every QALLM test errors at import, pytest exits non-zero on
+        # buggy AND canonical alike, and detection is False for every problem
+        # (the uniform-zero observed in the 2026-07-09 run). Satisfy the
+        # test's own imports by writing the same target under each module
+        # name the test imports from.
+        for mod in set(re.findall(r"(?m)^\s*from\s+(source_\w+)\s+import\b",
+                                  test_code)):
+            (td_path / f"{mod}.py").write_text(target_source)
+
         # HumanEvalFix tests typically end with `check(<entry_point>)`.
         # We prepend an import that brings the entry_point into scope.
         # The `check` function name is the dataset convention.
         runner = textwrap.dedent(f"""
             from {entry_point}_module import {entry_point}
-        """).strip() + "\n" + test_code + textwrap.dedent(f"""
+        """).strip() + "\n" + test_code
+        # Only wrap the dataset convention. HumanEvalFix tests define
+        # check(candidate); QALLM's harvested tests define plain pytest
+        # functions and no check(), so appending the wrapper unconditionally
+        # raised NameError and forced every QALLM detection run to fail
+        # regardless of the code under test.
+        if re.search(r"(?m)^\s*def\s+check\s*\(", test_code):
+            runner += textwrap.dedent(f"""
 
-            def test_humanevalfix_canonical():
-                check({entry_point})
-        """)
+                def test_humanevalfix_canonical():
+                    check({entry_point})
+            """)
         (td_path / "test_runner.py").write_text(runner)
 
         try:
