@@ -54,7 +54,12 @@ corpus and are deliberately not reported (thesis, hardening section).
 Same command as E2 plus: `--sample 40 --sample-seed 42`.
 
 ### Benchmark ground truth (HumanEval) and oracle ablation
-HumanEval: E2 command with `--dataset datasets/humaneval --pattern "*.py"`.
+HumanEvalFix: uses the dedicated runner, not the gap runner; see
+`docs/experiments/humaneval.md` and `scripts/run_humaneval.py`
+(`pip install -e ".[experiments]"` once, then
+`python scripts/run_humaneval.py --output runs/heval --models
+fedllm:gpt-oss-120b --strategies feedback,oneshot,hypothesis --rounds 5
+--workers 6 --seed 42`).
 Ablation: the seeded sample under `--oracle crash` vs `--oracle correctness`.
 
 ## Verifying a run's provenance
