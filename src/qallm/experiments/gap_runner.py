@@ -537,6 +537,8 @@ def _metrics_from_dict(d: dict) -> SessionMetrics:
         execution_only_bugs=int(d.get("execution_only_bugs", 0) or 0),
         verification_gap_rate=d.get("verification_gap_rate"),
         confirmed=d.get("confirmed"),
+        confirmed_static=d.get("confirmed_static"),
+        confirmed_reliability_gap=d.get("confirmed_reliability_gap"),
         refuted=d.get("refuted"),
         confirmation_rate=d.get("confirmation_rate"),
         inconclusive=d.get("inconclusive"),

@@ -209,3 +209,33 @@ count and rate), and static-finding confirmation (security, inconclusive by
 design). RQ3 follows from the reliability confirmations. State the framing
 explicitly so the confirmation rate is not mistaken for static-finding
 corroboration.
+
+## MD-007: E2 headline reporting: dual weighting, counts for RQ2, and the truncation lesson
+
+**Date**: 2026-07-10
+
+**Decision**: The E2 (full ENVRI forest corpus) results are reported as follows.
+
+1. **RQ1 headline is the count-weighted gap rate with a bootstrap CI**: 732 execution-only defects over 4,298 verified functions, 17.0% (95% CI [14.7%, 19.6%], session-resample). It is always accompanied by the project-weighted view (macro average 21.2%, median 11.1%, IQR [0%, 35%] over the 112 projects with at least five verified functions) and a dominant-project sensitivity check: `sentinel-tree-cover` alone contributes 22% of the denominator at a 1.1% gap rate; excluding it the count-weighted rate is 21.6%. One number without the other two invites either overstatement (ignoring the well-engineered outlier) or understatement (letting one repository speak for 285 projects).
+
+2. **RQ2 is reported as counts, never as a confirmation rate**: 747 confirmed reliability defects, each with a persisted reproducing test; 265 static findings inconclusive (security is inconclusive by design); 0 refuted. Refutation is structurally near-impossible (MD-006), so confirmed/(confirmed+refuted) is 100% by construction and must not appear as a statistic.
+
+3. **RQ3**: verified-fix rate 58.4% (391/669, 95% CI [53.1%, 63.9%]), count-weighted; it is stable across corpus composition (58.1% in the first 1,376 sessions, 58.4% final), unlike the gap rate.
+
+4. **The truncation lesson is documented, not hidden**: the 75%-complete partial showed a 24.6% gap rate; the completed corpus shows 17.0%. The resumed tail was 42 previously untouched projects processed in discovery order, including the dominant low-gap repository. This validates the standing rule that partial results from non-random truncation must not be reported as final, and it goes in the threats-to-validity section as a worked example.
+
+**Why**: corpus skew is a fact of harvested notebook corpora, and examiners will probe any single-number headline. Reporting all three RQ1 views with an explicit sensitivity check converts the skew from a vulnerability into evidence of care.
+
+**Implementation**: `scripts/analyze_gap_results.py` recomputes every reported number from `results.jsonl` and writes `analysis.json`/`analysis.md` into the run directory. All thesis numbers come from that script, not from hand computation.
+
+## MD-008: Aggregate roll-up corrections and the E2 resume provenance note
+
+**Date**: 2026-07-10
+
+**Decision**: two aggregate bugs found via the E2 final artifacts are fixed, and the E2 provenance split is recorded.
+
+1. **Degenerate aggregate gap rate**: `AggregateMetrics.verification_gap_rate` divided execution-only defects by (confirmed findings + execution-only), which is 1.0 whenever confirmed static findings are zero, the normal case per MD-006. The denominator is now `total_functions_verified`, matching the per-session definition, and the bootstrap CI pairs follow. `aggregate.json` files written before this fix carry the degenerate value; `results.jsonl` rows were always correct, and `scripts/analyze_gap_results.py` recomputes from rows.
+
+2. **RQ2 split lost on resume**: `_metrics_from_dict`, the path that re-reads prior rows when a run resumes, omitted `confirmed_static` and `confirmed_reliability_gap`, so any resumed run reported zeros for the split while `total_confirmed` was correct. Both fields now round-trip. Regression tests: `tests/test_aggregate_gap_rate.py`.
+
+3. **Provenance note for E2**: the run spans two commits. Sessions before the disk-space interruption ran at `064ddc7`; the resumed tail and the manifest's recorded provenance are at `c7c0581`. The only source change between the two is `src/qallm/experiments/humaneval_metrics.py` (plus docs, CI, and its own test), which the gap pipeline does not import. The run is therefore behaviorally single-version for every executed code path; the thesis reproducibility statement says exactly this rather than hiding the split.

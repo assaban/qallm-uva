@@ -1,0 +1,63 @@
+% E2 final numbers (runs/e2_final, completed 2026-07-10).
+% Generated from scripts/analyze_gap_results.py output; see
+% docs/thesis/e2-results-analysis.md for definitions and framing.
+% Usage: \input{e2-numbers.tex} then \egapRate{} etc. in prose and tables.
+
+% Corpus and sessions
+\newcommand{\ecorpusNotebooks}{1{,}843}
+\newcommand{\ecorpusProjects}{285}
+\newcommand{\esessionsAnalyzed}{1{,}814}
+\newcommand{\esessionsErrored}{29}
+\newcommand{\esessionsErroredPct}{1.6\%}
+\newcommand{\eunitsAnalyzed}{41{,}773}
+\newcommand{\estaticFindings}{2{,}281}
+
+% RQ1: verification gap
+\newcommand{\efunctionsVerified}{4{,}298}
+\newcommand{\egapDefects}{732}
+\newcommand{\egapRate}{17.0\%}
+\newcommand{\egapRateCiLow}{14.7\%}
+\newcommand{\egapRateCiHigh}{19.6\%}
+\newcommand{\egapMacroAvg}{21.2\%}
+\newcommand{\egapMedian}{11.1\%}
+\newcommand{\egapIqrLow}{0\%}
+\newcommand{\egapIqrHigh}{35\%}
+\newcommand{\egapProjectsN}{112}
+\newcommand{\egapProjectsZero}{39}
+\newcommand{\edominantProject}{sentinel-tree-cover}
+\newcommand{\edominantShare}{22\%}
+\newcommand{\edominantRate}{1.1\%}
+\newcommand{\egapRateExclDominant}{21.6\%}
+\newcommand{\enotExecutionTestable}{629}
+\newcommand{\eincoherentDropped}{11}
+
+% RQ1 confidence bound (mutation-scored)
+\newcommand{\econfHigh}{533}
+\newcommand{\econfMedium}{86}
+\newcommand{\econfLow}{79}
+\newcommand{\econfUnknown}{34}
+\newcommand{\econfHighPct}{73\%}
+\newcommand{\egapRateHighConfOnly}{12.4\%}
+
+% RQ2: counts, not a rate (MD-007)
+\newcommand{\econfirmedReliability}{747}
+\newcommand{\econfirmedStatic}{0}
+\newcommand{\erefuted}{0}
+\newcommand{\einconclusiveStatic}{265}
+
+% RQ3: verified fixes
+\newcommand{\efixVerified}{391}
+\newcommand{\efixDenominator}{669}
+\newcommand{\efixRate}{58.4\%}
+\newcommand{\efixRateCiLow}{53.1\%}
+\newcommand{\efixRateCiHigh}{63.9\%}
+\newcommand{\efixRatePartial}{58.1\%}
+
+% Truncation vignette (threats to validity)
+\newcommand{\epartialSessions}{1{,}376}
+\newcommand{\epartialGapRate}{24.6\%}
+\newcommand{\etailProjects}{42}
+
+% Provenance
+\newcommand{\ecommitFirst}{064ddc7}
+\newcommand{\ecommitResume}{c7c0581}

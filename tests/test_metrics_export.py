@@ -70,15 +70,17 @@ def test_null_rate_when_no_denominator():
 
 
 def test_aggregate_recomputes_rates_count_weighted():
-    s1 = SessionMetrics("s1", confirmed_findings=1, execution_only_bugs=1,
+    s1 = SessionMetrics("s1", functions_verified=4, confirmed_findings=1,
+                        execution_only_bugs=1,
                         confirmed=1, refuted=1, verified_fixed=1, not_fixed=0)
-    s2 = SessionMetrics("s2", confirmed_findings=3, execution_only_bugs=1,
+    s2 = SessionMetrics("s2", functions_verified=6, confirmed_findings=3,
+                        execution_only_bugs=1,
                         confirmed=3, refuted=0, verified_fixed=2, not_fixed=2)
     agg = aggregate_sessions([s1, s2])
     assert agg.n_sessions == 2
-    # gap: total_exec_only / (total_confirmed_findings + total_exec_only)
-    #    = 2 / (4 + 2) = 1/3
-    assert round(agg.verification_gap_rate, 3) == 0.333
+    # gap: total_exec_only / total_functions_verified = 2 / 10 (MD-008; the
+    # old denominator degenerated to 1.0 when confirmed findings were zero).
+    assert agg.verification_gap_rate == 0.2
     # confirmation: 4 / (4 + 1) = 0.8
     assert agg.confirmation_rate == 0.8
     # verified-fix: 3 / (3 + 2) = 0.6

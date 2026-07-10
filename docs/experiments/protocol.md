@@ -178,6 +178,7 @@ Pilot command (free, FedLLM):
 ```
 python scripts/run_humaneval.py \
     --output runs/heval_pilot \
+    --oracle correctness \
     --models fedllm:gpt-oss-120b \
     --strategies feedback \
     --sample-size 20 \
@@ -190,6 +191,7 @@ Full command:
 ```
 python scripts/run_humaneval.py \
     --output runs/heval_full \
+    --oracle correctness \
     --models fedllm:gpt-oss-120b,ollama:gemma3:4b \
     --strategies feedback,oneshot,hypothesis \
     --rounds 5 \
