@@ -220,7 +220,7 @@ corroboration.
 
 2. **RQ2 is reported as counts, never as a confirmation rate**: 747 confirmed reliability defects, each with a persisted reproducing test; 265 static findings inconclusive (security is inconclusive by design); 0 refuted. Refutation is structurally near-impossible (MD-006), so confirmed/(confirmed+refuted) is 100% by construction and must not appear as a statistic.
 
-3. **RQ3**: verified-fix rate 58.5% (391/669, 95% CI [53.1%, 63.9%]), count-weighted; it is stable across corpus composition (58.1% in the first 1,376 sessions, 58.5% final), unlike the gap rate.
+3. **RQ3**: verified-fix rate 58.4% (391/669, 95% CI [53.1%, 63.9%]), count-weighted; it is stable across corpus composition (58.1% in the first 1,376 sessions, 58.4% final), unlike the gap rate.
 
 4. **The truncation lesson is documented, not hidden**: the 75%-complete partial showed a 24.6% gap rate; the completed corpus shows 17.0%. The resumed tail was 42 previously untouched projects processed in discovery order, including the dominant low-gap repository. This validates the standing rule that partial results from non-random truncation must not be reported as final, and it goes in the threats-to-validity section as a worked example.
 

@@ -66,10 +66,12 @@ def _bootstrap_ratio(pairs: list[tuple[int, int]], n_boot: int = 10000,
         d = sum(b for _, b in smp)
         stats.append((sum(a for a, _ in smp) / d) if d else 0.0)
     stats.sort()
+    # Full precision here; presentation rounding happens once, at format
+    # time, so a display percentage never rounds an already-rounded value.
     return {
-        "point": round(point, 4),
-        "ci_low": round(stats[int(0.025 * n_boot)], 4),
-        "ci_high": round(stats[int(0.975 * n_boot)], 4),
+        "point": point,
+        "ci_low": stats[int(0.025 * n_boot)],
+        "ci_high": stats[int(0.975 * n_boot)],
         "n_sessions": len(pairs),
         "n_boot": n_boot,
         "method": "bootstrap_percentile_session_resample",

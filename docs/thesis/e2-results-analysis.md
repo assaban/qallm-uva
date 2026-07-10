@@ -53,10 +53,10 @@ rate is reported (MD-007); the count and its reproducing tests are the result.
 ## RQ3: verified fixes
 
 **391 of 669 confirmed defects with a fix attempt were provably fixed:
-58.5% (95% CI [53.1%, 63.9%])**, where "provably" means the defect's own
+58.4% (95% CI [53.1%, 63.9%])**, where "provably" means the defect's own
 reproducing test passes against the repaired code. Unlike the gap rate, the
 fix rate is homogeneous across the corpus: 58.1% in the first 1,376 sessions,
-58.5% at completion. Repairability appears to be a property of the defect
+58.4% at completion. Repairability appears to be a property of the defect
 class; prevalence is a property of the project.
 
 ## The truncation vignette (for threats to validity)
