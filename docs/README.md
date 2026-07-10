@@ -90,6 +90,8 @@ Point-in-time findings (dated records; superseded content carries a banner):
 - [`thesis/experiment-plan.md`](thesis/experiment-plan.md): the experiments that answer each RQ (authoritative for which thesis runs exist and why).
 - [`thesis/experiment-catalog.md`](thesis/experiment-catalog.md): additional experiments beyond the core set (.py vs .ipynb, oracle ablation, rounds sensitivity, sampling pilot, cross-model), with commands and scope.
 - [`thesis/e1-results-analysis.md`](thesis/e1-results-analysis.md): first-pass analysis of the E1 headline run, with the counts and the gap-rate caveat.
+- [`thesis/e2-results-analysis.md`](thesis/e2-results-analysis.md): the E2 full-corpus results (RQ1 three-view gap rate, RQ2 counts, RQ3 fix rate, truncation vignette, provenance note); every number regenerates via `scripts/analyze_gap_results.py`.
+- [`thesis/e2-numbers.tex`](thesis/e2-numbers.tex): every E2 figure as a LaTeX macro, for `\input` into the thesis.
 - [`thesis/thesis-structure-and-plan.md`](thesis/thesis-structure-and-plan.md): chapter structure, the three-contribution framing, per-section checklist, and writing-status tracker.
 - [`thesis/audit-2026-06.md`](thesis/audit-2026-06.md): full project audit (strengths, prioritised risks, web-UI assessment, punch list).
 - [`thesis/rq-evolution.md`](thesis/rq-evolution.md): how the research questions changed from the proposal and why (defence-ready motivation).

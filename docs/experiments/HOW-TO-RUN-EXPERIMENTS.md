@@ -59,6 +59,7 @@ Step 4, E4 HumanEvalFix validation + strategy comparison:
 
     python scripts/run_humaneval.py \
         --output runs/humaneval --workers 4 --strategy feedback
+        --oracle correctness
     # repeat with --strategy oneshot and --strategy hypothesis to compare
 
 Step 5, Li corpus at scale (free, long; same as E2, bigger dataset):
@@ -245,6 +246,7 @@ Pilot first (fast, confirms the benchmark downloads and runs):
 
     python scripts/run_humaneval.py \
         --output runs/heval_pilot \
+        --oracle correctness \
         --models fedllm:gpt-oss-120b \
         --strategies feedback \
         --sample-size 20 --rounds 3 --seed 42
@@ -253,6 +255,7 @@ Then the full comparison across all three strategies:
 
     python scripts/run_humaneval.py \
         --output runs/heval_full \
+        --oracle correctness \
         --models fedllm:gpt-oss-120b \
         --strategies rl,oneshot,hypothesis \
         --rounds 5 --seed 42
