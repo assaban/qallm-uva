@@ -197,6 +197,7 @@ class AggregateMetrics:
     averaged, so a session with one finding does not weigh the same as a
     session with fifty (count-weighted, the correct aggregation for rates)."""
     n_sessions: int = 0
+    total_functions_verified: int = 0
     total_static_findings: int = 0
     total_confirmed_findings: int = 0
     total_execution_only_bugs: int = 0
@@ -219,10 +220,14 @@ class AggregateMetrics:
 
     @property
     def verification_gap_rate(self) -> float | None:
-        # execution-only over all execution-found defects at the function
-        # level (confirmed findings + execution-only).
+        # Execution-only defects over all functions execution actually
+        # verified: the fraction of verified functions that pass static
+        # analysis yet fail a generated correctness test. The old denominator
+        # (confirmed findings + execution-only) degenerated to 1.0 whenever
+        # confirmed findings were zero, which is the normal case since the
+        # static analysers emit no reliability findings (see MD-006).
         return _rate(self.total_execution_only_bugs,
-                     self.total_confirmed_findings + self.total_execution_only_bugs)
+                     self.total_functions_verified)
 
     @property
     def confirmation_rate(self) -> float | None:
@@ -260,6 +265,7 @@ class AggregateMetrics:
     def to_dict(self) -> dict[str, Any]:
         return {
             "n_sessions": self.n_sessions,
+            "total_functions_verified": self.total_functions_verified,
             "total_static_findings": self.total_static_findings,
             "total_execution_only_bugs": self.total_execution_only_bugs,
             "verification_gap_rate": self.verification_gap_rate,
@@ -283,6 +289,7 @@ def aggregate_sessions(sessions: list[SessionMetrics]) -> AggregateMetrics:
     """Roll up many sessions, recomputing rates from summed counts."""
     agg = AggregateMetrics(n_sessions=len(sessions))
     for s in sessions:
+        agg.total_functions_verified += s.functions_verified
         agg.total_static_findings += s.static_findings
         agg.total_confirmed_findings += s.confirmed_findings
         agg.total_execution_only_bugs += s.execution_only_bugs
@@ -297,8 +304,9 @@ def aggregate_sessions(sessions: list[SessionMetrics]) -> AggregateMetrics:
         agg.total_cost_usd += s.cost_usd
         agg.per_session.append(s.to_dict())
         # Capture per-session (numerator, denominator) for the bootstrap CIs.
-        eo, cf = s.execution_only_bugs, s.confirmed_findings
-        agg._gap_pairs.append((eo, eo + cf))
+        # Gap CI pairs: execution-only defects over functions verified,
+        # matching the aggregate rate definition.
+        agg._gap_pairs.append((s.execution_only_bugs, s.functions_verified))
         c, r = (s.confirmed or 0), (s.refuted or 0)
         agg._conf_pairs.append((c, c + r))
         vf, nf = (s.verified_fixed or 0), (s.not_fixed or 0)
