@@ -79,6 +79,7 @@ Point-in-time findings (dated records; superseded content carries a banner):
 - [`experiments/cross-evaluation-2026-06-18.md`](experiments/cross-evaluation-2026-06-18.md): cross-evaluation run record.
 - [`experiments/mutation-confidence-fix-2026-06-18.md`](experiments/mutation-confidence-fix-2026-06-18.md): mutation-confidence fix record.
 - [`experiments/rq2-reliability-confirmation-2026-06-20.md`](experiments/rq2-reliability-confirmation-2026-06-20.md): RQ2 reliability confirmation record.
+- [`experiments/heval-correctness-final-2026-07-11.md`](experiments/heval-correctness-final-2026-07-11.md): the completed HumanEvalFix correctness arm and the full oracle-ablation numbers (McNemar exact; MD-009).
 - [`experiments/test-accumulation-findings-2026-06-18.md`](experiments/test-accumulation-findings-2026-06-18.md): FROZEN+GROW test accumulation findings.
 
 ## thesis/: thesis-facing material

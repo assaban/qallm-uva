@@ -239,3 +239,32 @@ corroboration.
 2. **RQ2 split lost on resume**: `_metrics_from_dict`, the path that re-reads prior rows when a run resumes, omitted `confirmed_static` and `confirmed_reliability_gap`, so any resumed run reported zeros for the split while `total_confirmed` was correct. Both fields now round-trip. Regression tests: `tests/test_aggregate_gap_rate.py`.
 
 3. **Provenance note for E2**: the run spans two commits. Sessions before the disk-space interruption ran at `064ddc7`; the resumed tail and the manifest's recorded provenance are at `c7c0581`. The only source change between the two is `src/qallm/experiments/humaneval_metrics.py` (plus docs, CI, and its own test), which the gap pipeline does not import. The run is therefore behaviorally single-version for every executed code path; the thesis reproducibility statement says exactly this rather than hiding the split.
+
+## MD-009: Benchmark statistics are McNemar exact; the anchoring result scopes the claim
+
+**Date**: 2026-07-12
+
+**Decision**: two decisions from the completed HumanEvalFix pair.
+
+1. **Paired binary outcomes use McNemar's exact test**, not the Wilcoxon
+signed-rank named in early planning. Detection and repair are binary per
+problem and paired per problem across conditions; Wilcoxon degenerates on
+paired binary data, while McNemar on the discordant pairs is the standard
+correct test, exact form because discordant counts are small. The thesis
+states the substitution and the reason in one clause (tab:ablation caption
+and sec:benchmark).
+
+2. **The benchmark's detection floor is reported as a scoping result, not
+softened.** Detection stays at 1.8 to 4.9% under both oracles while repair
+doubles significantly under the matched oracle within every strategy
+(p <= 0.007). The mechanism consistent with both is implementation
+anchoring. Consequence, claimed explicitly: QALLM detects reliability
+defects, code violating its own contract on plausible inputs, and does not
+solve detection of subtle semantic divergence from an external
+specification without ground truth. The corpus headline and the benchmark
+floor are therefore complementary measurements of one instrument, not a
+contradiction.
+
+**Record**: full numbers in
+`docs/experiments/heval-correctness-final-2026-07-11.md`; both run
+directories are pinned.
