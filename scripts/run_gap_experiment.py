@@ -52,6 +52,11 @@ def main() -> None:
                         choices=["strict", "lexicographic", "model"])
     parser.add_argument("--stage", default="implementation",
                         choices=["initialization", "implementation", "publication"])
+    parser.add_argument("--exclude", action="append", default=[],
+                        metavar="GLOB",
+                        help="Exclude inputs whose dataset-relative path or "
+                             "filename matches GLOB (repeatable; fnmatch "
+                             "semantics, recorded in the manifest).")
     parser.add_argument("--pattern", default="*.ipynb",
                         help="Glob for dataset files (default *.ipynb; use *.py for scripts).")
     parser.add_argument("--mutation-confidence", action="store_true",
@@ -109,6 +114,7 @@ def main() -> None:
         judge_strategy=args.judge_strategy,
         stage=args.stage,
         pattern=args.pattern,
+        excludes=tuple(args.exclude),
         confirm=args.confirm,
         mutation_confidence=args.mutation_confidence,
         artefact_retention=args.retention,

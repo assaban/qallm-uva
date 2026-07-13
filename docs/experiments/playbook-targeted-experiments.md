@@ -47,6 +47,15 @@ the notebook-form fragility share. Pairs against the ablation's correctness arm
       --pattern "*.py" --llm fedllm --rounds 5 --oracle correctness \
       --samples 1 --workers 4 --confirm --mutation-confidence \
       --sample 40 --sample-seed 42 --log-level INFO \
+      --exclude "*/tests/*" --exclude "*/test/*" --exclude "test_*.py" \
+      --exclude "*_test.py" --exclude "__init__.py" --exclude "setup.py" \
+      --exclude "conftest.py" --exclude "conf.py"
+
+The excludes are sampling-frame hygiene, not optional (MD-010): 45% of the
+raw .py trees are test files, __init__.py, and packaging boilerplate with no
+notebook counterpart (raw 3,084 forest / 1,303 ocean; authored analysis code
+after excludes: 1,354 / 1,073). The exclusion list is recorded in the run
+manifest. \
       2>&1 | tee runs/x_form_forest_py/run.log
 
 Reading caveats (state in any write-up): the seeded 40 .py files are different

@@ -268,3 +268,26 @@ contradiction.
 **Record**: full numbers in
 `docs/experiments/heval-correctness-final-2026-07-11.md`; both run
 directories are pinned.
+
+## MD-010: The .py arm samples authored analysis code only
+
+**Date**: 2026-07-12
+
+**Decision**: the notebook-vs-python form comparison (playbook run 4)
+excludes test files (`*/tests/*`, `*/test/*`, `test_*.py`, `*_test.py`,
+`conftest.py`), `__init__.py`, `setup.py`, and Sphinx `conf.py` from the
+.py sampling frame, via the runner's new `--exclude` globs.
+
+**Why**: the form comparison isolates one variable, the code form. The raw
+.py trees are 45% test files and boilerplate that have no notebook
+counterpart; sampling them would compare notebooks against a different
+population, not a different form. Exclusion patterns are recorded in the
+run manifest because they change the sampling frame: a manifest without
+them could not reproduce the sample. The notebook arm needs no equivalent
+list; the runner's built-in cruft filter (checkpoints, backups, sidecars)
+already covers its known contaminants and applies to both arms.
+
+**Implementation**: `--exclude GLOB` (repeatable) on
+`scripts/run_gap_experiment.py`, matched against the dataset-relative path
+and the bare filename; regression tests in
+`tests/test_discovery_excludes.py`.

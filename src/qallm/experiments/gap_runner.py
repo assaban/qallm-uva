@@ -17,6 +17,7 @@ same per-session record and aggregate.
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import traceback
 import logging
@@ -49,6 +50,11 @@ class GapExperimentConfig:
     judge_strategy: str = "lexicographic"
     stage: str = "implementation"
     pattern: str = "*.ipynb"  # which files in the dataset to run
+    excludes: tuple[str, ...] = ()  # glob patterns removed from discovery,
+    # matched against both the path relative to the dataset dir and the bare
+    # filename (fnmatch semantics, so "*/tests/*" prunes test trees). Recorded
+    # in the manifest: an exclusion changes the sampling frame, so it is
+    # provenance, not convenience (MD-010).
     confirm: bool = False     # also run confirm/refute + verify-fixes (RQ2/RQ3); costs LLM calls
     # Batch runs default to metrics_only: skip the per-unit round directories
     # (thousands of small files across a dataset) and keep the gap data in
@@ -87,6 +93,7 @@ class GapExperimentConfig:
             "judge_strategy": self.judge_strategy,
             "stage": self.stage,
             "pattern": self.pattern,
+            "excludes": list(self.excludes),
             "confirm": self.confirm,
             "workers": self.workers,
             "mutation_confidence": self.mutation_confidence,
@@ -122,17 +129,33 @@ def _is_backup_or_cruft(path: Path) -> bool:
     return False
 
 
-def _discover_inputs(dataset_dir: Path, pattern: str) -> list[Path]:
+def _matches_exclude(path: Path, dataset_dir: Path,
+                     excludes: tuple[str, ...]) -> bool:
+    """True when any exclude glob matches the dataset-relative path or the
+    bare filename. fnmatch's * crosses separators, so "*/tests/*" prunes
+    whole test trees while "__init__.py" removes by name."""
+    if not excludes:
+        return False
+    rel = path.relative_to(dataset_dir).as_posix()
+    return any(fnmatch.fnmatch(rel, g) or fnmatch.fnmatch(path.name, g)
+               for g in excludes)
+
+
+def _discover_inputs(dataset_dir: Path, pattern: str,
+                     excludes: tuple[str, ...] = ()) -> list[Path]:
     """Every canonical file under dataset_dir matching the pattern, sorted for
     determinism.
 
     Backups and editor/Jupyter/OS cruft are excluded (see
     _is_backup_or_cruft): they are duplicates or junk that rglob would
     otherwise feed to the pipeline, double-processing code and wasting budget.
+    User-supplied exclude globs are applied on top and recorded in the
+    manifest, since they change the sampling frame.
     """
     return sorted(
         p for p in dataset_dir.rglob(pattern)
         if not _is_backup_or_cruft(p)
+        and not _matches_exclude(p, dataset_dir, excludes)
     )
 
 
@@ -245,7 +268,8 @@ def run_gap_experiment(
     if orchestrator_factory is None:
         orchestrator_factory = _default_orchestrator_factory
 
-    inputs = _discover_inputs(config.dataset_dir, config.pattern)
+    inputs = _discover_inputs(config.dataset_dir, config.pattern,
+                              config.excludes)
     discovered = len(inputs)
     if config.sample_n and config.sample_n < discovered:
         inputs = _sample_inputs(inputs, config.sample_n, config.sample_seed,
