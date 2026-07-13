@@ -32,10 +32,11 @@ Related Work, the author's own full read, and delivery to the supervisors.
 
 ## In flight
 
-- Nothing computational. Optional pre-defence enrichment, in priority
-  order if time allows after the supervisor draft goes out: seeded
-  cross-domain pair (playbook run 2), seeded cross-model pair (run 1),
-  naive re-prompt repair baseline.
+- Nothing computational. The cross-domain and form 2x2 is complete and in
+  the thesis (sec:generality; see
+  `../experiments/cross-domain-and-form-2026-07-13.md`). Remaining optional
+  enrichment: the seeded cross-model pair (playbook run 1) and the naive
+  re-prompt repair baseline.
 
 ## Remaining before submission
 
