@@ -182,10 +182,10 @@ def bug_was_detected(
     pass against the canonical code. The second clause excludes test
     suites that just fail everything.
     """
-    fails_buggy, _ = run_tests_against_source(
+    passed_buggy, _ = run_tests_against_source(
         qallm_test_code, buggy_source, entry_point
     )
-    if fails_buggy:
+    if passed_buggy:
         # QALLM's tests passed against buggy code: they did not detect anything.
         return False
     # QALLM's tests failed against buggy code. Now check the discriminating
