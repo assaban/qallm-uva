@@ -82,6 +82,7 @@ Point-in-time findings (dated records; superseded content carries a banner):
 - [`experiments/heval-correctness-final-2026-07-11.md`](experiments/heval-correctness-final-2026-07-11.md): the completed HumanEvalFix correctness arm and the full oracle-ablation numbers (McNemar exact; MD-009).
 - [`experiments/cross-domain-and-form-2026-07-13.md`](experiments/cross-domain-and-form-2026-07-13.md): the 2x2 generality runs (domain x form): the gap reproduces in the ocean domain at the headline level and persists in authored plain Python.
 - [`experiments/cross-model-2026-07-14.md`](experiments/cross-model-2026-07-14.md): the cross-model replication: a second generator (gpt-5-mini) flags the identical twelve functions on the byte-identical sample (Jaccard 1.0).
+- [`experiments/cross-model-panel-2026-07-15.md`](experiments/cross-model-panel-2026-07-15.md): the four-generator panel: three flag the identical defect set, the fourth a strict subset, none anything beyond it; fix outcomes vary 4/13 to 12/13.
 - [`experiments/test-accumulation-findings-2026-06-18.md`](experiments/test-accumulation-findings-2026-06-18.md): FROZEN+GROW test accumulation findings.
 
 ## thesis/: thesis-facing material

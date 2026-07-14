@@ -35,8 +35,8 @@ Related Work, the author's own full read, and delivery to the supervisors.
 - Nothing computational, and nothing optional remains scheduled. The
   generality programme is complete: cross-domain, cross-form
   (`../experiments/cross-domain-and-form-2026-07-13.md`), and cross-model
-  (`../experiments/cross-model-2026-07-14.md`, identical defect set under a
-  second generator). The dogfood run and its triage are recorded as a
+  (`../experiments/cross-model-panel-2026-07-15.md`, a four-generator panel
+  converging on one defect set). The dogfood run and its triage are recorded as a
   defence asset. The only unrun catalogued idea is the naive re-prompt
   repair baseline, deliberately deferred past the defence.
 
