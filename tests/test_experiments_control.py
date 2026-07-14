@@ -75,8 +75,7 @@ def test_run_work_drives_progress_to_done():
     with patch("qallm.experiments.humaneval_runner.run_experiment", fake_run), \
          patch("qallm.experiments.humaneval_runner.ExperimentConfig",
                lambda **k: type("C", (), k)):
-        out = ec._run_experiment_work("rw_test", "humanevalfix",
-                                      {"models": ["stub"], "strategies": ["rl"],
+        out = ec._run_experiment_work("rw_test", {"models": ["stub"], "strategies": ["rl"],
                                        "sample_size": 3})
     assert out["n_results"] == 3
     snap = ec._get_progress("rw_test").to_dict()

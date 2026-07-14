@@ -125,8 +125,6 @@ def build_correctness_oracle_prompt(func: FunctionInfo) -> str:
 
     return "\n".join(parts)
 
-    return "\n".join(parts)
-
 
 def build_crash_oracle_prompt(func: FunctionInfo) -> str:
     """Build a user prompt for crash oracle test generation.

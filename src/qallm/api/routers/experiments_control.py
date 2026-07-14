@@ -135,7 +135,7 @@ async def experiment_catalog():
 # Launch
 # ---------------------------------------------------------------------------
 
-def _run_experiment_work(run_id: str, spec_id: str, params: dict) -> dict:
+def _run_experiment_work(run_id: str, params: dict) -> dict:
     """Background work: run the experiment, updating the progress registry.
 
     Imported lazily so the experiments extra (datasets) is only needed when
@@ -233,7 +233,7 @@ async def launch_experiment(experiment_id: str, req: dict):
         job = await store.submit_sync(
             session_id=run_id,         # the run id keys the job
             kind="experiment",
-            work=lambda: _run_experiment_work(run_id, experiment_id, params),
+            work=lambda: _run_experiment_work(run_id, params),
         )
     except JobConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
