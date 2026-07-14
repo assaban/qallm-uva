@@ -32,11 +32,13 @@ Related Work, the author's own full read, and delivery to the supervisors.
 
 ## In flight
 
-- Nothing computational. The cross-domain and form 2x2 is complete and in
-  the thesis (sec:generality; see
-  `../experiments/cross-domain-and-form-2026-07-13.md`). Remaining optional
-  enrichment: the seeded cross-model pair (playbook run 1) and the naive
-  re-prompt repair baseline.
+- Nothing computational, and nothing optional remains scheduled. The
+  generality programme is complete: cross-domain, cross-form
+  (`../experiments/cross-domain-and-form-2026-07-13.md`), and cross-model
+  (`../experiments/cross-model-2026-07-14.md`, identical defect set under a
+  second generator). The dogfood run and its triage are recorded as a
+  defence asset. The only unrun catalogued idea is the naive re-prompt
+  repair baseline, deliberately deferred past the defence.
 
 ## Remaining before submission
 
