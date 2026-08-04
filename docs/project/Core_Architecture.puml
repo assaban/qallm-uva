@@ -1,29 +1,98 @@
 @startuml
-title qallm-uva: Thesis Core Architecture (RL-Verification)
+' ==========================================================================
+' docs/project/Core_Architecture.puml   (REPLACEMENT)
+'
+' The version in the repository is stale and now contradicts the thesis. It
+' describes a four-stage "RL-Verification" pipeline with a reward function
+' feeding an RL loop, a "P4 Tool", and no repair, judge, or mutation scoring.
+' Two problems with leaving it in place:
+'
+'   1. The thesis explicitly corrects the RL framing. The loop is iterative
+'      prompting with quantitative feedback over an external API; no model is
+'      trained. A committee member who browses the repository would find a
+'      diagram asserting the framing Chapter 4 disowns.
+'   2. It omits the repair stage, the judge, and the mutation-based confidence,
+'      which are two of the three claimed contributions.
+'
+' This replacement is self-contained (no !include) so it renders anywhere in
+' the docs tree. It is the same structure as the thesis figure, so the two
+' cannot drift apart silently.
+' ==========================================================================
+title qallm-uva: core architecture
 
-package "Stage 1: Preprocessing" {
-    [Jupyter Adapter] as JA
+skinparam shadowing false
+skinparam componentStyle uml2
+skinparam component {
+  BackgroundColor #ECEFF9
+  BorderColor #5C6BC0
+  FontColor #1A237E
+}
+skinparam package {
+  BackgroundColor #FAFAFA
+  BorderColor #90A4AE
+  FontStyle italic
+}
+skinparam ArrowColor #37474F
+
+package "Presentation" {
+  [CLI]           as CLI
+  [Notebook]      as MAGIC
+  [Web UI]        as WEB
+  [REST API]      as API
 }
 
-package "Stage 2: Static Analysis" {
-    [P4 Tool (Bandit, Radon, Ruff)] as SA
+package "Orchestration" {
+  [Orchestrator]  as ORCH
+  [Jobs]          as JOBS
+  [Profiles]      as PROF
+  [Budget guard]  as COST
 }
 
-package "Stage 3: RL-Verification (Core)" {
-    component "LLM Test Generator" as Generator
-    component "Test Executor (Pytest)" as Executor
-    component "Reward Function" as Reward
-
-    Generator -> Executor : "generates tests"
-    Executor -> Reward : "coverage + bugs"
-    Reward -> Generator : "RL feedback"
+package "Assessment pipeline" {
+  [Ingestion]     as ING
+  [Analysis]      as ANA
+  [Verification]  as VER
+  [Repair]        as REP
+  [Judge]         as JUD
 }
 
-package "Stage 4: Reporting" {
-    [Unified Quality Report] as QR
+package "Reporting" {
+  [Reporter]      as RPT
+  [Metrics]       as MET
+  [Provenance]    as PRV
 }
 
-JA --> SA
-SA --> Generator
-Reward --> QR
+interface "StaticCodeAnalyzer" as IANA
+interface "LLMModel"           as ILLM
+interface "Judge"              as IJUD
+
+CLI   --> ORCH
+MAGIC --> ORCH
+WEB   --> API
+API   --> JOBS
+JOBS  --> ORCH
+PROF  ..> ORCH
+COST  ..> ORCH
+
+ORCH --> ING
+ING  --> ANA : units
+ANA  --> VER : findings
+VER  --> REP : defects
+REP  --> JUD : variant
+JUD  --> ORCH : verdict
+
+ANA -left-( IANA
+VER -left-( ILLM
+REP -right-( ILLM
+JUD -left-( IJUD
+
+VER --> RPT
+JUD --> RPT
+RPT --> MET
+RPT --> PRV
+
+note bottom
+  The verification loop is iterative prompting with quantitative
+  feedback over an external LLM API. No model is trained.
+end note
 @enduml

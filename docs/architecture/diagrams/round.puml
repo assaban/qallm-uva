@@ -1,0 +1,38 @@
+@startuml qallm-round
+!include _style.iuml
+title One improvement round
+
+participant "Orchestrator" as O
+participant "Analysis" as A
+participant "Verification" as V
+participant "Repair" as R
+participant "Judge" as J
+
+== Round 0: baseline ==
+O -> A : analyse original
+A --> O : tagged findings
+O -> V : verify original
+V --> O : baseline behaviour
+
+== Rounds 1..N ==
+loop until accepted or budget spent
+  O -> R : target finding or failure
+  R --> O : candidate variant
+  O -> A : re-analyse
+  A --> O : remaining findings
+  O -> V : re-verify
+  V --> O : pass, fail, regression
+  O -> J : variant versus parent
+  alt improves parent
+    J --> O : accept
+  else higher dimension regressed
+    J --> O : abandon
+  end
+end
+
+== Adjudication ==
+O -> V : confirm or refute
+V --> O : verdict, confidence
+O -> V : re-test the defect
+V --> O : fixed or not fixed
+@enduml
