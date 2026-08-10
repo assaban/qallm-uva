@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """The QALLM architecture diagrams, laid out explicitly."""
 import sys, pathlib
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from gen import *
 
-OUT = pathlib.Path(__file__).parent / 'out'; OUT.mkdir(exist_ok=True)
+OUT = pathlib.Path('out'); OUT.mkdir(exist_ok=True)
 BL, BR = 12.0, 357.0          # band left / right
 
 # =========================================================== 1. component view
@@ -90,23 +89,23 @@ def component() -> Diagram:
 
 # ========================================================== 2. deployment view
 def deployment() -> Diagram:
-    d = Diagram("deployment", height=366)
+    d = Diagram("deployment", height=372)
     d.bands.append(Band(BL, 14, BR-BL, 44, "Researcher workstation"))
     for t, x, w in [("Browser", 30, 62), ("Terminal", 148, 64), ("JupyterLab", 258, 76)]:
         d.boxes.append(Box(t, x, 26, w, 24, t))
 
-    d.bands.append(Band(BL, 78, BR-BL, 206, "Docker host"))
+    d.bands.append(Band(BL, 78, BR-BL, 208, "Docker host"))
     d.boxes.append(Box("proxy", 24, 96, 150, 30, "qallm-reverse-proxy",
                        "nginx:alpine, HTTP on 80", kind="node"))
-    d.boxes.append(Box("api", 24, 152, 200, 44, "qallm-api",
+    d.boxes.append(Box("api", 24, 150, 200, 30, "qallm-api",
                        "qallm:latest, 8000 internal only", kind="node"))
-    d.boxes.append(Box("tools", 30, 176, 188, 14,
-                       "bandit, radon, ruff, trufflehog (in-process)", kind="plain"))
-    d.boxes.append(Box("out", 236, 158, 52, 18, "outputs/", kind="store"))
-    d.boxes.append(Box("up", 296, 158, 52, 18, "uploads/", kind="store"))
-    d.boxes.append(Box("sonar", 24, 218, 150, 30, "qallm-sonarqube",
-                       "9000, embedded H2", kind="node"))
-    d.boxes.append(Box("ollama", 196, 218, 142, 30, "qallm-ollama",
+    d.boxes.append(Box("tools", 30, 188, 150, 16,
+                       "Bandit, Radon, Ruff, TruffleHog", kind="plain"))
+    d.boxes.append(Box("out", 236, 156, 52, 18, "outputs/", kind="store"))
+    d.boxes.append(Box("up", 296, 156, 52, 18, "uploads/", kind="store"))
+    d.boxes.append(Box("sonar", 24, 222, 150, 30, "qallm-sonarqube",
+                       "SonarQube, 9000, embedded H2", kind="node"))
+    d.boxes.append(Box("ollama", 196, 222, 142, 30, "qallm-ollama",
                        "11434, opt-in profile", kind="node"))
 
     d.bands.append(Band(BL, 300, BR-BL, 44, "External model endpoints"))
@@ -114,15 +113,16 @@ def deployment() -> Diagram:
         d.boxes.append(Box(t, x, 312, w, 24, t, kind="plain"))
 
     d.edges.append(Edge([(61, 50), (61, 74), (99, 74), (99, 96)], label="HTTPS 443", lox=-2))
-    d.edges.append(Edge([(180, 50), (180, 140), (124, 140), (124, 152)], label="CLI", lox=14))
-    d.edges.append(Edge([(296, 50), (296, 144), (180, 144), (180, 152)], label="cell magic", lox=0, loy=-1))
-    d.edges.append(Edge([(99, 126), (99, 152)], label="HTTP 8000", lox=32))
-    d.edges.append(Edge([(80, 196), (80, 218)], label="analysis", lox=28))
-    d.edges.append(Edge([(210, 196), (210, 206), (267, 206), (267, 218)], label="optional", lox=0, loy=-1))
-    d.edges.append(Edge([(180, 196), (180, 292), (72, 292), (72, 312)], label="HTTPS", lox=-26, loy=-2))
-    d.edges.append(Edge([(186, 196), (186, 304), (178, 304), (178, 312)], head=True))
-    d.edges.append(Edge([(192, 196), (192, 296), (287, 296), (287, 312)], head=True))
-    d.notes.append((BL + 5, 358, "Generated code runs inside qallm-api as a non-root user in a "
+    d.edges.append(Edge([(180, 50), (180, 138), (124, 138), (124, 150)], label="CLI", lox=14))
+    d.edges.append(Edge([(296, 50), (296, 142), (180, 142), (180, 150)], label="cell magic", lox=0, loy=-1))
+    d.edges.append(Edge([(99, 126), (99, 150)], label="HTTP 8000", lox=32))
+    d.edges.append(Edge([(80, 204), (80, 222)], label="5th analyser", lox=36))
+    d.edges.append(Edge([(210, 180), (210, 212), (267, 212), (267, 222)], label="optional", lox=0, loy=-1))
+    d.edges.append(Edge([(224, 178), (352, 178), (352, 306), (178, 306), (178, 312)],
+                        label="HTTPS", lpos=0.22, lox=10, loy=-1))
+    d.notes.append((BL + 5, 352, "Four of the five analysers run in-process inside qallm-api; "
+                                 "SonarQube alone requires its own service.", "start"))
+    d.notes.append((BL + 5, 362, "Generated code runs inside qallm-api as a non-root user in a "
                                  "timeout-bounded subprocess.", "start"))
     return d
 

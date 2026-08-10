@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="369.0pt" height="372pt" viewBox="0 0 369.0 372" font-family="Helvetica,Arial,sans-serif">
+<defs>
+<marker id="ah" markerWidth="7" markerHeight="7" refX="6.2" refY="2.6" orient="auto"><path d="M0,0 L6.4,2.6 L0,5.2 z" fill="#465360"/></marker>
+</defs>
+<rect width="369.0" height="372" fill="#FFFFFF"/>
+<rect x="12.0" y="14" width="345.0" height="44" rx="3" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.6"/>
+<text x="17.0" y="23.4" font-size="7.8" font-style="italic" fill="#5A6875">Researcher workstation</text>
+<rect x="12.0" y="78" width="345.0" height="208" rx="3" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.6"/>
+<text x="17.0" y="87.4" font-size="7.8" font-style="italic" fill="#5A6875">Docker host</text>
+<rect x="12.0" y="300" width="345.0" height="44" rx="3" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.6"/>
+<text x="17.0" y="309.4" font-size="7.8" font-style="italic" fill="#5A6875">External model endpoints</text>
+<polyline points="61,50 61,74 99,74 99,96" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="56.761" y="65.0" width="40.478" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="77.0" y="71.4" font-size="7.6" fill="#465360" text-anchor="middle">HTTPS 443</text>
+<polyline points="180,50 180,138 124,138 124,150" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="186.187" y="119.00000000000001" width="15.626000000000001" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="194.0" y="125.4" font-size="7.6" fill="#465360" text-anchor="middle">CLI</text>
+<polyline points="296,50 296,142 180,142 180,150" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="257.69" y="132.0" width="44.620000000000005" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="280.0" y="138.4" font-size="7.6" fill="#465360" text-anchor="middle">cell magic</text>
+<polyline points="99,126 99,150" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="110.76100000000001" y="129.0" width="40.478" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="131.0" y="135.4" font-size="7.6" fill="#465360" text-anchor="middle">HTTP 8000</text>
+<polyline points="80,204 80,222" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="89.548" y="204.0" width="52.904" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="116.0" y="210.4" font-size="7.6" fill="#465360" text-anchor="middle">5th analyser</text>
+<polyline points="210,180 210,212 267,212 267,222" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="209.332" y="202.0" width="36.336000000000006" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="227.5" y="208.4" font-size="7.6" fill="#465360" text-anchor="middle">optional</text>
+<polyline points="224,178 352,178 352,306 178,306 178,312" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="317.965" y="168.0" width="23.91" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="329.92" y="174.4" font-size="7.6" fill="#465360" text-anchor="middle">HTTPS</text>
+<rect x="30" y="26" width="62" height="24" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="79" y="29.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="76.4" y="30.7" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="76.4" y="33.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="61.0" y="41.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Browser</text>
+<rect x="148" y="26" width="64" height="24" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="199" y="29.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="196.4" y="30.7" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="196.4" y="33.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="180.0" y="41.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Terminal</text>
+<rect x="258" y="26" width="76" height="24" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="321" y="29.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="318.4" y="30.7" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="318.4" y="33.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="296.0" y="41.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">JupyterLab</text>
+<rect x="24" y="96" width="150" height="30" rx="2.2" fill="#F0F7F2" stroke="#5F8A72" stroke-width="1"/>
+<text x="99.0" y="110.4" font-size="9.0" fill="#1B5E32" text-anchor="middle" font-weight="600">qallm-reverse-proxy</text>
+<text x="99.0" y="119.6" font-size="7.4" fill="#1B5E32" text-anchor="middle" opacity="0.85">nginx:alpine, HTTP on 80</text>
+<rect x="24" y="150" width="200" height="30" rx="2.2" fill="#F0F7F2" stroke="#5F8A72" stroke-width="1"/>
+<text x="124.0" y="164.4" font-size="9.0" fill="#1B5E32" text-anchor="middle" font-weight="600">qallm-api</text>
+<text x="124.0" y="173.6" font-size="7.4" fill="#1B5E32" text-anchor="middle" opacity="0.85">qallm:latest, 8000 internal only</text>
+<rect x="30" y="188" width="150" height="16" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="105.0" y="198.59" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">Bandit, Radon, Ruff, TruffleHog</text>
+<rect x="236" y="156" width="52" height="18" rx="2.2" fill="#FFF9EC" stroke="#A08A6A" stroke-width="1"/>
+<text x="262.0" y="168.15" font-size="9.0" fill="#4E3A22" text-anchor="middle" font-weight="600">outputs/</text>
+<rect x="296" y="156" width="52" height="18" rx="2.2" fill="#FFF9EC" stroke="#A08A6A" stroke-width="1"/>
+<text x="322.0" y="168.15" font-size="9.0" fill="#4E3A22" text-anchor="middle" font-weight="600">uploads/</text>
+<rect x="24" y="222" width="150" height="30" rx="2.2" fill="#F0F7F2" stroke="#5F8A72" stroke-width="1"/>
+<text x="99.0" y="236.4" font-size="9.0" fill="#1B5E32" text-anchor="middle" font-weight="600">qallm-sonarqube</text>
+<text x="99.0" y="245.6" font-size="7.4" fill="#1B5E32" text-anchor="middle" opacity="0.85">SonarQube, 9000, embedded H2</text>
+<rect x="196" y="222" width="142" height="30" rx="2.2" fill="#F0F7F2" stroke="#5F8A72" stroke-width="1"/>
+<text x="267.0" y="236.4" font-size="9.0" fill="#1B5E32" text-anchor="middle" font-weight="600">qallm-ollama</text>
+<text x="267.0" y="245.6" font-size="7.4" fill="#1B5E32" text-anchor="middle" opacity="0.85">11434, opt-in profile</text>
+<rect x="30" y="312" width="84" height="24" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="72.0" y="326.59" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">EGI FedLLM</text>
+<rect x="148" y="312" width="60" height="24" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="178.0" y="326.59" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">OpenAI</text>
+<rect x="250" y="312" width="74" height="24" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="287.0" y="326.59" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">Anthropic</text>
+<text x="17.0" y="352" font-size="7.4" fill="#5A6875" font-style="italic" text-anchor="start">Four of the five analysers run in-process inside qallm-api; SonarQube alone requires its own service.</text>
+<text x="17.0" y="362" font-size="7.4" fill="#5A6875" font-style="italic" text-anchor="start">Generated code runs inside qallm-api as a non-root user in a timeout-bounded subprocess.</text>
+</svg>

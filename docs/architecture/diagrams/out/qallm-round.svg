@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="369.0pt" height="503.0pt" viewBox="0 0 369.0 503.0" font-family="Helvetica,Arial,sans-serif">
+<defs>
+<marker id="ah" markerWidth="7" markerHeight="7" refX="6.2" refY="2.6" orient="auto"><path d="M0,0 L6.4,2.6 L0,5.2 z" fill="#465360"/></marker>
+</defs>
+<rect width="369.0" height="503.0" fill="#FFFFFF"/>
+<rect x="20" y="305.0" width="325" height="62.0" rx="2" fill="none" stroke="#C2CAD4" stroke-width="0.7"/>
+<path d="M20,305.0 h20.099000000000004 l-4,9 h-16.099000000000004 z" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.7"/>
+<text x="24" y="312.2" font-size="7.4" font-weight="600" fill="#5A6875">alt</text>
+<text x="45.099000000000004" y="312.6" font-size="7.4" fill="#5A6875">[improves parent]</text>
+<rect x="15" y="165.0" width="335" height="208.0" rx="2" fill="none" stroke="#C2CAD4" stroke-width="0.7"/>
+<path d="M15,165.0 h24.132 l-4,9 h-20.132 z" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.7"/>
+<text x="19" y="172.2" font-size="7.4" font-weight="600" fill="#5A6875">loop</text>
+<text x="44.132000000000005" y="172.6" font-size="7.4" fill="#5A6875">[until accepted or budget spent]</text>
+<line x1="12.0" y1="57.0" x2="357.0" y2="57.0" stroke="#C2CAD4" stroke-width="0.7"/>
+<rect x="122.03799999999998" y="50.5" width="124.92400000000002" height="13" rx="6.5" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.7"/>
+<text x="184.5" y="59.6" font-size="7.4" font-weight="600" fill="#5A6875" text-anchor="middle">Round 0: baseline, no repair</text>
+<line x1="12.0" y1="146.0" x2="357.0" y2="146.0" stroke="#C2CAD4" stroke-width="0.7"/>
+<rect x="97.83999999999999" y="139.5" width="173.32000000000002" height="13" rx="6.5" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.7"/>
+<text x="184.5" y="148.6" font-size="7.4" font-weight="600" fill="#5A6875" text-anchor="middle">Rounds 1 to N: repair, re-measure, judge</text>
+<line x1="24" y1="337.0" x2="341" y2="337.0" stroke="#C2CAD4" stroke-width="0.7" stroke-dasharray="3,2.4"/>
+<rect x="111.972" y="330.5" width="141.056" height="13" rx="6.5" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.7"/>
+<text x="182.5" y="339.6" font-size="7.4" font-weight="600" fill="#5A6875" text-anchor="middle">else: higher dimension regressed</text>
+<line x1="12.0" y1="387.0" x2="357.0" y2="387.0" stroke="#C2CAD4" stroke-width="0.7"/>
+<rect x="154.302" y="380.5" width="60.39600000000001" height="13" rx="6.5" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.7"/>
+<text x="184.5" y="389.6" font-size="7.4" font-weight="600" fill="#5A6875" text-anchor="middle">Adjudication</text>
+<polyline points="47.43000000000001,73.0 127.00125000000001,73.0" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="52.47962500000001" y="64.0" width="69.47200000000001" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="87.21562500000002" y="70.4" font-size="7.6" fill="#465360" text-anchor="middle">analyse original</text>
+<polyline points="127.00125000000001,90.0 47.43000000000001,90.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4" marker-end="url(#ah)"/>
+<rect x="54.55062500000002" y="81.00000000000001" width="65.33" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="87.21562500000002" y="87.4" font-size="7.6" fill="#465360" text-anchor="middle">tagged findings</text>
+<polyline points="47.43000000000001,107.0 206.5725,107.0" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="94.33625" y="98.00000000000001" width="65.33" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="127.00125" y="104.4" font-size="7.6" fill="#465360" text-anchor="middle">verify original</text>
+<polyline points="206.5725,124.0 47.43000000000001,124.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4" marker-end="url(#ah)"/>
+<rect x="88.12325000000001" y="115.00000000000001" width="77.756" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="127.00125" y="121.4" font-size="7.6" fill="#465360" text-anchor="middle">baseline behaviour</text>
+<polyline points="47.43000000000001,184.0 281.23875,184.0" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="110.959375" y="175.0" width="106.75000000000001" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="164.334375" y="181.4" font-size="7.6" fill="#465360" text-anchor="middle">target finding or failure</text>
+<polyline points="281.23875,201.0 47.43000000000001,201.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4" marker-end="url(#ah)"/>
+<rect x="127.527375" y="192.0" width="73.614" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="164.334375" y="198.4" font-size="7.6" fill="#465360" text-anchor="middle">candidate variant</text>
+<polyline points="47.43000000000001,218.0 127.00125000000001,218.0" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="64.90562500000001" y="209.0" width="44.620000000000005" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="87.21562500000002" y="215.4" font-size="7.6" fill="#465360" text-anchor="middle">re-analyse</text>
+<polyline points="127.00125000000001,235.0 47.43000000000001,235.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4" marker-end="url(#ah)"/>
+<rect x="58.692625000000014" y="226.0" width="57.04600000000001" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="87.21562500000002" y="232.4" font-size="7.6" fill="#465360" text-anchor="middle">findings left</text>
+<polyline points="47.43000000000001,252.0 206.5725,252.0" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="106.76225000000001" y="243.0" width="40.478" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="127.00125" y="249.4" font-size="7.6" fill="#465360" text-anchor="middle">re-verify</text>
+<polyline points="206.5725,269.0 47.43000000000001,269.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4" marker-end="url(#ah)"/>
+<rect x="73.62625" y="259.99999999999994" width="106.75000000000001" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="127.00125" y="266.4" font-size="7.6" fill="#465360" text-anchor="middle">pass, fail, no regression</text>
+<polyline points="47.43000000000001,286.0 338.7375,286.0" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="147.99275000000003" y="276.99999999999994" width="90.182" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="193.08375" y="283.4" font-size="7.6" fill="#465360" text-anchor="middle">variant versus parent</text>
+<polyline points="338.7375,324.0 47.43000000000001,324.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4" marker-end="url(#ah)"/>
+<rect x="152.13475000000003" y="314.99999999999994" width="81.89800000000001" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="193.08375" y="321.4" font-size="7.6" fill="#465360" text-anchor="middle">accept into lineage</text>
+<polyline points="338.7375,353.0 47.43000000000001,353.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4" marker-end="url(#ah)"/>
+<rect x="160.41875000000002" y="343.99999999999994" width="65.33" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="193.08375" y="350.4" font-size="7.6" fill="#465360" text-anchor="middle">abandon variant</text>
+<polyline points="47.43000000000001,403.0 206.5725,403.0" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="63.27125" y="393.99999999999994" width="127.46000000000001" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="127.00125" y="400.4" font-size="7.6" fill="#465360" text-anchor="middle">confirm or refute each finding</text>
+<polyline points="206.5725,420.0 47.43000000000001,420.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4" marker-end="url(#ah)"/>
+<rect x="77.76825000000001" y="410.99999999999994" width="98.466" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="127.00125" y="417.4" font-size="7.6" fill="#465360" text-anchor="middle">verdict with confidence</text>
+<polyline points="47.43000000000001,437.0 206.5725,437.0" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="61.20024999999999" y="427.99999999999994" width="131.602" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="127.00125" y="434.4" font-size="7.6" fill="#465360" text-anchor="middle">re-test the demonstrated defect</text>
+<polyline points="206.5725,454.0 47.43000000000001,454.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4" marker-end="url(#ah)"/>
+<rect x="88.12325000000001" y="444.99999999999994" width="77.756" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="127.00125" y="451.4" font-size="7.6" fill="#465360" text-anchor="middle">fixed or not fixed</text>
+<polyline points="47.43000000000001,36.0 47.43000000000001,473.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4"/>
+<polyline points="127.00125000000001,36.0 127.00125000000001,473.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4"/>
+<polyline points="206.5725,36.0 206.5725,473.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4"/>
+<polyline points="281.23875,36.0 281.23875,473.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4"/>
+<polyline points="338.7375,36.0 338.7375,473.0" fill="none" stroke="#465360" stroke-width="0.85" stroke-dasharray="3.2,2.4"/>
+<rect x="12.0" y="16" width="70.86000000000001" height="20" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<text x="47.43000000000001" y="29.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Orchestrator</text>
+<rect x="101.38125000000001" y="16" width="51.24" height="20" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<text x="127.00125000000001" y="29.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Analysis</text>
+<rect x="171.14249999999998" y="16" width="70.86000000000001" height="20" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<text x="206.5725" y="29.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Verification</text>
+<rect x="260.52375" y="16" width="41.43000000000001" height="20" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<text x="281.23875" y="29.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Repair</text>
+<rect x="320.475" y="16" width="36.525000000000006" height="20" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<text x="338.7375" y="29.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Judge</text>
+<rect x="12.0" y="473.0" width="70.86000000000001" height="20" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<text x="47.43000000000001" y="486.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Orchestrator</text>
+<rect x="101.38125000000001" y="473.0" width="51.24" height="20" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<text x="127.00125000000001" y="486.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Analysis</text>
+<rect x="171.14249999999998" y="473.0" width="70.86000000000001" height="20" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<text x="206.5725" y="486.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Verification</text>
+<rect x="260.52374999999995" y="473.0" width="41.43000000000001" height="20" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<text x="281.23875" y="486.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Repair</text>
+<rect x="320.475" y="473.0" width="36.525000000000006" height="20" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<text x="338.7375" y="486.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Judge</text>
+</svg>
