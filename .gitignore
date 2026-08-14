@@ -40,3 +40,11 @@ x_dom_*_reports/
 x_form_*_reports/
 envri_*.txt
 runs/
+
+# Experiment corpora and run output: large, regenerable, never committed.
+runs/
+_runs/
+datasets/envri_*/
+x_dom_*_reports/
+x_form_*_reports/
+envri_*.txt
