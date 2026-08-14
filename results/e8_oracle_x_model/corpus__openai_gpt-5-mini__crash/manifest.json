@@ -1,0 +1,33 @@
+{
+  "dataset_dir": "/home/mohssin/qallm-uva/datasets/envri_forest",
+  "llm_type": "openai",
+  "model_name": "gpt-5-mini",
+  "strategy": "feedback",
+  "rounds": 5,
+  "samples": 1,
+  "oracle": "crash",
+  "judge_strategy": "lexicographic",
+  "stage": "implementation",
+  "pattern": "*.ipynb",
+  "excludes": [],
+  "confirm": true,
+  "workers": 8,
+  "mutation_confidence": true,
+  "provenance": {
+    "captured_at": "2026-08-04T10:17:23.101928+00:00",
+    "qallm_version": null,
+    "git": {
+      "commit": "6e43537ec9e5d4c421f361f7c1d9ded6fd8de2a8",
+      "branch": "dev",
+      "dirty": false,
+      "untracked": 0
+    },
+    "python": "3.13.5",
+    "platform": "Linux-6.12.90+deb13.1-amd64-x86_64-with-glibc2.41",
+    "executable": "/home/mohssin/qallm-uva/.venv/bin/python3",
+    "dataset": {
+      "n_inputs": 40,
+      "paths_sha256": "8bb6729d5b949155a5a1a39a13c599453404c7f6eb7e73a57105a21855d88cfd"
+    }
+  }
+}

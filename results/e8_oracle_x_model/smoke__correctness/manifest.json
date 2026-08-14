@@ -1,0 +1,18 @@
+{
+  "models": [
+    "fedllm:gpt-oss-120b",
+    "openai:gpt-5-mini",
+    "openai:gpt-5.4-mini",
+    "openai:gpt-5.6-luna"
+  ],
+  "strategies": [
+    "feedback"
+  ],
+  "sample_size": 4,
+  "seed": 42,
+  "rounds": 2,
+  "oracle": "correctness",
+  "judge_strategy": "lexicographic",
+  "workers": 2,
+  "output_dir": "/home/mohssin/qallm-uva/runs/e8_oracle_x_model/smoke__correctness"
+}

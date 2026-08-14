@@ -1,0 +1,15 @@
+[
+  {
+    "strategy": "feedback",
+    "model": "openai:gpt-5.6-luna",
+    "n_problems": 164,
+    "n_bug_detected": 0,
+    "n_repair_successful": 0,
+    "n_errored": 0,
+    "mean_rounds": 5.0,
+    "mean_cost_usd": 0.0,
+    "mean_elapsed_seconds": 21.875683458839976,
+    "bug_detection_rate": 0.0,
+    "repair_success_rate": 0.0
+  }
+]

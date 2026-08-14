@@ -1,0 +1,32 @@
+{
+  "dataset_dir": "datasets/envri_forest",
+  "llm_type": "fedllm",
+  "model_name": null,
+  "strategy": "feedback",
+  "rounds": 5,
+  "samples": 1,
+  "oracle": "correctness",
+  "judge_strategy": "lexicographic",
+  "stage": "implementation",
+  "pattern": "*.ipynb",
+  "confirm": true,
+  "workers": 4,
+  "mutation_confidence": true,
+  "provenance": {
+    "captured_at": "2026-07-10T00:28:10.056584+00:00",
+    "qallm_version": null,
+    "git": {
+      "commit": "c7c0581013e8870d583e163bba1cc3c8d5ee5cba",
+      "branch": "dev",
+      "dirty": false,
+      "untracked": 10
+    },
+    "python": "3.13.5",
+    "platform": "Linux-6.12.90+deb13.1-amd64-x86_64-with-glibc2.41",
+    "executable": "/home/mohssin/qallm-uva/.venv/bin/python",
+    "dataset": {
+      "n_inputs": 1843,
+      "paths_sha256": "dd3ad6a78ae790e98329b7291f96a91054d024f5328c7583ac8b54bae2f59be0"
+    }
+  }
+}
