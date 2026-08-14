@@ -32,3 +32,11 @@ outputs/
 /web/frontend/.vite/
 /runs/
 /.env
+runs/
+_runs/
+datasets/envri_forest/
+datasets/envri_ocean/
+x_dom_*_reports/
+x_form_*_reports/
+envri_*.txt
+runs/
