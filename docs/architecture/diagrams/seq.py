@@ -9,7 +9,8 @@ space reserved and the whole figure collided with itself.
 Here the geometry and the text are computed together, and check() asserts that
 no label overruns the span it sits on.
 """
-import sys, pathlib
+import sys
+import pathlib
 from gen import *
 
 OUT = pathlib.Path('out'); OUT.mkdir(exist_ok=True)
