@@ -26,7 +26,8 @@ FS = 9.0                       # base font size in pt
 FS_SM = 7.4                    # secondary line inside a box
 FS_LBL = 7.6                   # edge labels
 FS_BAND = 7.8                  # band captions
-CHAR = 0.545                   # mean glyph width / font size for Helvetica
+CHAR = 0.545
+BAND_L, BAND_R = 12.0, 357.0                   # mean glyph width / font size for Helvetica
 
 INK   = "#1F2933"
 COMP_F, COMP_S, COMP_T = "#EEF1FA", "#4C5BA8", "#1A2A6C"
@@ -71,12 +72,25 @@ class Lollipop:
     x: float; y: float; length: float; name: str; dir: str = "down"
 
 @dataclass
+class Frame:
+    """UML combined fragment: outlined box with an operator tag and a guard."""
+    x: float; y: float; w: float; h: float; tag: str; guard: str = ""
+
+@dataclass
+class Divider:
+    """Phase separator with a centred label. Spans the canvas unless x1/x2 given."""
+    y: float; label: str
+    x1: float = None; x2: float = None; dashed: bool = False
+
+@dataclass
 class Diagram:
     name: str; height: float
     bands: list = field(default_factory=list)
     boxes: list = field(default_factory=list)
     edges: list = field(default_factory=list)
     lolli: list = field(default_factory=list)
+    frames: list = field(default_factory=list)
+    dividers: list = field(default_factory=list)
     notes: list = field(default_factory=list)   # (x, y, text, anchor)
 
 # --------------------------------------------------------------------------- checks
@@ -141,6 +155,29 @@ def to_svg(d: Diagram) -> str:
                  f'fill="{BAND_F}" stroke="{BAND_S}" stroke-width="0.6"/>')
         o.append(f'<text x="{b.x+5}" y="{b.y+9.4}" font-size="{FS_BAND}" font-style="italic" '
                  f'fill="{BAND_T}">{b.label}</text>')
+    for f in d.frames:
+        o.append(f'<rect x="{f.x}" y="{f.y}" width="{f.w}" height="{f.h}" rx="2" '
+                 f'fill="none" stroke="{BAND_S}" stroke-width="0.7"/>')
+        tw_tag = tw(f.tag, FS_SM) + 8
+        o.append(f'<path d="M{f.x},{f.y} h{tw_tag} l-4,9 h{-tw_tag+4} z" '
+                 f'fill="{BAND_F}" stroke="{BAND_S}" stroke-width="0.7"/>')
+        o.append(f'<text x="{f.x+4}" y="{f.y+7.2}" font-size="{FS_SM}" '
+                 f'font-weight="600" fill="{BAND_T}">{f.tag}</text>')
+        if f.guard:
+            o.append(f'<text x="{f.x+tw_tag+5}" y="{f.y+7.6}" font-size="{FS_SM}" '
+                     f'fill="{BAND_T}">[{f.guard}]</text>')
+    for dv in d.dividers:
+        a = BAND_L if dv.x1 is None else dv.x1
+        b_ = BAND_R if dv.x2 is None else dv.x2
+        dash = ' stroke-dasharray="3,2.4"' if dv.dashed else ''
+        o.append(f'<line x1="{a}" y1="{dv.y}" x2="{b_}" y2="{dv.y}" '
+                 f'stroke="{BAND_S}" stroke-width="0.7"{dash}/>')
+        w_lab = tw(dv.label, FS_SM) + 12
+        cx = (a + b_) / 2
+        o.append(f'<rect x="{cx-w_lab/2}" y="{dv.y-6.5}" width="{w_lab}" height="13" '
+                 f'rx="6.5" fill="{BAND_F}" stroke="{BAND_S}" stroke-width="0.7"/>')
+        o.append(f'<text x="{cx}" y="{dv.y+2.6}" font-size="{FS_SM}" font-weight="600" '
+                 f'fill="{BAND_T}" text-anchor="middle">{dv.label}</text>')
     for e in d.edges:
         pts = " ".join(f"{x},{y}" for x, y in e.pts)
         dash = ' stroke-dasharray="3.2,2.4"' if e.style == "dashed" else ""
@@ -157,6 +194,7 @@ def to_svg(d: Diagram) -> str:
     for b in d.boxes:
         f, s, t = {"component": (COMP_F, COMP_S, COMP_T), "node": (NODE_F, NODE_S, NODE_T),
                    "store": (STORE_F, STORE_S, STORE_T),
+                   "participant": (COMP_F, COMP_S, COMP_T),
                    "plain": ("#FFFFFF", BAND_S, INK)}[b.kind]
         o.append(f'<rect x="{b.x}" y="{b.y}" width="{b.w}" height="{b.h}" rx="2.2" '
                  f'fill="{f}" stroke="{s}" stroke-width="1"/>')
@@ -234,6 +272,28 @@ def to_tikz(d: Diagram) -> str:
                  f"{P(b.x,b.y)} rectangle {P(b.x+b.w,b.y+b.h)};")
         o.append(f"\\node[anchor=west,text=qbt] at {P(b.x+5,b.y+6.6)} "
                  f"{{\\fontsize{{{FS_BAND}}}{{{FS_BAND*1.2:.1f}}}\\selectfont\\itshape {b.label}}};")
+    for f in d.frames:
+        o.append(f"\\draw[draw=qbs,line width=0.7pt,rounded corners=2pt] "
+                 f"{P(f.x,f.y)} rectangle {P(f.x+f.w,f.y+f.h)};")
+        tw_tag = tw(f.tag, FS_SM) + 8
+        o.append(f"\\draw[fill=qbf,draw=qbs,line width=0.7pt] {P(f.x,f.y)} -- "
+                 f"{P(f.x+tw_tag,f.y)} -- {P(f.x+tw_tag-4,f.y+9)} -- {P(f.x,f.y+9)} -- cycle;")
+        o.append(f"\\node[anchor=west,text=qbt] at {P(f.x+4,f.y+4.8)} "
+                 f"{{\\fontsize{{{FS_SM}}}{{{FS_SM*1.2:.1f}}}\\selectfont\\bfseries {f.tag}}};")
+        if f.guard:
+            o.append(f"\\node[anchor=west,text=qbt] at {P(f.x+tw_tag+5,f.y+5.2)} "
+                     f"{{\\fontsize{{{FS_SM}}}{{{FS_SM*1.2:.1f}}}\\selectfont [{f.guard}]}};")
+    for dv in d.dividers:
+        a = BAND_L if dv.x1 is None else dv.x1
+        b_ = BAND_R if dv.x2 is None else dv.x2
+        dsh = ",dash pattern=on 3pt off 2.4pt" if dv.dashed else ""
+        o.append(f"\\draw[draw=qbs,line width=0.7pt{dsh}] {P(a,dv.y)} -- {P(b_,dv.y)};")
+        w_lab = tw(dv.label, FS_SM) + 12
+        cx = (a + b_) / 2
+        o.append(f"\\draw[fill=qbf,draw=qbs,line width=0.7pt,rounded corners=6.5pt] "
+                 f"{P(cx-w_lab/2,dv.y-6.5)} rectangle {P(cx+w_lab/2,dv.y+6.5)};")
+        o.append(f"\\node[text=qbt] at {P(cx,dv.y)} "
+                 f"{{\\fontsize{{{FS_SM}}}{{{FS_SM*1.2:.1f}}}\\selectfont\\bfseries {dv.label}}};")
     for e in d.edges:
         dash = ",dash pattern=on 3.2pt off 2.4pt" if e.style == "dashed" else ""
         arrow = "-{Stealth[length=3.6pt,width=2.8pt]}" if e.head else "-"
@@ -245,7 +305,8 @@ def to_tikz(d: Diagram) -> str:
                      f"{{\\fontsize{{{FS_LBL}}}{{{FS_LBL*1.2:.1f}}}\\selectfont {e.label}}};")
     for b in d.boxes:
         f, s, t = {"component": ("qcf","qcs","qct"), "node": ("qnf","qns","qnt"),
-                   "store": ("qsf","qss","qst"), "plain": ("white","qbs","qink")}[b.kind]
+                   "store": ("qsf","qss","qst"), "participant": ("qcf","qcs","qct"),
+                   "plain": ("white","qbs","qink")}[b.kind]
         o.append(f"\\draw[fill={f},draw={s},line width=1pt,rounded corners=2.2pt] "
                  f"{P(b.x,b.y)} rectangle {P(b.x+b.w,b.y+b.h)};")
         if b.kind == "component":
@@ -262,7 +323,9 @@ def to_tikz(d: Diagram) -> str:
         else:
             bfs = FS_SM if b.kind == "plain" else FS
             bold = "" if b.kind == "plain" else "\\bfseries "
-            o.append(f"\\node[text=%s] at %s {{\\fontsize{{{bfs}}}{{{bfs*1.2:.1f}}}\\selectfont"
+            # NB the space after \selectfont is required: without it the control
+            # sequence runs into the label and LaTeX reports \selectfontBandit.
+            o.append(f"\\node[text=%s] at %s {{\\fontsize{{{bfs}}}{{{bfs*1.2:.1f}}}\\selectfont "
                      f"{bold}{b.title}}};" % (t, P(b.cx(), b.cy())))
     for L in d.lolli:
         if L.dir == "right":

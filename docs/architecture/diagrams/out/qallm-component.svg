@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="369.0pt" height="418pt" viewBox="0 0 369.0 418" font-family="Helvetica,Arial,sans-serif">
+<defs>
+<marker id="ah" markerWidth="7" markerHeight="7" refX="6.2" refY="2.6" orient="auto"><path d="M0,0 L6.4,2.6 L0,5.2 z" fill="#465360"/></marker>
+</defs>
+<rect width="369.0" height="418" fill="#FFFFFF"/>
+<rect x="12.0" y="14" width="345.0" height="44" rx="3" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.6"/>
+<text x="17.0" y="23.4" font-size="7.8" font-style="italic" fill="#5A6875">Presentation layer</text>
+<rect x="12.0" y="74" width="345.0" height="46" rx="3" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.6"/>
+<text x="17.0" y="83.4" font-size="7.8" font-style="italic" fill="#5A6875">Orchestration layer</text>
+<rect x="12.0" y="136" width="345.0" height="240" rx="3" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.6"/>
+<text x="17.0" y="145.4" font-size="7.8" font-style="italic" fill="#5A6875">Assessment pipeline</text>
+<rect x="12.0" y="384" width="345.0" height="22" rx="3" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.6"/>
+<text x="17.0" y="393.4" font-size="7.8" font-style="italic" fill="#5A6875">Reporting</text>
+<rect x="158.0" y="187" width="194.0" height="50" rx="3" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.6"/>
+<text x="163.0" y="196.4" font-size="7.8" font-style="italic" fill="#5A6875">StaticCodeAnalyzer</text>
+<rect x="158.0" y="240" width="194.0" height="34" rx="3" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.6"/>
+<text x="163.0" y="249.4" font-size="7.8" font-style="italic" fill="#5A6875">LLMModel</text>
+<rect x="158.0" y="332" width="194.0" height="34" rx="3" fill="#F7F8FA" stroke="#C2CAD4" stroke-width="0.6"/>
+<text x="163.0" y="341.4" font-size="7.8" font-style="italic" fill="#5A6875">Judge</text>
+<polyline points="50,50 50,68" fill="none" stroke="#465360" stroke-width="0.85"/>
+<polyline points="127,50 127,68" fill="none" stroke="#465360" stroke-width="0.85"/>
+<polyline points="294,50 294,68" fill="none" stroke="#465360" stroke-width="0.85"/>
+<polyline points="50,68 294,68" fill="none" stroke="#465360" stroke-width="0.85"/>
+<polyline points="184,68 184,84" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<polyline points="236,38 262,38" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<polyline points="184,114 184,126 78,126 78,152" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<polyline points="78,178 78,198" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="91.69" y="179.0" width="44.620000000000005" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="114.0" y="185.4" font-size="7.6" fill="#465360" text-anchor="middle">code units</text>
+<polyline points="78,224 78,244" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="95.83200000000001" y="225.0" width="36.336000000000006" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="114.0" y="231.4" font-size="7.6" fill="#465360" text-anchor="middle">findings</text>
+<polyline points="78,270 78,290" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="97.903" y="270.99999999999994" width="32.194" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="114.0" y="277.4" font-size="7.6" fill="#465360" text-anchor="middle">defects</text>
+<polyline points="78,316 78,336" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="97.903" y="316.99999999999994" width="32.194" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="114.0" y="323.4" font-size="7.6" fill="#465360" text-anchor="middle">variant</text>
+<polyline points="26,349 18,349 18,132 206,132 206,114" fill="none" stroke="#465360" stroke-width="0.85" marker-end="url(#ah)"/>
+<rect x="87.223" y="122.00000000000001" width="32.194" height="9.0" fill="#FFFFFF" opacity="0.95"/>
+<text x="103.32" y="128.4" font-size="7.6" fill="#465360" text-anchor="middle">verdict</text>
+<polyline points="130,303 140,303 140,257" fill="none" stroke="#465360" stroke-width="0.85"/>
+<rect x="24" y="26" width="52" height="24" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="63" y="29.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="60.4" y="30.7" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="60.4" y="33.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="50.0" y="41.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">CLI</text>
+<rect x="96" y="26" width="62" height="24" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="145" y="29.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="142.4" y="30.7" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="142.4" y="33.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="127.0" y="41.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Notebook</text>
+<rect x="180" y="26" width="56" height="24" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="223" y="29.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="220.4" y="30.7" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="220.4" y="33.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="208.0" y="41.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Web UI</text>
+<rect x="262" y="26" width="64" height="24" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="313" y="29.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="310.4" y="30.7" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="310.4" y="33.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="294.0" y="41.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">REST API</text>
+<rect x="84" y="84" width="200" height="30" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="271" y="87.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="268.4" y="88.7" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="268.4" y="91.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="184.0" y="98.4" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Orchestrator</text>
+<text x="184.0" y="107.6" font-size="7.4" fill="#1A2A6C" text-anchor="middle" opacity="0.85">session, round loop, budget cap, profile</text>
+<rect x="26" y="152" width="104" height="26" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="117" y="155.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="114.4" y="156.70000000000002" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="114.4" y="159.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="78.0" y="168.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Ingestion</text>
+<rect x="26" y="198" width="104" height="26" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="117" y="201.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="114.4" y="202.70000000000002" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="114.4" y="205.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="78.0" y="214.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Analysis</text>
+<rect x="26" y="244" width="104" height="26" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="117" y="247.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="114.4" y="248.70000000000002" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="114.4" y="251.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="78.0" y="260.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Verification</text>
+<rect x="26" y="290" width="104" height="26" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="117" y="293.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="114.4" y="294.7" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="114.4" y="297.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="78.0" y="306.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Repair</text>
+<rect x="26" y="336" width="104" height="26" rx="2.2" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="1"/>
+<rect x="117" y="339.4" width="9" height="6.4" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.7"/>
+<rect x="114.4" y="340.7" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<rect x="114.4" y="343.0" width="4" height="1.9" fill="#EEF1FA" stroke="#4C5BA8" stroke-width="0.6"/>
+<text x="78.0" y="352.15" font-size="9.0" fill="#1A2A6C" text-anchor="middle" font-weight="600">Judge</text>
+<rect x="164.0" y="201" width="34.0" height="13.0" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="181.0" y="210.09" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">Bandit</text>
+<rect x="203.0" y="201" width="34.0" height="13.0" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="220.0" y="210.09" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">Radon</text>
+<rect x="242.0" y="201" width="34.0" height="13.0" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="259.0" y="210.09" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">Ruff</text>
+<rect x="164.0" y="219" width="49.330000000000005" height="13.0" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="188.665" y="228.09" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">TruffleHog</text>
+<rect x="218.33" y="219" width="45.297000000000004" height="13.0" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="240.97850000000003" y="228.09" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">SonarQube</text>
+<rect x="164.0" y="253" width="34.0" height="13.0" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="181.0" y="262.09" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">FedLLM</text>
+<rect x="203.0" y="253" width="34.0" height="13.0" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="220.0" y="262.09" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">OpenAI</text>
+<rect x="242.0" y="253" width="45.297000000000004" height="13.0" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="264.6485" y="262.09" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">Anthropic</text>
+<rect x="292.297" y="253" width="34.0" height="13.0" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="309.297" y="262.09" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">Ollama</text>
+<rect x="164.0" y="345" width="61.429" height="13.0" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="194.7145" y="354.09" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">lexicographic</text>
+<rect x="230.429" y="345" width="34.0" height="13.0" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="247.429" y="354.09" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">strict</text>
+<rect x="269.429" y="345" width="34.0" height="13.0" rx="2.2" fill="#FFFFFF" stroke="#C2CAD4" stroke-width="1"/>
+<text x="286.429" y="354.09" font-size="7.4" fill="#1F2933" text-anchor="middle" font-weight="500">model</text>
+<line x1="130" y1="211" x2="146.9" y2="211" stroke="#4C5BA8" stroke-width="0.85"/>
+<circle cx="148.9" cy="211" r="3.1" fill="#FFFFFF" stroke="#4C5BA8" stroke-width="0.95"/>
+<text x="155.4" y="213.7" font-size="7.4" fill="#1A2A6C" text-anchor="start" font-family="monospace"></text>
+<line x1="130" y1="257" x2="146.9" y2="257" stroke="#4C5BA8" stroke-width="0.85"/>
+<circle cx="148.9" cy="257" r="3.1" fill="#FFFFFF" stroke="#4C5BA8" stroke-width="0.95"/>
+<text x="155.4" y="259.7" font-size="7.4" fill="#1A2A6C" text-anchor="start" font-family="monospace"></text>
+<line x1="130" y1="349" x2="146.9" y2="349" stroke="#4C5BA8" stroke-width="0.85"/>
+<circle cx="148.9" cy="349" r="3.1" fill="#FFFFFF" stroke="#4C5BA8" stroke-width="0.95"/>
+<text x="155.4" y="351.7" font-size="7.4" fill="#1A2A6C" text-anchor="start" font-family="monospace"></text>
+<text x="17.0" y="396" font-size="7.4" fill="#5A6875" font-style="italic" text-anchor="start">Reporter, metrics export and the provenance manifest are written by every stage.</text>
+</svg>
