@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """The QALLM architecture diagrams, laid out explicitly."""
-import sys, pathlib
+import sys
+import pathlib
 from gen import *
 
 OUT = pathlib.Path('out'); OUT.mkdir(exist_ok=True)
