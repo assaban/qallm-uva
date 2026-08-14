@@ -1,0 +1,54 @@
+[
+  {
+    "strategy": "feedback",
+    "model": "fedllm:gpt-oss-120b",
+    "n_problems": 4,
+    "n_bug_detected": 0,
+    "n_repair_successful": 0,
+    "n_errored": 0,
+    "mean_rounds": 2.0,
+    "mean_cost_usd": 0.0,
+    "mean_elapsed_seconds": 25.15045338869095,
+    "bug_detection_rate": 0.0,
+    "repair_success_rate": 0.0
+  },
+  {
+    "strategy": "feedback",
+    "model": "openai:gpt-5-mini",
+    "n_problems": 4,
+    "n_bug_detected": 1,
+    "n_repair_successful": 1,
+    "n_errored": 0,
+    "mean_rounds": 2.0,
+    "mean_cost_usd": 0.06445000000000001,
+    "mean_elapsed_seconds": 73.41514265537262,
+    "bug_detection_rate": 0.25,
+    "repair_success_rate": 0.25
+  },
+  {
+    "strategy": "feedback",
+    "model": "openai:gpt-5.4-mini",
+    "n_problems": 4,
+    "n_bug_detected": 1,
+    "n_repair_successful": 1,
+    "n_errored": 0,
+    "mean_rounds": 2.0,
+    "mean_cost_usd": 0.0063091875,
+    "mean_elapsed_seconds": 16.84267270565033,
+    "bug_detection_rate": 0.25,
+    "repair_success_rate": 0.25
+  },
+  {
+    "strategy": "feedback",
+    "model": "openai:gpt-5.6-luna",
+    "n_problems": 4,
+    "n_bug_detected": 2,
+    "n_repair_successful": 3,
+    "n_errored": 0,
+    "mean_rounds": 2.0,
+    "mean_cost_usd": 0.0,
+    "mean_elapsed_seconds": 46.60743474960327,
+    "bug_detection_rate": 0.5,
+    "repair_success_rate": 0.75
+  }
+]

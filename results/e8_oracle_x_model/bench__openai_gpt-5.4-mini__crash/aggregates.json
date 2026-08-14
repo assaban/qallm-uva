@@ -1,0 +1,15 @@
+[
+  {
+    "strategy": "feedback",
+    "model": "openai:gpt-5.4-mini",
+    "n_problems": 164,
+    "n_bug_detected": 9,
+    "n_repair_successful": 28,
+    "n_errored": 0,
+    "mean_rounds": 5.0,
+    "mean_cost_usd": 0.013642056402439024,
+    "mean_elapsed_seconds": 77.90542500629658,
+    "bug_detection_rate": 0.054878048780487805,
+    "repair_success_rate": 0.17073170731707318
+  }
+]

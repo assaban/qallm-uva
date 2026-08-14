@@ -1,0 +1,73 @@
+[09:16:35] repo dev @ 6e43537ec9e5
+[09:16:35] preflight ok
+[09:16:35] STAGE 0 smoke: 4 problems per arm, to validate and to price
+[09:16:35]   smoke__crash  (all four models in one invocation)
+[09:23:31]   smoke__correctness  (all four models in one invocation)
+[09:29:13] 
+[09:29:13] Projected cost of stage 2, from the cost_usd actually recorded above:
+[09:29:13] 
+[09:29:13] Decide on that number before stage 2. Neither runner enforces a cap, so the
+[09:29:13] only cap is you watching it or a limit set at the provider.
+[09:29:13] 
+[09:29:13] Arms in /home/mohssin/qallm-uva/runs/e8_oracle_x_model:
+  smoke__correctness                             [incomplete]
+  smoke__crash                                   [incomplete]
+[09:29:13] 
+[09:29:13] Next: python3 analyse-e8.py --root /home/mohssin/qallm-uva/runs/e8_oracle_x_model --prefix bench --latex
+[09:29:13] driver finished
+[09:29:13] repo dev @ 6e43537ec9e5
+[09:29:13] preflight ok
+[09:29:13] STAGE 1 corpus: 4 models x crash oracle, 40 notebooks
+[09:29:13]   corpus__fedllm_gpt-oss-120b__crash
+[10:17:22]   corpus__fedllm_gpt-oss-120b__crash complete
+[10:17:22]   corpus__openai_gpt-5-mini__crash
+[11:22:10]   corpus__openai_gpt-5-mini__crash complete
+[11:22:10]   corpus__openai_gpt-5.4-mini__crash
+[11:54:07]   corpus__openai_gpt-5.4-mini__crash complete
+[11:54:07]   corpus__openai_gpt-5.6-luna__crash
+[12:42:29]   corpus__openai_gpt-5.6-luna__crash complete
+[12:42:29] STAGE 1 complete
+[12:42:29] 
+[12:42:29] Arms in /home/mohssin/qallm-uva/runs/e8_oracle_x_model:
+  corpus__fedllm_gpt-oss-120b__crash             [done]
+  corpus__openai_gpt-5-mini__crash               [done]
+  corpus__openai_gpt-5.4-mini__crash             [done]
+  corpus__openai_gpt-5.6-luna__crash             [done]
+  smoke__correctness                             [incomplete]
+  smoke__crash                                   [incomplete]
+[12:42:29] 
+[12:42:29] Next: python3 analyse-e8.py --root /home/mohssin/qallm-uva/runs/e8_oracle_x_model --prefix bench --latex
+[12:42:29] driver finished
+[12:42:29] repo dev @ 6e43537ec9e5
+[12:42:29] preflight ok
+[12:42:29] STAGE 2 benchmark: 3 paid models x 2 oracles, 164 HumanEvalFix problems
+[12:42:29]   bench__openai_gpt-5-mini__crash starting
+[14:22:17]   bench__openai_gpt-5-mini__crash complete, cost so far $0.00
+[14:22:17]   bench__openai_gpt-5-mini__correctness starting
+[16:03:31]   bench__openai_gpt-5-mini__correctness complete, cost so far $0.00
+[16:03:32]   bench__openai_gpt-5.4-mini__crash starting
+[16:35:31]   bench__openai_gpt-5.4-mini__crash complete, cost so far $0.00
+[16:35:31]   bench__openai_gpt-5.4-mini__correctness starting
+[17:04:56]   bench__openai_gpt-5.4-mini__correctness complete, cost so far $0.00
+[17:04:56]   bench__openai_gpt-5.6-luna__crash starting
+[17:12:55]   bench__openai_gpt-5.6-luna__crash complete, cost so far $0.00
+[17:12:55]   bench__openai_gpt-5.6-luna__correctness starting
+[17:20:46]   bench__openai_gpt-5.6-luna__correctness complete, cost so far $0.00
+[17:24:13] STAGE 2 complete. Total paid cost $0.00
+[17:24:13] 
+[17:24:13] Arms in /home/mohssin/qallm-uva/runs/e8_oracle_x_model:
+  bench__openai_gpt-5-mini__correctness          [done]
+  bench__openai_gpt-5-mini__crash                [done]
+  bench__openai_gpt-5.4-mini__correctness        [done]
+  bench__openai_gpt-5.4-mini__crash              [done]
+  bench__openai_gpt-5.6-luna__correctness        [done]
+  bench__openai_gpt-5.6-luna__crash              [done]
+  corpus__fedllm_gpt-oss-120b__crash             [done]
+  corpus__openai_gpt-5-mini__crash               [done]
+  corpus__openai_gpt-5.4-mini__crash             [done]
+  corpus__openai_gpt-5.6-luna__crash             [done]
+  smoke__correctness                             [incomplete]
+  smoke__crash                                   [incomplete]
+[17:24:13] 
+[17:24:13] Next: python3 analyse-e8.py --root /home/mohssin/qallm-uva/runs/e8_oracle_x_model --prefix bench --latex
+[17:24:13] driver finished
